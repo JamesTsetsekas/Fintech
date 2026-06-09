@@ -21,7 +21,7 @@ import time
 
 # Add parent directory to path to import stock_utils
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from stock_utils import get_stocks_from_source, get_assets_from_file
+from stock_utils import apply_dark_chart_style, get_assets_from_file, get_stocks_from_source
 
 # Suppress yfinance warnings
 logging.getLogger('yfinance').setLevel(logging.CRITICAL)
@@ -232,7 +232,7 @@ bars = ax2.barh(returns_df['Ticker'], returns_df['Return'],
                 color=plt.cm.RdYlGn(np.linspace(0.2, 0.8, len(returns_df))))
 ax2.set_title('Total Return %', fontsize=12, fontweight='bold')
 ax2.set_xlabel('Return (%)', fontsize=10)
-ax2.axvline(x=0, color='black', linestyle='-', linewidth=0.8)
+ax2.axvline(x=0, color='#cbd5e1', linestyle='-', linewidth=0.8)
 ax2.grid(True, alpha=0.3, axis='x')
 return_min = returns_df['Return'].min()
 return_max = returns_df['Return'].max()
@@ -249,7 +249,9 @@ for i, (ticker, return_val) in enumerate(zip(returns_df['Ticker'], returns_df['R
              va='center', ha='left' if return_val >= 0 else 'right',
              fontsize=8 if len(returns_df) <= 15 else 6)
 
+apply_dark_chart_style(fig)
 plt.tight_layout()
-plt.savefig('stock_performance_comparison.png', dpi=300, bbox_inches='tight')
+plt.savefig('stock_performance_comparison.png', dpi=300, bbox_inches='tight',
+            facecolor=fig.get_facecolor(), edgecolor='none')
 print("\n[OK] Chart saved as 'stock_performance_comparison.png'")
 plt.close()

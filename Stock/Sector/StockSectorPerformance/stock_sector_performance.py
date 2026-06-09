@@ -21,7 +21,7 @@ import sys
 
 # Add parent directory to path to import stock_utils
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-from stock_utils import get_sector_tickers_from_sp500
+from stock_utils import apply_dark_chart_style, get_sector_tickers_from_sp500
 
 # Suppress yfinance warnings
 logging.getLogger('yfinance').setLevel(logging.CRITICAL)
@@ -276,7 +276,7 @@ bars = ax2.barh(sectors_sorted, returns_sorted,
                 color=plt.cm.RdYlGn(np.linspace(0.2, 0.8, len(returns_sorted))))
 ax2.set_title('Total Return %', fontsize=12, fontweight='bold')
 ax2.set_xlabel('Return (%)', fontsize=10)
-ax2.axvline(x=0, color='black', linestyle='-', linewidth=0.8)
+ax2.axvline(x=0, color='#cbd5e1', linestyle='-', linewidth=0.8)
 ax2.grid(True, alpha=0.3, axis='x')
 return_min = min(returns_sorted)
 return_max = max(returns_sorted)
@@ -310,7 +310,7 @@ for sector in normalized_data.columns:
     sectors_for_scatter.append(sector)
 
 scatter = ax3.scatter(volatility_data, return_data, s=100, alpha=0.6, c=range(len(sectors_for_scatter)), 
-                      cmap='tab20', edgecolors='black', linewidths=1)
+                      cmap='tab20', edgecolors='#0b0d10', linewidths=1)
 
 label_offsets = [
     (8, 8), (-16, 8), (8, -16), (-16, -16),
@@ -353,7 +353,9 @@ ax4.set_xticklabels([heatmap_data.columns[i] for i in range(0, len(heatmap_data.
 cbar = plt.colorbar(im, ax=ax4)
 cbar.set_label('Return (%)', fontsize=9)
 
+apply_dark_chart_style(fig)
 plt.tight_layout()
-plt.savefig('stock_sector_performance.png', dpi=300, bbox_inches='tight')
+plt.savefig('stock_sector_performance.png', dpi=300, bbox_inches='tight',
+            facecolor=fig.get_facecolor(), edgecolor='none')
 print("\n[OK] Chart saved as 'stock_sector_performance.png'")
 plt.close()

@@ -14,7 +14,6 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
-import matplotlib.patches as mpatches
 from matplotlib.patches import Rectangle
 import pandas as pd
 import yfinance as yf
@@ -29,7 +28,13 @@ import sys
 
 # Add parent directory to path to import stock_utils
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-from stock_utils import get_sector_tickers_from_sp500
+from stock_utils import (
+    STOCK_CHART_BG,
+    STOCK_CHART_MUTED,
+    STOCK_CHART_SPINE,
+    STOCK_CHART_TEXT,
+    get_sector_tickers_from_sp500,
+)
 
 # Suppress yfinance warnings
 logging.getLogger('yfinance').setLevel(logging.CRITICAL)
@@ -116,6 +121,17 @@ SECTOR_COLORS = {
     'Real Estate': '#EC7063',             # Coral
     'Materials': '#A569BD',               # Medium Purple
 }
+
+CELL_SECTOR_LABELS = {
+    'Communication Services': 'Comm.\nServices',
+    'Consumer Discretionary': 'Consumer\nDisc.',
+    'Consumer Staples': 'Consumer\nStaples',
+    'Real Estate': 'Real\nEstate',
+}
+
+def format_cell_sector(sector: str) -> str:
+    """Shorten long sector names inside square BEST/WORST cells."""
+    return CELL_SECTOR_LABELS.get(sector, sector)
 
 def get_sector_data(sector: str, start_date: str, end_date: str, sector_tickers_map: Dict[str, List[str]] = None) -> pd.Series:
     """Get historical price data for a sector (ETF, representative stocks, or live S&P 500 data)."""
@@ -343,7 +359,7 @@ def get_cell_color(sector: str, value: float) -> str:
     base_color = SECTOR_COLORS.get(sector, '#CCCCCC')
     
     if pd.isna(value):
-        return '#F5F5F5'  # Very light gray for missing data
+        return '#1f2937'  # Muted cell for missing data
     
     # Make color intensity based on absolute return
     # Higher returns = more intense color
@@ -404,7 +420,7 @@ for year in years:
             text_color = 'white' if brightness < 0.5 else 'black'
             
             ax.text(x_pos + cell_size / 2, best_y,
-                   f'{sector}\n{value:.2f}%', ha='center', va='center',
+                   f'{format_cell_sector(sector)}\n{value:.2f}%', ha='center', va='center',
                    fontsize=7, fontweight='bold', color=text_color)
     x_pos += cell_size + cell_padding
 
@@ -451,7 +467,7 @@ for idx, sector in enumerate(returns_df.index):
     
     # Annualized return - square cell
     ann_ret = annualized_returns.get(sector, np.nan)
-    color = '#F5F5F5' if pd.isna(ann_ret) else get_cell_color(sector, ann_ret)
+    color = '#1f2937' if pd.isna(ann_ret) else get_cell_color(sector, ann_ret)
     ann_rect = Rectangle((x_pos, y_pos - cell_size/2), ann_return_col_width, cell_size,
                     facecolor=color, edgecolor='black', linewidth=0.5, alpha=0.95)
     ax.add_patch(ann_rect)
@@ -492,7 +508,7 @@ for year in years:
             text_color = 'white' if brightness < 0.5 else 'black'
             
             ax.text(x_pos + cell_size / 2, worst_y,
-                   f'{sector}\n{value:.2f}%', ha='center', va='center',
+                   f'{format_cell_sector(sector)}\n{value:.2f}%', ha='center', va='center',
                    fontsize=7, fontweight='bold', color=text_color)
     x_pos += cell_size + cell_padding
 
@@ -514,70 +530,84 @@ if not pd.isna(worst_ann_ret[1]):
 
 # Set axis limits
 total_width = label_col_width + (n_years * (cell_size + cell_padding)) + ann_return_col_width + 1
-total_height = (n_total_rows * (cell_size + cell_padding)) + 2
 ax.set_xlim(0, total_width)
 ax.set_ylim(worst_y - (cell_size + cell_padding) - 1, header_y + cell_size/2 + 1)
 
 # Add title with better styling
 fig.suptitle(f'Sector Performance Jellybean Chart\n{start_year}-{end_year} Annual Returns',
-             fontsize=18, fontweight='bold', y=0.995, color='#2C3E50')
+             fontsize=18, fontweight='bold', y=0.995, color=STOCK_CHART_TEXT)
 
-# Add legend for sector colors with better styling
-legend_y_start = worst_y - (cell_size + cell_padding) - 1.5
-legend_items = []
+# Add compact footer blocks for the sector legend and standard deviation table.
+footer_header_y = worst_y - (cell_size + cell_padding) - 1.2
+footer_row_gap = 0.52
+footer_header_height = 0.55
+footer_text_top = footer_header_y - 0.58
 
-for i, (sector, color) in enumerate(SECTOR_COLORS.items()):
-    if sector in returns_df.index:
-        patch = mpatches.Patch(color=color, label=sector, edgecolor='white', linewidth=1)
-        legend_items.append(patch)
+sectors_present = [sector for sector in SECTOR_COLORS if sector in returns_df.index]
+legend_x = x_start
+legend_width = 6.3
+legend_col_width = 3.05
+legend_rows = (len(sectors_present) + 1) // 2
 
-legend = ax.legend(handles=legend_items, loc='upper left', 
-                   bbox_to_anchor=(0, legend_y_start / total_height),
-                   ncol=2, fontsize=9, framealpha=0.95, 
-                   title='MARKET SEGMENT', title_fontsize=10,
-                   edgecolor='#2C3E50', facecolor='white')
-legend.get_title().set_color('#2C3E50')
-legend.get_title().set_fontweight('bold')
+legend_header = Rectangle((legend_x, footer_header_y), legend_width, footer_header_height,
+                          facecolor='#34495E', edgecolor=STOCK_CHART_SPINE,
+                          linewidth=1, alpha=0.95)
+ax.add_patch(legend_header)
+ax.text(legend_x + legend_width / 2, footer_header_y + footer_header_height / 2,
+        'MARKET SEGMENT', ha='center', va='center', fontsize=10,
+        fontweight='bold', color=STOCK_CHART_TEXT)
 
-# Add Standard Deviation table with better styling
-std_table_y = worst_y - (cell_size + cell_padding) - 3.5
-std_table_x = x_start + label_col_width + (n_years * (cell_size + cell_padding) / 2) - 1
+for i, sector in enumerate(sectors_present):
+    col = i // legend_rows
+    row = i % legend_rows
+    item_x = legend_x + 0.35 + col * legend_col_width
+    item_y = footer_text_top - row * footer_row_gap
+    square = Rectangle((item_x, item_y - 0.1), 0.18, 0.18,
+                       facecolor=SECTOR_COLORS[sector], edgecolor='white',
+                       linewidth=0.4)
+    ax.add_patch(square)
+    ax.text(item_x + 0.32, item_y, sector, ha='left', va='center',
+            fontsize=8, color=STOCK_CHART_TEXT, fontweight='bold')
 
-# Table header background
-std_header_bg = Rectangle((std_table_x - 2, std_table_y + 0.3), 4, 0.6,
-                         facecolor='#34495E', edgecolor='white', linewidth=1, alpha=0.9)
-ax.add_patch(std_header_bg)
+std_table_x = legend_x + legend_width + 0.8
+std_width = 5.0
+std_header = Rectangle((std_table_x, footer_header_y), std_width, footer_header_height,
+                       facecolor='#34495E', edgecolor=STOCK_CHART_SPINE,
+                       linewidth=1, alpha=0.95)
+ax.add_patch(std_header)
+ax.text(std_table_x + std_width / 2, footer_header_y + footer_header_height / 2,
+        'STANDARD DEVIATION', ha='center', va='center', fontsize=10,
+        fontweight='bold', color=STOCK_CHART_TEXT)
 
-ax.text(std_table_x, std_table_y + 0.6, 'STANDARD DEVIATION',
-        ha='center', va='center', fontsize=11, fontweight='bold', color='white')
-
-y_offset = 0.7
-for sector in sorted(std_deviations.keys(), key=lambda x: std_deviations.get(x, 0)):
+std_rows = 0
+for std_rows, sector in enumerate(sorted(std_deviations.keys(), key=lambda x: std_deviations.get(x, 0)), start=1):
     std_dev = std_deviations.get(sector, np.nan)
-    if not pd.isna(std_dev):
-        color = SECTOR_COLORS.get(sector, '#CCCCCC')
-        # Add a small colored square before sector name
-        square_size = 0.15
-        square = Rectangle((std_table_x - 1.8, std_table_y - y_offset - square_size/2), 
-                          square_size, square_size,
-                          facecolor=color, edgecolor='white', linewidth=0.5)
-        ax.add_patch(square)
-        
-        ax.text(std_table_x - 1.5, std_table_y - y_offset, sector,
-                ha='left', va='center', fontsize=9, color='#2C3E50', fontweight='bold')
-        ax.text(std_table_x + 1.5, std_table_y - y_offset, f'{std_dev:.2f}',
-                ha='right', va='center', fontsize=9, color='#2C3E50', fontweight='bold')
-        y_offset += 0.65
+    if pd.isna(std_dev):
+        continue
+    item_y = footer_text_top - (std_rows - 1) * footer_row_gap
+    color = SECTOR_COLORS.get(sector, '#CCCCCC')
+    square = Rectangle((std_table_x + 0.35, item_y - 0.1), 0.18, 0.18,
+                       facecolor=color, edgecolor='white', linewidth=0.4)
+    ax.add_patch(square)
+    ax.text(std_table_x + 0.65, item_y, sector, ha='left', va='center',
+            fontsize=8, color=STOCK_CHART_TEXT, fontweight='bold')
+    ax.text(std_table_x + std_width - 0.35, item_y, f'{std_dev:.2f}',
+            ha='right', va='center', fontsize=8, color=STOCK_CHART_MUTED,
+            fontweight='bold')
 
-# Adjust ylim to accommodate legend and std table
-ax.set_ylim(std_table_y - y_offset - 0.5, header_y + cell_size/2 + 1)
+footer_bottom = min(
+    footer_text_top - max(legend_rows - 1, 0) * footer_row_gap,
+    footer_text_top - max(std_rows - 1, 0) * footer_row_gap,
+) - 0.7
+ax.set_ylim(footer_bottom, header_y + cell_size/2 + 0.9)
 
 # Set background color
-fig.patch.set_facecolor('white')
-ax.set_facecolor('white')
+fig.patch.set_facecolor(STOCK_CHART_BG)
+ax.set_facecolor(STOCK_CHART_BG)
 
 plt.tight_layout(rect=[0, 0, 1, 0.97])
-plt.savefig('jellybean_chart.png', dpi=300, bbox_inches='tight', facecolor='white')
+plt.savefig('jellybean_chart.png', dpi=300, bbox_inches='tight',
+            facecolor=fig.get_facecolor(), edgecolor='none')
 print("\n[OK] Chart saved as 'jellybean_chart.png'")
 plt.close()
 
@@ -596,4 +626,3 @@ sorted_std = sorted(std_deviations.items(), key=lambda x: x[1] if not pd.isna(x[
 for sector, std_dev in sorted_std:
     if not pd.isna(std_dev):
         print(f"  {sector:30s}: {std_dev:7.2f}%")
-

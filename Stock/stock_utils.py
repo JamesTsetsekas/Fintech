@@ -18,10 +18,95 @@ logging.getLogger('yfinance').setLevel(logging.CRITICAL)
 # Flag to control verbose output
 VERBOSE = True
 
+STOCK_CHART_BG = '#080b10'
+STOCK_CHART_PANEL = '#10151d'
+STOCK_CHART_GRID = '#2f3a46'
+STOCK_CHART_TEXT = '#eef3f8'
+STOCK_CHART_MUTED = '#aeb7c2'
+STOCK_CHART_SPINE = '#3d4652'
+
 def log_info(message):
     """Print info messages if verbose mode is enabled"""
     if VERBOSE:
         print(f"[INFO] {message}")
+
+def _axes_list(axes):
+    if axes is None:
+        return None
+    if isinstance(axes, (list, tuple)):
+        return list(axes)
+    try:
+        return list(axes.ravel())
+    except AttributeError:
+        return [axes]
+
+def apply_dark_chart_style(fig, axes=None):
+    """Apply the dashboard dark theme to stock Matplotlib exports."""
+    from matplotlib.colors import to_rgba
+
+    def is_near_black(color):
+        try:
+            r, g, b, alpha = to_rgba(color)
+            return alpha > 0 and (r + g + b) < 0.35
+        except (TypeError, ValueError):
+            return False
+
+    def restyle_text(text):
+        if is_near_black(text.get_color()):
+            text.set_color(STOCK_CHART_TEXT)
+
+    def restyle_legend(legend):
+        if legend is None:
+            return
+        frame = legend.get_frame()
+        frame.set_facecolor(STOCK_CHART_PANEL)
+        frame.set_edgecolor(STOCK_CHART_SPINE)
+        frame.set_alpha(0.94)
+        for text in legend.get_texts():
+            text.set_color(STOCK_CHART_TEXT)
+        title = legend.get_title()
+        if title:
+            title.set_color(STOCK_CHART_TEXT)
+
+    fig.patch.set_facecolor(STOCK_CHART_BG)
+    target_axes = _axes_list(axes) or list(fig.get_axes())
+
+    for ax in target_axes:
+        ax.set_facecolor(STOCK_CHART_PANEL)
+        ax.title.set_color(STOCK_CHART_TEXT)
+        ax.xaxis.label.set_color(STOCK_CHART_TEXT)
+        ax.yaxis.label.set_color(STOCK_CHART_TEXT)
+        ax.xaxis.get_offset_text().set_color(STOCK_CHART_MUTED)
+        ax.yaxis.get_offset_text().set_color(STOCK_CHART_MUTED)
+        ax.tick_params(colors=STOCK_CHART_MUTED)
+
+        for label in ax.get_xticklabels() + ax.get_yticklabels():
+            label.set_color(STOCK_CHART_MUTED)
+
+        for spine in ax.spines.values():
+            spine.set_color(STOCK_CHART_SPINE)
+
+        for gridline in ax.get_xgridlines() + ax.get_ygridlines():
+            gridline.set_color(STOCK_CHART_GRID)
+            gridline.set_alpha(0.45)
+            gridline.set_linewidth(0.7)
+
+        for line in ax.lines:
+            if is_near_black(line.get_color()):
+                line.set_color(STOCK_CHART_TEXT)
+
+        for text in ax.texts:
+            restyle_text(text)
+
+        restyle_legend(ax.get_legend())
+
+    for legend in fig.legends:
+        restyle_legend(legend)
+
+    for text in fig.texts:
+        restyle_text(text)
+
+    return fig
 
 def get_sp500_tickers():
     """Get S&P 500 tickers from Wikipedia with improved error handling"""
@@ -442,4 +527,3 @@ def get_stocks_from_source(source, top_n=None, sector=None, period='1y', metric=
             tickers = tickers[:top_n]
     
     return tickers
-

@@ -21,7 +21,7 @@ import time
 
 # Add parent directory to path to import stock_utils
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from stock_utils import get_stocks_from_source, get_assets_from_file
+from stock_utils import apply_dark_chart_style, get_assets_from_file, get_stocks_from_source
 
 # Suppress yfinance warnings
 logging.getLogger('yfinance').setLevel(logging.CRITICAL)
@@ -320,7 +320,7 @@ if benchmark_returns is not None:
     if beta_data:
         colors = ['red' if b < 0.8 else 'orange' if b < 1.2 else 'green' for b in beta_data]
         bars = ax3.barh(beta_tickers, beta_data, color=colors)
-        ax3.axvline(x=1.0, color='black', linestyle='--', linewidth=1, label='Market (Beta=1)')
+        ax3.axvline(x=1.0, color='#cbd5e1', linestyle='--', linewidth=1, label='Market (Beta=1)')
         ax3.set_title(f'Beta vs {benchmark_ticker}', fontsize=12, fontweight='bold')
         ax3.set_xlabel('Beta', fontsize=10)
         ax3.legend(fontsize=9)
@@ -352,7 +352,19 @@ for ticker in assets_to_plot:
 
 if vol_data_all:
     box_labels = [t for t in assets_to_plot if t in returns.columns]
-    ax4.boxplot(vol_data_all, tick_labels=box_labels, vert=True)
+    box = ax4.boxplot(vol_data_all, tick_labels=box_labels, vert=True,
+                      patch_artist=True)
+    box_colors = plt.cm.viridis(np.linspace(0.25, 0.85, len(box['boxes'])))
+    for patch, color in zip(box['boxes'], box_colors):
+        patch.set_facecolor(color)
+        patch.set_alpha(0.65)
+        patch.set_edgecolor('#cbd5e1')
+    for element in ['whiskers', 'caps', 'medians']:
+        for item in box[element]:
+            item.set_color('#cbd5e1')
+    for flier in box['fliers']:
+        flier.set_markeredgecolor('#cbd5e1')
+        flier.set_markerfacecolor('#60a5fa')
     ax4.set_title(f'Volatility Distribution ({WINDOW}-Day Rolling)', 
                   fontsize=12, fontweight='bold')
     ax4.set_ylabel('Volatility (%)', fontsize=10)
@@ -363,6 +375,8 @@ if vol_data_all:
     ax4.grid(True, alpha=0.3, axis='y')
 
 plt.suptitle('Stock Volatility Analysis', fontsize=16, fontweight='bold', y=0.985)
-plt.savefig('stock_volatility_analysis.png', dpi=300, bbox_inches='tight')
+apply_dark_chart_style(fig)
+plt.savefig('stock_volatility_analysis.png', dpi=300, bbox_inches='tight',
+            facecolor=fig.get_facecolor(), edgecolor='none')
 print("\n[OK] Chart saved as 'stock_volatility_analysis.png'")
 plt.close()

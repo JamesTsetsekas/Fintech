@@ -12,7 +12,7 @@ import yfinance as yf
 import seaborn as sns
 import matplotlib.pyplot as plt
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 import os
 import sys
@@ -20,7 +20,7 @@ import argparse
 
 # Add parent directory to path to import stock_utils
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from stock_utils import get_stocks_from_source, get_assets_from_file
+from stock_utils import apply_dark_chart_style, get_assets_from_file, get_stocks_from_source
 
 # Suppress yfinance warnings
 logging.getLogger('yfinance').setLevel(logging.CRITICAL)
@@ -152,6 +152,18 @@ print(f"Assets: {', '.join(assets[:20])}{'...' if len(assets) > 20 else ''}\n")
 print("Downloading stock data...")
 print("This may take a moment due to API rate limits...\n")
 
+if PERIOD.endswith('y'):
+    years = int(PERIOD[:-1])
+    start_date = (datetime.now() - timedelta(days=years*365)).strftime('%Y-%m-%d')
+elif PERIOD.endswith('m'):
+    months = int(PERIOD[:-1])
+    start_date = (datetime.now() - timedelta(days=months*30)).strftime('%Y-%m-%d')
+else:
+    start_date = PERIOD
+
+end_date = datetime.now().strftime('%Y-%m-%d')
+print(f"Date range: {start_date} to {end_date}\n")
+
 # Download individually with better error handling
 # yfinance 1.0 uses curl_cffi internally, so we don't need to pass a session
 data_dict = {}
@@ -159,7 +171,7 @@ for ticker in assets:
     try:
         print(f"Downloading {ticker}...", end=" ", flush=True)
         ticker_obj = yf.Ticker(ticker)
-        hist = ticker_obj.history(start="2018-01-01", end="2024-08-08")
+        hist = ticker_obj.history(start=start_date, end=end_date)
         
         if not hist.empty and len(hist) > 0:
             # Prefer Adj Close, fallback to Close
@@ -229,10 +241,13 @@ try:
         ax=None
     )
     plt.title("Stock Correlation Clusters (Hierarchical Dendrogram)", fontsize=14, fontweight='bold')
+    fig = plt.gcf()
+    apply_dark_chart_style(fig)
     
     # Save without tight_layout to avoid colorbar compatibility issues
     # bbox_inches='tight' will handle the layout automatically
-    plt.savefig('correlation_clusters.png', dpi=300, bbox_inches='tight', pad_inches=0.2)
+    plt.savefig('correlation_clusters.png', dpi=300, bbox_inches='tight', pad_inches=0.2,
+                facecolor=fig.get_facecolor(), edgecolor='none')
     print("\nCorrelation cluster plot saved as 'correlation_clusters.png'")
     plt.close()  # Close instead of show() for automation
     # plt.show()  # Commented out for automation
@@ -240,5 +255,4 @@ except Exception as e:
     print(f"\nError creating cluster plot: {e}")
     print("This might be due to insufficient data or correlation calculation issues.")
     raise
-
 

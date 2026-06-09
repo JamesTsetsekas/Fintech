@@ -21,7 +21,7 @@ import time
 
 # Add parent directory to path to import stock_utils
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from stock_utils import get_stocks_from_source, get_assets_from_file
+from stock_utils import apply_dark_chart_style, get_assets_from_file, get_stocks_from_source
 
 # Suppress yfinance warnings
 logging.getLogger('yfinance').setLevel(logging.CRITICAL)
@@ -223,8 +223,8 @@ for ticker, prices in data_dict.items():
     
     # Plot 1: Price with Bollinger Bands
     ax1 = axes[0]
-    ax1.plot(prices.index, prices.values, label='Price', linewidth=2, color='black')
-    ax1.plot(sma.index, sma.values, label='SMA (20)', linewidth=1.5, color='blue', linestyle='--')
+    ax1.plot(prices.index, prices.values, label='Price', linewidth=2, color='#eef3f8')
+    ax1.plot(sma.index, sma.values, label='SMA (20)', linewidth=1.5, color='#60a5fa', linestyle='--')
     ax1.fill_between(upper_bb.index, upper_bb.values, lower_bb.values, 
                      alpha=0.2, color='gray', label='Bollinger Bands')
     ax1.plot(upper_bb.index, upper_bb.values, linewidth=1, color='gray', linestyle=':')
@@ -248,10 +248,10 @@ for ticker, prices in data_dict.items():
     
     # Plot 3: MACD
     ax3 = axes[2]
-    ax3.plot(macd.index, macd.values, label='MACD', linewidth=2, color='blue')
-    ax3.plot(signal.index, signal.values, label='Signal', linewidth=2, color='red')
+    ax3.plot(macd.index, macd.values, label='MACD', linewidth=2, color='#60a5fa')
+    ax3.plot(signal.index, signal.values, label='Signal', linewidth=2, color='#f87171')
     ax3.bar(histogram.index, histogram.values, label='Histogram', alpha=0.3, color='gray')
-    ax3.axhline(y=0, color='black', linestyle='-', linewidth=0.5)
+    ax3.axhline(y=0, color='#cbd5e1', linestyle='-', linewidth=0.5)
     ax3.set_title('MACD (12, 26, 9)', fontsize=12, fontweight='bold')
     ax3.set_ylabel('MACD', fontsize=10)
     ax3.legend(loc='upper left', fontsize=8)
@@ -279,13 +279,14 @@ for ticker, prices in data_dict.items():
                  ha='center', va='center', transform=ax4.transAxes, fontsize=11)
         ax4.set_xlabel('Date', fontsize=11)
     
+    apply_dark_chart_style(fig)
     plt.tight_layout()
     filename = f'{ticker}_technical_indicators.png'
-    plt.savefig(filename, dpi=300, bbox_inches='tight')
+    plt.savefig(filename, dpi=300, bbox_inches='tight',
+                facecolor=fig.get_facecolor(), edgecolor='none')
     print(f"\n[OK] Chart saved as '{filename}'")
     plt.close()
 
 print("\n" + "="*60)
 print("Analysis complete!")
 print("="*60)
-

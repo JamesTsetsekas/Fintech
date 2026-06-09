@@ -22,6 +22,12 @@ from datetime import datetime, timedelta
 import argparse
 import logging
 import time
+import os
+import sys
+
+# Add parent directory to path to import stock_utils
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from stock_utils import apply_dark_chart_style
 
 # Suppress yfinance warnings
 logging.getLogger('yfinance').setLevel(logging.CRITICAL)
@@ -221,12 +227,13 @@ print("="*70)
 
 # Create comprehensive visualization
 fig = plt.figure(figsize=(20, 24))
-gs = gridspec.GridSpec(6, 2, figure=fig, hspace=0.4, wspace=0.3)
+gs = gridspec.GridSpec(6, 2, figure=fig, hspace=0.38, wspace=0.3,
+                       top=0.93, bottom=0.04)
 
 # Plot 1: Price with Technical Indicators
 ax1 = fig.add_subplot(gs[0, :])
-ax1.plot(hist.index, prices.values, label='Price', linewidth=2, color='black')
-ax1.plot(sma_20.index, sma_20.values, label='SMA 20', linewidth=1.5, color='blue', alpha=0.7)
+ax1.plot(hist.index, prices.values, label='Price', linewidth=2, color='#eef3f8')
+ax1.plot(sma_20.index, sma_20.values, label='SMA 20', linewidth=1.5, color='#60a5fa', alpha=0.85)
 ax1.plot(sma_50.index, sma_50.values, label='SMA 50', linewidth=1.5, color='orange', alpha=0.7)
 if len(sma_200.dropna()) > 0:
     ax1.plot(sma_200.index, sma_200.values, label='SMA 200', linewidth=1.5, color='red', alpha=0.7)
@@ -274,10 +281,10 @@ ax3.grid(True, alpha=0.3)
 
 # Plot 4: MACD
 ax4 = fig.add_subplot(gs[2, 1])
-ax4.plot(macd.index, macd.values, label='MACD', linewidth=2, color='blue')
-ax4.plot(signal.index, signal.values, label='Signal', linewidth=2, color='red')
+ax4.plot(macd.index, macd.values, label='MACD', linewidth=2, color='#60a5fa')
+ax4.plot(signal.index, signal.values, label='Signal', linewidth=2, color='#f87171')
 ax4.bar(histogram.index, histogram.values, label='Histogram', alpha=0.3, color='gray')
-ax4.axhline(y=0, color='black', linestyle='-', linewidth=0.5)
+ax4.axhline(y=0, color='#cbd5e1', linestyle='-', linewidth=0.5)
 ax4.set_title('MACD (12, 26, 9)', fontsize=12, fontweight='bold')
 ax4.set_ylabel('MACD', fontsize=10)
 ax4.legend(loc='upper left', fontsize=8)
@@ -285,7 +292,7 @@ ax4.grid(True, alpha=0.3)
 
 # Plot 5: Returns Distribution
 ax5 = fig.add_subplot(gs[3, 0])
-ax5.hist(returns.values * 100, bins=50, alpha=0.7, color='steelblue', edgecolor='black')
+ax5.hist(returns.values * 100, bins=50, alpha=0.7, color='steelblue', edgecolor='#050608')
 ax5.axvline(x=0, color='red', linestyle='--', linewidth=1)
 ax5.set_title('Daily Returns Distribution', fontsize=12, fontweight='bold')
 ax5.set_xlabel('Daily Return (%)', fontsize=10)
@@ -309,7 +316,7 @@ if options_data and 'calls' in options_data and not options_data['calls'].empty:
     if not calls_filtered.empty:
         ax7.bar(calls_filtered['strike'], calls_filtered['volume'], 
                alpha=0.6, color='green', label='Call Volume')
-        ax7.axvline(x=current_price, color='black', linestyle='--', 
+        ax7.axvline(x=current_price, color='#cbd5e1', linestyle='--',
                    linewidth=1.5, label=f'Current Price: ${current_price:.2f}')
         ax7.set_title(f'Call Options Volume (Exp: {options_data["expiration"]})', 
                      fontsize=12, fontweight='bold')
@@ -335,7 +342,7 @@ if options_data and 'puts' in options_data and not options_data['puts'].empty:
     if not puts_filtered.empty:
         ax8.bar(puts_filtered['strike'], puts_filtered['volume'], 
                alpha=0.6, color='red', label='Put Volume')
-        ax8.axvline(x=current_price, color='black', linestyle='--', 
+        ax8.axvline(x=current_price, color='#cbd5e1', linestyle='--',
                    linewidth=1.5, label=f'Current Price: ${current_price:.2f}')
         ax8.set_title(f'Put Options Volume (Exp: {options_data["expiration"]})', 
                      fontsize=12, fontweight='bold')
@@ -412,14 +419,18 @@ if options_data and 'puts' in options_data and not options_data['puts'].empty:
 
 ax9.text(0.05, 0.95, metrics_text, transform=ax9.transAxes, 
          fontsize=10, verticalalignment='top', family='monospace',
-         bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+         color='#eef3f8',
+         bbox=dict(boxstyle='round', facecolor='#111827',
+                   edgecolor='#3d4652', alpha=0.88))
 
 plt.suptitle(f'{TICKER} - Comprehensive Stock Analysis', 
              fontsize=18, fontweight='bold', y=0.995)
 
 # Save figure
 filename = f'{TICKER}_stock_analysis.png'
-plt.savefig(filename, dpi=300, bbox_inches='tight')
+apply_dark_chart_style(fig)
+plt.savefig(filename, dpi=300, bbox_inches='tight',
+            facecolor=fig.get_facecolor(), edgecolor='none')
 print(f"\n[OK] Analysis saved as '{filename}'")
 plt.close()
 
@@ -455,4 +466,3 @@ if options_data and ('calls' in options_data or 'puts' in options_data):
 print("\n" + "="*70)
 print("Analysis complete!")
 print("="*70)
-
