@@ -209,7 +209,7 @@ DESCRIPTIONS = {
     "Yearly Candles": "Yearly OHLC candles on a log price scale.",
     "DCA Cost Basis": "Daily dollar-cost-averaging cost basis across time windows.",
     "Node Count": "Bitcoin node count and software version distribution.",
-    "HODL Waves Price": "Holding-duration supply bands with price overlay.",
+    "HODL Waves Price": "Repo-local proxy for holding-duration supply bands with price overlay.",
     "Price Distribution": "Historical price distribution across price ranges.",
     "Epoch-Over-Epoch (EOE) Growth": "Growth comparison across halving epochs.",
     "Halving Cycles": "Cycle performance normalized from halving starts.",
@@ -1322,7 +1322,7 @@ def build_hodl_waves_price():
     long = long / total * 100
     return base_payload(
         "hodl-waves-price",
-        "HODL Waves Price",
+        "Modeled HODL Waves Price",
         "Repo-local proxy for short-, medium-, and long-term holder supply bands with BTC price overlay.",
         [
             {**trace("Short term proxy", data["Date"], short, "#55d6ff", width=0.8, hovertemplate="%{x}<br>%{y:.1f}%<extra>Short term</extra>"), "stackgroup": "one", "fillcolor": "rgba(85,214,255,0.45)"},

@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """
-HODL Waves Price Chart
+Modeled HODL Waves Price Chart
 
-Creates a visualization showing the distribution of Bitcoin supply by holding duration
-(HODL waves) over time, with the Bitcoin price overlaid.
+Creates a proxy visualization estimating Bitcoin supply by holding duration
+(HODL waves) over time, with the Bitcoin price overlaid. Real HODL waves
+require UTXO age data that is not available in the repo-local CSV files.
 
 The chart shows:
-- Stacked area chart of HODL waves (supply distribution by age bands)
+- Stacked area chart of modeled HODL waves (supply distribution by age bands)
 - Bitcoin price line overlaid on the chart
 - Key metrics including percentage mined, block height, current price, etc.
 - Legend showing different HODL duration bands
@@ -75,7 +76,7 @@ def approximate_hodl_waves(dates, prices, supply_data):
     Approximate HODL waves based on price movements and supply.
     This is a simplified model - real HODL waves require UTXO age data.
     """
-    print("Generating approximate HODL waves data...")
+    print("Generating modeled HODL waves proxy data...")
     
     # HODL wave bands (in days)
     bands = [
@@ -463,8 +464,12 @@ for spine in ax_main.spines.values():
 header_y = 0.88
 
 # Left side - Title
-ax_header.text(0.015, header_y, 'HODL Waves Price',
-              fontsize=30, fontweight='bold', color='#FFA500',
+ax_header.text(0.015, header_y, 'Modeled HODL Waves',
+              fontsize=29, fontweight='bold', color='#FFA500',
+              verticalalignment='top', horizontalalignment='left',
+              transform=ax_header.transAxes)
+ax_header.text(0.018, 0.58, 'Proxy estimate; not UTXO-age data',
+              fontsize=10, color='#BDBDBD',
               verticalalignment='top', horizontalalignment='left',
               transform=ax_header.transAxes)
 
@@ -484,7 +489,7 @@ metric_columns = [
 ]
 
 for idx, (label, value, value_color) in enumerate(metric_columns):
-    x_pos = 0.26 + idx * 0.135
+    x_pos = 0.34 + idx * 0.12
     ax_header.text(x_pos, 0.84, label,
                   fontsize=9, color='#9E9E9E', fontweight='bold',
                   verticalalignment='top', horizontalalignment='left',
@@ -501,7 +506,7 @@ holder_columns = [
 ]
 
 for idx, (label, btc_value, pct_value) in enumerate(holder_columns):
-    x_pos = 0.26 + idx * 0.225
+    x_pos = 0.34 + idx * 0.20
     ax_header.text(x_pos, 0.27, label,
                   fontsize=9, color='#9E9E9E', fontweight='bold',
                   verticalalignment='top', horizontalalignment='left',

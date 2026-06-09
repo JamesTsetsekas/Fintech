@@ -212,8 +212,8 @@ Tracks the highest price Bitcoin reached and never fell below again.
 
 ### On-Chain & Supply
 
-#### HODL Waves
-Stacked area chart showing Bitcoin supply distribution by holding duration (short/medium/long term) with price overlay.
+#### Modeled HODL Waves
+Proxy chart estimating Bitcoin supply distribution by holding duration (short/medium/long term) with price overlay.
 
 ![HODL Waves](https://jamestsetsekas.github.io/Fintech/Bitcoin/hodl_waves_price/hodl_waves_price.png)
 

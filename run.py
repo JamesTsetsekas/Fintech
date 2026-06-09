@@ -38,6 +38,9 @@ script_dir = Path(__file__).parent
 DEFAULT_PUSH_CHUNK_SIZE = 8
 DEFAULT_PUSH_RETRIES = 3
 DEFAULT_PUSH_RETRY_DELAY_SECONDS = 30
+PUBLISH_EXCLUDED_PNG_NAMES = {
+    "visual_qa_contact_sheet.png",
+}
 
 # Define report runners to execute
 REPORT_RUNNERS = [
@@ -814,6 +817,8 @@ def stage_static_site(site_dir):
         copy_path_to_site(script_dir / relative_path, site_dir, relative_path)
 
     for png_path in sorted((script_dir / "Bitcoin").rglob("*.png")):
+        if png_path.name in PUBLISH_EXCLUDED_PNG_NAMES:
+            continue
         copy_path_to_site(png_path, site_dir)
     for png_path in sorted((script_dir / "Stock").rglob("*.png")):
         copy_path_to_site(png_path, site_dir)

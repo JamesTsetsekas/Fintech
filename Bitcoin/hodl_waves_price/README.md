@@ -1,12 +1,12 @@
-# HODL Waves Price Chart
+# Modeled HODL Waves Price Chart
 
-A Python script to visualize HODL Waves for Bitcoin - the distribution of Bitcoin supply by holding duration over time, with the Bitcoin price overlaid.
+A Python script to visualize a proxy for Bitcoin HODL Waves - an estimated distribution of Bitcoin supply by holding duration over time, with the Bitcoin price overlaid.
 
 ## Overview
 
-This script generates a comprehensive HODL Waves chart that shows:
-- Stacked area chart displaying the distribution of Bitcoin supply across different HODL duration bands
-- Bitcoin price line overlaid on the HODL waves
+This script generates a comprehensive modeled HODL Waves chart that shows:
+- Stacked area chart displaying an estimated distribution of Bitcoin supply across different HODL duration bands
+- Bitcoin price line overlaid on the modeled HODL waves
 - Key metrics including percentage mined, block height, current price, network age, etc.
 - Detailed legend showing different HODL duration bands with current percentages
 - Current distribution summary (Short, Medium, Long Term percentages)
@@ -38,7 +38,7 @@ The chart divides Bitcoin supply into the following holding duration bands:
 ## Data Sources
 
 - **Price Data**: Uses `daily_price.csv` from the Bitcoin data folder
-- **HODL Waves**: Currently uses an approximation model based on price volatility and supply distribution
+- **Modeled HODL Waves**: Uses an approximation model based on price volatility, network age, and supply distribution
   - Note: Real HODL wave data requires UTXO age analysis which is not available in the block CSV files
   - The script includes infrastructure to integrate API-based HODL wave data if available
 
@@ -68,7 +68,7 @@ The script will:
 
 The script generates a high-resolution PNG chart (`hodl_waves_price.png`) that includes:
 - Header section with key metrics (percentage mined, block height, date, price, network age, etc.)
-- Main stacked area chart showing HODL waves over time
+- Main stacked area chart showing modeled HODL waves over time
 - Bitcoin price line overlay (black line)
 - Halving event markers (vertical dashed lines)
 - Left sidebar with detailed legend of all HODL duration bands
@@ -80,4 +80,3 @@ The script generates a high-resolution PNG chart (`hodl_waves_price.png`) that i
 - For accurate HODL wave data, integration with APIs that provide UTXO age analysis would be required
 - The chart matches the style and layout of the reference image
 - Historical data is sampled weekly for performance, while recent data (last year) is daily
-
