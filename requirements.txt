@@ -1,0 +1,2 @@
+# Required for automated git operations with token authentication
+python-dotenv==1.0.0

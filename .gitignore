@@ -1,0 +1,38 @@
+# Environment variables
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+temp_combined_requirements.txt
+
+# Logs
+logs/
+*.log
+.report_generation.lock
+Bitcoin/visual_qa_contact_sheet.png
+Bitcoin/data/bitcoin_csv_data/daily_block_metrics_cache.csv
+
+# Generated report outputs
+*.png
+web/data/
+Bitcoin/data/bitcoin_csv_data/*.csv
+
+# Local site publish staging
+.site-publish/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

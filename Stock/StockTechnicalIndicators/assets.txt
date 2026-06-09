@@ -1,0 +1,10 @@
+# Example assets file
+# Lines starting with # are comments and will be ignored
+# One ticker per line
+
+AAPL
+MSFT
+GOOGL
+NVDA
+TSLA
+
