@@ -13,7 +13,7 @@ The cron runner generates the latest reports locally, builds the static dashboar
 ### Price Models & Cycle Indicators
 
 #### Power Law
-Long-term price model plotting Bitcoin on a log-log scale, fitting a power function to reveal structured growth patterns over time.
+Long-term price model plotting Bitcoin on a log-log scale with Bitbo-style Power Law constants and support/resistance bands.
 
 ![Power Law](https://jamestsetsekas.github.io/Fintech/Bitcoin/power-law/power_law.png)
 

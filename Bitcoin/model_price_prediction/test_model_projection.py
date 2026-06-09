@@ -17,6 +17,7 @@ from model_projection import (  # noqa: E402
     fit_log_log_model,
     hpr_price,
     predict_log_log_model,
+    power_law_price,
 )
 
 
@@ -90,6 +91,7 @@ class ModelProjectionTests(unittest.TestCase):
         self.assertIn("Stock-to-Flow", coefficients)
         self.assertGreater(last["Supply_BTC"], history["Supply_BTC"].iloc[-1])
         self.assertTrue(np.isfinite(last["Power_Law"]))
+        self.assertAlmostEqual(last["Power_Law"], power_law_price(last["Days_Since_Genesis"]))
         self.assertTrue(np.isfinite(last["S2F"]))
         self.assertTrue(np.isfinite(last["S2I"]))
 

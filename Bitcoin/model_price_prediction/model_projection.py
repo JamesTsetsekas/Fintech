@@ -3,9 +3,17 @@
 from __future__ import annotations
 
 from pathlib import Path
+import sys
 
 import numpy as np
 import pandas as pd
+
+
+BITCOIN_DIR = Path(__file__).resolve().parents[1]
+if str(BITCOIN_DIR) not in sys.path:
+    sys.path.insert(0, str(BITCOIN_DIR))
+
+from bitcoin_chart_utils import POWER_LAW_CONSTANT_LOG10, POWER_LAW_EXPONENT, power_law_price  # noqa: E402
 
 
 GENESIS_DATE = pd.Timestamp("2009-01-03")
@@ -165,9 +173,8 @@ def apply_price_models(metrics):
     modeled = metrics.copy()
     historical = modeled[modeled["Price"].notna() & (modeled["Price"] > 0)]
 
-    power_slope, power_intercept = fit_log_log_model(
-        historical["Days_Since_Genesis"], historical["Price"]
-    )
+    power_slope = POWER_LAW_EXPONENT
+    power_intercept = POWER_LAW_CONSTANT_LOG10 * np.log(10)
     s2f_slope, s2f_intercept = fit_log_log_model(
         historical["S2F_Ratio"], historical["Price"]
     )
@@ -176,9 +183,7 @@ def apply_price_models(metrics):
     )
 
     modeled["HPR"] = hpr_price(modeled["Days_Since_Genesis"])
-    modeled["Power_Law"] = predict_log_log_model(
-        modeled["Days_Since_Genesis"], power_slope, power_intercept
-    )
+    modeled["Power_Law"] = power_law_price(modeled["Days_Since_Genesis"])
     modeled["S2F"] = predict_log_log_model(modeled["S2F_Ratio"], s2f_slope, s2f_intercept)
     modeled["S2I"] = predict_log_log_model(modeled["S2I_Ratio"], s2i_slope, s2i_intercept)
 

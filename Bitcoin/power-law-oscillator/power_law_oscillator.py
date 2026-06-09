@@ -1,19 +1,19 @@
-import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import matplotlib.ticker as ticker
 import numpy as np
+import sys
 from datetime import datetime
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from bitcoin_chart_utils import bitcoin_data_dir, load_daily_price, power_law_price  # noqa: E402
+
 # Load data
 script_dir = Path(__file__).parent
-dataset_path = script_dir.parent / 'data' / 'bitcoin_csv_data' / 'daily_price.csv'
-data = pd.read_csv(dataset_path)
+data = load_daily_price(bitcoin_data_dir(__file__))
 
-# Convert 'date' to datetime and 'price' to numeric
-data['Date'] = pd.to_datetime(data['date'])
-data['Price'] = pd.to_numeric(data['price'], errors='coerce')
 # Filter out NaN, zero, and negative prices (needed for log calculations)
 data = data.dropna(subset=['Date', 'Price'])
 data = data[data['Price'] > 0].copy()  # Filter out zero/negative prices
@@ -32,27 +32,8 @@ data = data[data['Days_Since_Genesis'] > 0].copy()
 if len(data) < 10:
     raise ValueError(f"Not enough valid data points after filtering. Found {len(data)} points.")
 
-# --- Calculate the Power Law Fit ---
-def power_law(t, a, b):
-    """Power law function: price = a * (t ^ b)"""
-    return a * (t ** b)
-
-# Fit power law to historical data
-days_array = data['Days_Since_Genesis'].values
-price_array = data['Price'].values
-
-# Use log-space for better fitting
-log_days = np.log(days_array)
-log_prices = np.log(price_array)
-
-# Fit linear regression in log space: log(price) = log(a) + b * log(days)
-# This is equivalent to: price = a * (days ^ b)
-coeffs = np.polyfit(log_days, log_prices, 1)
-a = np.exp(coeffs[1])  # intercept -> a
-b = coeffs[0]  # slope -> b
-
 # Calculate power law fit for all data points
-data['Power_Law_Fit'] = power_law(data['Days_Since_Genesis'], a, b)
+data['Power_Law_Fit'] = power_law_price(data['Days_Since_Genesis'])
 
 # Ensure power law fit values are positive (safety check)
 data = data[data['Power_Law_Fit'] > 0].copy()
@@ -175,4 +156,3 @@ print(f"Power Law Oscillator chart saved to: {output_path}")
 plt.close(fig)
 
 # plt.show()  # Commented out for automation
-

@@ -25,7 +25,13 @@ sys.path.insert(0, str(REPO_ROOT))
 sys.path.insert(0, str(REPO_ROOT / "Bitcoin"))
 sys.path.insert(0, str(REPO_ROOT / "Bitcoin" / "model_price_prediction"))
 
-from Bitcoin.bitcoin_chart_utils import load_daily_price, load_intraday_price, load_market_frame  # noqa: E402
+from Bitcoin.bitcoin_chart_utils import (  # noqa: E402
+    load_daily_price,
+    load_intraday_price,
+    load_market_frame,
+    power_law_band_prices,
+    power_law_price,
+)
 from Bitcoin.run_all_reports import REPORTS as BITCOIN_REPORTS  # noqa: E402
 from model_projection import apply_price_models, build_projection_frame, load_daily_fees, load_price_history  # noqa: E402
 from Stock.run_all_reports import REPORTS as STOCK_REPORTS  # noqa: E402
@@ -382,33 +388,19 @@ def pct_label(value: float) -> str:
 
 
 def add_power_law_columns(data):
-    """Add fitted power-law price and oscillator columns."""
+    """Add Bitbo-style power-law price and oscillator columns."""
     modeled = data[data["Price"] > 0].copy()
     modeled["Days_Since_Genesis"] = (modeled["Date"] - pd.Timestamp("2009-01-03")).dt.days
-    fit = modeled[modeled["Days_Since_Genesis"] > 0].copy()
-    slope, intercept = np.polyfit(np.log(fit["Days_Since_Genesis"]), np.log(fit["Price"]), 1)
-    modeled["Power_Law"] = np.exp(intercept) * modeled["Days_Since_Genesis"] ** slope
+    modeled["Power_Law"] = power_law_price(modeled["Days_Since_Genesis"])
     modeled["Power_Law_Oscillator"] = np.log(modeled["Price"] / modeled["Power_Law"]) * 100
-    return modeled
-
-
-def power_law_coefficients(data):
-    modeled = data[data["Price"] > 0].copy()
-    modeled["Days_Since_Genesis"] = (modeled["Date"] - pd.Timestamp("2009-01-03")).dt.days
-    fit = modeled[modeled["Days_Since_Genesis"] > 0].copy()
-    slope, intercept = np.polyfit(np.log(fit["Days_Since_Genesis"]), np.log(fit["Price"]), 1)
-    residual_std = np.std(np.log(fit["Price"]) - (intercept + slope * np.log(fit["Days_Since_Genesis"])))
-    return slope, intercept, residual_std
+    return modeled[modeled["Days_Since_Genesis"] > 0].copy()
 
 
 def power_law_frame(data, dates):
-    slope, intercept, residual_std = power_law_coefficients(data)
     frame = pd.DataFrame({"Date": pd.to_datetime(dates)})
     frame["Days_Since_Genesis"] = (frame["Date"] - pd.Timestamp("2009-01-03")).dt.days
     frame = frame[frame["Days_Since_Genesis"] > 0].copy()
-    frame["Power_Law"] = np.exp(intercept) * frame["Days_Since_Genesis"] ** slope
-    frame["Support"] = frame["Power_Law"] * np.exp(-2 * residual_std)
-    frame["Resistance"] = frame["Power_Law"] * np.exp(2 * residual_std)
+    frame["Power_Law"], frame["Support"], frame["Resistance"] = power_law_band_prices(frame["Days_Since_Genesis"])
     return frame
 
 

@@ -1,21 +1,19 @@
-import pandas as pd
 import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
 import matplotlib.ticker as ticker
 import numpy as np
-import math
+import sys
 from datetime import datetime
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from bitcoin_chart_utils import bitcoin_data_dir, load_daily_price, power_law_price  # noqa: E402
+
 # Load your data
 script_dir = Path(__file__).parent
-dataset_path = script_dir.parent / 'data' / 'bitcoin_csv_data' / 'daily_price.csv'
-data = pd.read_csv(dataset_path)
+data = load_daily_price(bitcoin_data_dir(__file__))
 halving_dates = [datetime(2012, 11, 28), datetime(2016, 7, 9), datetime(2020, 5, 11), datetime(2024, 4, 19), datetime(2028, 4, 19)]
 
-# Convert 'date' to datetime and 'price' to numeric
-data['Date'] = pd.to_datetime(data['date'])
-data['Price'] = pd.to_numeric(data['price'], errors='coerce')
 # Filter out zero prices and invalid data (needed for log calculations)
 data = data[(data['Price'] > 0) & (data['Price'].notna())]
 data = data.sort_values(by='Date').reset_index(drop=True)
@@ -26,31 +24,14 @@ data = data.sort_values(by='Date').reset_index(drop=True)
 # Standard Bitcoin Power Law uses days since Genesis Block (January 3, 2009)
 genesis_date = datetime(2009, 1, 3)
 days_since_genesis = (data['Date'] - genesis_date).dt.days.values
+data = data[days_since_genesis > 0].reset_index(drop=True)
+days_since_genesis = (data['Date'] - genesis_date).dt.days.values
 
-def power_law(t, a, b):
-    return a * (t ** b)
-
-try:
-    from scipy.optimize import curve_fit
-    # Use standard initial parameters: A ≈ 10^-17, n ≈ 5.8
-    popt, pcov = curve_fit(power_law, days_since_genesis, data['Price'], p0=[1e-17, 5.8])
-    # Generate smooth line for power law fit to appear straight on log-log plot
-    min_days = days_since_genesis.min()
-    max_days = days_since_genesis.max()
-    smooth_days = np.logspace(np.log10(min_days), np.log10(max_days), 1000)
-    power_law_fit_smooth = power_law(smooth_days, *popt)
-    # Also keep original for data points alignment
-    power_law_fit = power_law(days_since_genesis, *popt)
-except ImportError:
-    print("Error: scipy not installed.")
-    power_law_fit = np.full_like(data['Price'], np.nan)
-    smooth_days = days_since_genesis
-    power_law_fit_smooth = np.full_like(data['Price'], np.nan)
-except RuntimeError:
-    print("Error: Optimal parameters not found.")
-    power_law_fit = np.full_like(data['Price'], np.nan)
-    smooth_days = days_since_genesis
-    power_law_fit_smooth = np.full_like(data['Price'], np.nan)
+# Generate smooth line for power law fit to appear straight on log-log plot
+min_days = days_since_genesis.min()
+max_days = days_since_genesis.max()
+smooth_days = np.logspace(np.log10(min_days), np.log10(max_days), 1000)
+power_law_fit_smooth = power_law_price(smooth_days)
 
 
 
@@ -64,7 +45,7 @@ plt.style.use('dark_background')
 plt.plot(days_since_genesis, data['Price'], color='lime', label='Bitcoin Price')
 # Plot smooth power law fit line to appear straight on log-log
 if not np.isnan(power_law_fit_smooth).all():
-    plt.plot(smooth_days, power_law_fit_smooth, color='magenta', linestyle='-', label='Power Law Fit')
+    plt.plot(smooth_days, power_law_fit_smooth, color='magenta', linestyle='-', label='Power Law Fair Value')
 # Convert halving dates to days since genesis for vertical lines
 for date in halving_dates:
     halving_days = (date - genesis_date).days

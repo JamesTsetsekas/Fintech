@@ -1,22 +1,19 @@
-import pandas as pd
 import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
 import matplotlib.ticker as ticker
 import numpy as np
-import math
+import sys
 from datetime import datetime
-from scipy.stats import linregress
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from bitcoin_chart_utils import bitcoin_data_dir, load_daily_price, power_law_band_prices  # noqa: E402
 
 # Load your data
 script_dir = Path(__file__).parent
-dataset_path = script_dir.parent / 'data' / 'bitcoin_csv_data' / 'daily_price.csv'
-data = pd.read_csv(dataset_path)
+data = load_daily_price(bitcoin_data_dir(__file__))
 halving_dates = [datetime(2012, 11, 28), datetime(2016, 7, 9), datetime(2020, 5, 11), datetime(2024, 4, 19), datetime(2028, 4, 19)]
 
-# Convert 'date' to datetime and 'price' to numeric
-data['Date'] = pd.to_datetime(data['date'])
-data['Price'] = pd.to_numeric(data['price'], errors='coerce')
 # Filter out zero prices and invalid data (needed for log calculations)
 data = data[(data['Price'] > 0) & (data['Price'].notna())]
 data = data.sort_values(by='Date').reset_index(drop=True)
@@ -28,17 +25,8 @@ data = data.sort_values(by='Date').reset_index(drop=True)
 # Standard Bitcoin Power Law uses days since Genesis Block (January 3, 2009)
 genesis_date = datetime(2009, 1, 3)
 days_since_genesis = (data['Date'] - genesis_date).dt.days.values
-# For power law on log-log plot, regress log(days) vs log(price)
-log_days = np.log(days_since_genesis)
-log_price = np.log(data['Price'])
-slope, intercept, r_value, p_value, std_err = linregress(log_days, log_price)
-# Power law: price = exp(intercept) * days^slope
-linear_regression_fit = np.exp(intercept) * (days_since_genesis ** slope)
-
-# --- 2. Define Support and Resistance Bands (Illustrative) ---
-std_dev = np.std(log_price - (intercept + slope * log_days))
-upper_band = np.exp(intercept + (2 * std_dev)) * (days_since_genesis ** slope)
-lower_band = np.exp(intercept - (2 * std_dev)) * (days_since_genesis ** slope)
+data = data[days_since_genesis > 0].reset_index(drop=True)
+days_since_genesis = (data['Date'] - genesis_date).dt.days.values
 
 
 
@@ -55,11 +43,8 @@ plt.plot(days_since_genesis, data['Price'], color='orange', label='Price History
 min_days = days_since_genesis.min()
 max_days = days_since_genesis.max()
 smooth_days = np.logspace(np.log10(min_days), np.log10(max_days), 1000)
-# Power law: price = exp(intercept) * days^slope
-smooth_linear_fit = np.exp(intercept) * (smooth_days ** slope)
-smooth_upper_band = np.exp(intercept + (2 * std_dev)) * (smooth_days ** slope)
-smooth_lower_band = np.exp(intercept - (2 * std_dev)) * (smooth_days ** slope)
-plt.plot(smooth_days, smooth_linear_fit, color='red', linestyle='-', label='Linear Regression')
+smooth_linear_fit, smooth_lower_band, smooth_upper_band = power_law_band_prices(smooth_days)
+plt.plot(smooth_days, smooth_linear_fit, color='red', linestyle='-', label='Power Law Fair Value')
 plt.plot(smooth_days, smooth_upper_band, color='purple', linestyle='--', alpha=0.7, label='Resistance')
 plt.plot(smooth_days, smooth_lower_band, color='green', linestyle='--', alpha=0.7, label='Support')
 # Convert halving dates to days since genesis for vertical lines
@@ -113,7 +98,7 @@ ax.set_xticklabels(year_labels, rotation=45, ha='right', color='gray')
 ax.set_xlim(min_days_val * 0.98, max_days_val * 1.02)
 plt.xlabel('Year', color='gray')
 plt.ylabel('BTC Price ($)', color='gray')
-plt.title('Bitcoin Price with Linear Regression and Potential Bands (Log-Log)', color='gray')
+plt.title('Bitcoin Price with Power Law Support and Resistance Bands (Log-Log)', color='gray')
 plt.tick_params(axis='x', color='gray')
 plt.tick_params(axis='y', color='gray')
 plt.yticks(color='gray')

@@ -1,17 +1,15 @@
 # Bitcoin Power Law Oscillator
 
-This script generates a Bitcoin Power Law Oscillator chart that assesses whether Bitcoin is currently under or overvalued by comparing its market price to a power-law fit derived from its historical price data.
+This script generates a Bitcoin Power Law Oscillator chart that assesses whether Bitcoin is currently under or overvalued by comparing its market price to the Bitbo-style long-term power-law fair value.
 
 ## Description
 
-The Power Law Oscillator is a tool designed to assess whether Bitcoin is currently under or overvalued by comparing its market price to a power-law fit derived from its historical price data. This oscillator ranges from -1 to 1, indicating the log-price deviation between the current market price and the power-law fit. High oscillator values often correspond with market tops, while low values align with market bottoms.
+The Power Law Oscillator is a tool designed to assess whether Bitcoin is currently under or overvalued by comparing its market price to the long-term power-law fair value. This oscillator ranges from -1 to 1, indicating the log-price deviation between the current market price and the power-law fair value. High oscillator values often correspond with market tops, while low values align with market bottoms.
 
 ## Features
 
-- **Power Law Fit**: A power-law regression fitted to Bitcoin's historical price data
-  - Formula: `price = a * (days_since_genesis ^ b)`
-  - Calculated using linear regression in log-space: `log(price) = log(a) + b * log(days)`
-  - Uses all historical data points to determine the best fit
+- **Power Law Fair Value**: Bitbo-style long-term power law
+  - Formula: `price = 10^-17.016 * (days_since_genesis ^ 5.845)`
 
 - **Oscillator**: Normalized log deviation between actual price and power law fit
   - Ranges from -1.00 to 1.00
@@ -34,7 +32,7 @@ python3 power_law_oscillator.py
 
 The script will:
 1. Load price data from `../price.csv`
-2. Calculate power law fit using all historical data
+2. Calculate the Bitbo-style power-law fair value
 3. Calculate oscillator values (normalized log deviations)
 4. Calculate moving median of oscillator
 5. Generate and display the chart
@@ -70,4 +68,3 @@ Uses `Bitcoin/price.csv` which contains daily Bitcoin price data with columns:
 - Inspired by [Bitbo Charts - Power Law Oscillator](https://charts.bitbo.io/power-law-oscillator/)
 - Created by: @BitboBTC
 - Inspired by: @hcburger1
-

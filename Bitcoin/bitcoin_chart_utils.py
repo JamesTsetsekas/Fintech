@@ -15,6 +15,10 @@ BLOCKS_PER_HALVING = 210_000
 SECONDS_PER_BLOCK_TARGET = 600
 DARK_RED_HEATMAP_COLORS = ["#050608", "#180708", "#3a0b0d", "#7f1d1d", "#b51d1a", "#ff5f63"]
 DARK_DIVERGING_HEATMAP_COLORS = ["#7f1d1d", "#2b0b0d", "#050608", "#0b1f17", "#166534"]
+POWER_LAW_CONSTANT_LOG10 = -17.016
+POWER_LAW_EXPONENT = 5.845
+POWER_LAW_SUPPORT_MULTIPLE = 10 ** -0.45
+POWER_LAW_RESISTANCE_MULTIPLE = 3.5166650570993987
 
 HALVINGS = [
     {"epoch": 1, "block": 0, "date": pd.Timestamp("2009-01-03"), "subsidy": 50.0},
@@ -48,6 +52,30 @@ def load_daily_price(data_dir):
     data["Blocks_Mined"] = data["Block_Height"].diff().fillna(0).clip(lower=0)
     data["Daily_Issuance_BTC"] = data["Supply_BTC"].diff().fillna(0).clip(lower=0)
     return data
+
+
+def power_law_price(days_since_genesis):
+    """Return Bitbo-style Bitcoin Power Law fair value for days since genesis."""
+    days_array = np.asarray(days_since_genesis, dtype=float)
+    if days_array.ndim == 0:
+        if not np.isfinite(days_array) or days_array <= 0:
+            return np.nan
+        return float((10 ** POWER_LAW_CONSTANT_LOG10) * (days_array ** POWER_LAW_EXPONENT))
+
+    result = np.full(days_array.shape, np.nan, dtype=float)
+    mask = np.isfinite(days_array) & (days_array > 0)
+    result[mask] = (10 ** POWER_LAW_CONSTANT_LOG10) * (days_array[mask] ** POWER_LAW_EXPONENT)
+    return result
+
+
+def power_law_band_prices(days_since_genesis):
+    """Return fair, support, and resistance prices for the long-term power-law corridor."""
+    fair = power_law_price(days_since_genesis)
+    return (
+        fair,
+        fair * POWER_LAW_SUPPORT_MULTIPLE,
+        fair * POWER_LAW_RESISTANCE_MULTIPLE,
+    )
 
 
 def load_intraday_price(data_dir):
