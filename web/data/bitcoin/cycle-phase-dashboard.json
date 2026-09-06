@@ -1,0 +1,64 @@
+{
+  "id": "cycle-phase-dashboard",
+  "title": "Cycle Phase Dashboard",
+  "summary_text": "Spot is 1.14x the 200D average; drawdown is -36.2%.",
+  "updated_at": "2026-09-06T18:32:36.232026+00:00",
+  "allow_scale_toggle": false,
+  "default_scale": "linear",
+  "axis_guards": {},
+  "scale_axes": [
+    "y"
+  ],
+  "x_value_type": "number",
+  "show_range_selector": false,
+  "series": [
+    {
+      "name": "Cycle state",
+      "type": "bar",
+      "orientation": "h",
+      "x": [
+        57.110675,
+        63.828202,
+        20.262034,
+        1.964433,
+        24.991353
+      ],
+      "y": [
+        "Spot / 200D",
+        "Drawdown",
+        "Puell",
+        "Fee share",
+        "Volatility"
+      ],
+      "text": [
+        "1.14x",
+        "-36.2%",
+        "0.81",
+        "0.39%",
+        "46.8%"
+      ],
+      "marker": {
+        "color": [
+          "#3ce38a",
+          "#55d6ff",
+          "#f5c84b",
+          "#ff9f43",
+          "#ff5f63"
+        ]
+      },
+      "hovertemplate": "%{y}<br>%{text}<br>Normalized score %{x:.1f}<extra>Cycle</extra>"
+    }
+  ],
+  "layout": {
+    "xaxis": {
+      "title": "Normalized score",
+      "range": [
+        0,
+        100
+      ]
+    },
+    "yaxis": {
+      "automargin": true
+    }
+  }
+}

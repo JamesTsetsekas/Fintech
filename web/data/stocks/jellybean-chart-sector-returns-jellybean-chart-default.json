@@ -1,0 +1,77 @@
+{
+  "id": "jellybean-chart-sector-returns-jellybean-chart-default",
+  "title": "Jellybean Chart - Sector Returns",
+  "summary_text": "Ten-year sector ETF returns; strongest sector Technology (XLK) at +774.3%.",
+  "updated_at": "2026-09-06T18:32:42.741331+00:00",
+  "allow_scale_toggle": false,
+  "default_scale": "linear",
+  "axis_guards": {
+    "x": {
+      "include": [
+        0
+      ]
+    }
+  },
+  "scale_axes": [
+    "y"
+  ],
+  "x_value_type": "number",
+  "show_range_selector": false,
+  "series": [
+    {
+      "name": "10Y return",
+      "type": "bar",
+      "orientation": "h",
+      "x": [
+        82.505663,
+        101.352117,
+        135.658078,
+        142.467609,
+        160.608224,
+        174.267661,
+        178.000997,
+        214.700761,
+        250.850949,
+        254.280917,
+        774.327569
+      ],
+      "y": [
+        "Real Estate (XLRE)",
+        "Consumer Staples (XLP)",
+        "Utilities (XLU)",
+        "Communication Services (XLC)",
+        "Materials (XLB)",
+        "Energy (XLE)",
+        "Healthcare (XLV)",
+        "Consumer Discretionary (XLY)",
+        "Financials (XLF)",
+        "Industrials (XLI)",
+        "Technology (XLK)"
+      ],
+      "marker": {
+        "color": [
+          "#3ce38a",
+          "#3ce38a",
+          "#3ce38a",
+          "#3ce38a",
+          "#3ce38a",
+          "#3ce38a",
+          "#3ce38a",
+          "#3ce38a",
+          "#3ce38a",
+          "#3ce38a",
+          "#3ce38a"
+        ]
+      },
+      "hovertemplate": "%{y}<br>%{x:+.1f}%<extra>Sector return</extra>"
+    }
+  ],
+  "layout": {
+    "xaxis": {
+      "title": "Total return (%)"
+    },
+    "yaxis": {
+      "automargin": true
+    }
+  }
+}
