@@ -6,6 +6,15 @@ A comprehensive collection of Bitcoin on-chain analytics, market cycle indicator
 
 The repo includes a static, GitHub Pages-friendly dashboard at `index.html`. The source branch is kept history-light: generated PNGs, downloaded CSV snapshots, and generated `web/data/` JSON are ignored by git.
 
+The browser experience includes four linked workspaces:
+
+- `index.html` — compact market overview with live metrics, cycle signal timeline, and featured charts.
+- `charts/` — full interactive Bitcoin and stock chart terminal with ranges, overlays, sheet view, pinning, and PNG export.
+- `signals/` — normalized cycle scores derived from twelve repo indicators, with historical phases and momentum.
+- `alerts/` — device-local alert rules evaluated against the latest generated signal scores.
+
+Preview the site locally from the repository root with `python3 -m http.server 8000`, then open `http://127.0.0.1:8000/`.
+
 The cron runner generates the latest reports locally, builds the static dashboard data, and force-publishes a latest-only `gh-pages` branch. This keeps chart output available on GitHub Pages without committing every hourly chart refresh to `main`.
 
 ## Bitcoin Analytics

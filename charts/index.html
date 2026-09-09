@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <title>Chart Terminal | Fintech Charts</title>
+    <meta name="description" content="Explore interactive Bitcoin and stock market charts with configurable time ranges, overlays, and data views.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../web/assets/site.css">
+    <script>
+      (() => {
+        const saved = localStorage.getItem("fintech-theme");
+        if (saved === "dark" || saved === "light") document.documentElement.dataset.theme = saved;
+      })();
+    </script>
+    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" defer></script>
+    <script src="../web/assets/site.js" defer></script>
+  </head>
+  <body data-view="charts" data-manifest="../web/data/bitcoin/site-manifest.json" data-asset-prefix="../">
+    <header class="terminal-header">
+      <a class="terminal-brand" href="../" aria-label="Fintech Charts dashboard">
+        <span class="terminal-brand-mark" aria-hidden="true">F<span>/</span></span>
+        <span>Fintech<br>Charts</span>
+      </a>
+      <nav class="terminal-nav" aria-label="Primary navigation">
+        <a href="../">Dashboard</a>
+        <a class="active" href="./">Charts</a>
+        <a href="../signals/">Signals</a>
+        <a href="../alerts/">Alerts</a>
+      </nav>
+      <div class="header-actions">
+        <a class="header-link market-switch" href="?market=stocks">Stocks</a>
+        <button class="icon-button theme-toggle" type="button" aria-label="Toggle color theme" title="Toggle color theme"><span aria-hidden="true">◐</span></button>
+        <a class="primary-button compact" href="https://github.com/JamesTsetsekas/Fintech" target="_blank" rel="noopener noreferrer">View repo</a>
+      </div>
+    </header>
+
+    <div class="terminal-shell chart-terminal-shell">
+      <aside class="library-sidebar" aria-label="Chart library">
+        <label class="sidebar-search">
+          <span aria-hidden="true">⌕</span>
+          <input id="sidebar-search" type="search" placeholder="Search charts (press /)" autocomplete="off">
+        </label>
+        <div class="sidebar-scroll">
+          <section class="sidebar-group">
+            <div class="sidebar-group-heading"><strong>Popular charts</strong><span id="popular-count">—</span></div>
+            <div id="popular-list" class="sidebar-list skeleton-list" aria-live="polite"></div>
+          </section>
+          <section class="sidebar-group">
+            <div class="sidebar-group-heading"><strong>All charts</strong><span id="all-count">—</span></div>
+            <div id="all-chart-list" class="sidebar-list skeleton-list" aria-live="polite"></div>
+          </section>
+        </div>
+      </aside>
+
+      <main class="chart-workspace">
+        <div class="chart-toolbar" aria-label="Chart controls">
+          <div class="toolbar-group">
+            <button type="button" class="toolbar-button" data-chart-action="moving-average" title="Overlay a 50-period moving average">＋ Moving average</button>
+            <button type="button" class="toolbar-button" data-chart-action="halvings" title="Show Bitcoin halving dates">⚑ Halvings</button>
+            <button type="button" class="toolbar-button" data-chart-action="grid" title="Toggle chart grid">▦ Grid</button>
+          </div>
+          <div class="toolbar-group toolbar-group-end">
+            <button type="button" class="toolbar-button" data-chart-action="table">▤ Sheet</button>
+            <button type="button" class="toolbar-button" data-chart-action="pin">⌖ Pin</button>
+            <a class="toolbar-button" id="chart-alert-link" href="../alerts/">♧ Alert</a>
+            <button type="button" class="toolbar-button" data-chart-action="download">⇩ Download</button>
+          </div>
+        </div>
+
+        <div class="chart-stage">
+          <section class="chart-canvas" aria-live="polite">
+            <div class="chart-mobile-heading">
+              <p class="kicker" id="chart-mobile-section">Interactive chart</p>
+              <h1 id="chart-mobile-title">Loading chart</h1>
+            </div>
+            <div id="terminal-plot" class="terminal-plot loading-block"></div>
+            <div id="data-sheet" class="data-sheet" hidden></div>
+            <div class="chart-rangebar" aria-label="Time range and scale">
+              <div class="range-options">
+                <button type="button" data-range="1m">1M</button>
+                <button type="button" data-range="3m">3M</button>
+                <button type="button" data-range="6m">6M</button>
+                <button type="button" data-range="ytd">YTD</button>
+                <button type="button" data-range="1y">1Y</button>
+                <button type="button" data-range="4y">4Y</button>
+                <button type="button" data-range="all" class="active">All</button>
+              </div>
+              <button type="button" id="scale-toggle" class="scale-toggle">log</button>
+            </div>
+          </section>
+
+          <aside class="chart-detail-panel">
+            <p class="kicker" id="chart-section">Interactive</p>
+            <h1 id="chart-title">Loading chart</h1>
+            <p id="chart-summary" class="chart-summary">Preparing repo data.</p>
+            <div id="chart-phase" class="chart-phase"></div>
+            <section class="detail-section">
+              <div class="detail-section-title"><strong>Series</strong><span id="series-date">Latest</span></div>
+              <div id="series-list" class="series-list"></div>
+            </section>
+            <section class="detail-section">
+              <div class="detail-section-title"><strong>Performance</strong><span>first series</span></div>
+              <div id="performance-list" class="performance-list"></div>
+            </section>
+          </aside>
+        </div>
+      </main>
+    </div>
+  </body>
+</html>

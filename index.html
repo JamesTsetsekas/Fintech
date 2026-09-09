@@ -1,65 +1,98 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="light">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="color-scheme" content="dark">
-    <title>Fintech Charts</title>
-    <meta name="description" content="Generated Bitcoin and stock market chart dashboards.">
+    <meta name="color-scheme" content="light dark">
+    <title>Fintech Charts | Market Intelligence</title>
+    <meta name="description" content="Interactive Bitcoin and stock charts, cycle signals, and custom market alerts.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="web/assets/site.css">
+    <script>
+      (() => {
+        const saved = localStorage.getItem("fintech-theme");
+        if (saved === "dark" || saved === "light") document.documentElement.dataset.theme = saved;
+      })();
+    </script>
+    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" defer></script>
+    <script src="web/assets/site.js" defer></script>
   </head>
-  <body>
-    <header class="site-header">
-      <a class="brand" href="./" aria-label="Fintech Charts home">
-        <span class="brand-mark">F</span>
-        <span>
-          <strong>Fintech Charts</strong>
-          <small>Market analytics</small>
-        </span>
+  <body data-view="dashboard" data-manifest="web/data/bitcoin/site-manifest.json" data-asset-prefix="">
+    <header class="terminal-header">
+      <a class="terminal-brand" href="./" aria-label="Fintech Charts dashboard">
+        <span class="terminal-brand-mark" aria-hidden="true">F<span>/</span></span>
+        <span>Fintech<br>Charts</span>
       </a>
-      <nav class="top-nav" aria-label="Primary navigation">
-        <a href="Bitcoin/">Bitcoin</a>
-        <a href="Stocks/">Stocks</a>
-        <a href="https://github.com/JamesTsetsekas/Fintech" target="_blank" rel="noopener noreferrer">Repo</a>
+      <nav class="terminal-nav" aria-label="Primary navigation">
+        <a class="active" href="./">Dashboard</a>
+        <a href="charts/">Charts</a>
+        <a href="signals/">Signals</a>
+        <a href="alerts/">Alerts</a>
       </nav>
+      <div class="header-actions">
+        <a class="header-link" href="charts/?market=stocks">Stocks</a>
+        <button class="icon-button theme-toggle" type="button" aria-label="Toggle color theme" title="Toggle color theme">
+          <span aria-hidden="true">◐</span>
+        </button>
+        <a class="primary-button compact" href="https://github.com/JamesTsetsekas/Fintech" target="_blank" rel="noopener noreferrer">View repo</a>
+      </div>
     </header>
 
-    <main id="top">
-      <section class="dashboard-shell landing-shell" aria-labelledby="dashboard-title">
-        <div class="dashboard-copy">
-          <p class="eyebrow">Cron refreshed chart atlas</p>
-          <h1 id="dashboard-title">Fintech chart library</h1>
-          <p class="lede">Generated market reports and interactive dashboards split into focused Bitcoin and stock workspaces.</p>
+    <div class="terminal-shell">
+      <aside class="library-sidebar" aria-label="Chart library">
+        <label class="sidebar-search">
+          <span aria-hidden="true">⌕</span>
+          <input id="sidebar-search" type="search" placeholder="Search charts (press /)" autocomplete="off">
+        </label>
+        <div class="sidebar-scroll">
+          <section class="sidebar-group">
+            <div class="sidebar-group-heading"><strong>Popular charts</strong><span id="popular-count">—</span></div>
+            <div id="popular-list" class="sidebar-list skeleton-list" aria-live="polite"></div>
+          </section>
+          <section class="sidebar-group">
+            <div class="sidebar-group-heading"><strong>All charts</strong><span id="all-count">—</span></div>
+            <div id="all-chart-list" class="sidebar-list skeleton-list" aria-live="polite"></div>
+          </section>
+        </div>
+      </aside>
+
+      <main class="dashboard-workspace">
+        <section class="metric-ribbon" id="metric-ribbon" aria-label="Market snapshot">
+          <article class="terminal-metric loading-block"></article>
+          <article class="terminal-metric loading-block"></article>
+          <article class="terminal-metric loading-block"></article>
+          <article class="terminal-metric loading-block"></article>
+        </section>
+
+        <div class="workspace-heading">
+          <div>
+            <p class="kicker">Live from repo data</p>
+            <h1>Market overview</h1>
+          </div>
+          <a class="text-action" href="charts/">Open chart terminal <span aria-hidden="true">→</span></a>
         </div>
 
-        <div class="market-tape" aria-label="Dashboard routes">
-          <span>Dashboards</span>
-          <strong>2</strong>
-          <small>Bitcoin cycle analytics and stock market reports</small>
-        </div>
-      </section>
+        <section class="module signal-timeline-module" aria-labelledby="timeline-title">
+          <div class="module-heading">
+            <div>
+              <p class="kicker">Cycle model</p>
+              <h2 id="timeline-title">Signal timeline</h2>
+            </div>
+            <a class="subtle-button" href="signals/">Explore signals</a>
+          </div>
+          <div id="dashboard-signal-heatmap" class="signal-heatmap loading-block" aria-live="polite"></div>
+        </section>
 
-      <section class="route-section" aria-labelledby="route-title">
-        <div class="section-heading">
-          <p class="eyebrow">Choose a workspace</p>
-          <h2 id="route-title">Dashboards</h2>
-        </div>
-        <div class="route-grid">
-          <a class="route-card route-card-bitcoin" href="Bitcoin/">
-            <span>Bitcoin</span>
-            <strong>Cycle charts, on-chain metrics, heatmaps, and interactive BTC models.</strong>
-            <small>Open Bitcoin dashboard</small>
-          </a>
-          <a class="route-card route-card-stocks" href="Stocks/">
-            <span>Stocks</span>
-            <strong>Performance, volatility, sector, correlation, and technical stock reports.</strong>
-            <small>Open Stocks dashboard</small>
-          </a>
-        </div>
-      </section>
-    </main>
+        <section class="dashboard-chart-section" aria-labelledby="popular-heading">
+          <div class="section-inline-heading">
+            <h2 id="popular-heading">Popular charts</h2>
+            <span id="dashboard-updated">Loading latest data</span>
+          </div>
+          <div id="dashboard-chart-grid" class="dashboard-chart-grid"></div>
+        </section>
+      </main>
+    </div>
   </body>
 </html>

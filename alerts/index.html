@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <title>Alerts | Fintech Charts</title>
+    <meta name="description" content="Create device-local alerts for Bitcoin cycle signals and market metrics.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../web/assets/site.css">
+    <script>
+      (() => {
+        const saved = localStorage.getItem("fintech-theme");
+        if (saved === "dark" || saved === "light") document.documentElement.dataset.theme = saved;
+      })();
+    </script>
+    <script src="../web/assets/site.js" defer></script>
+  </head>
+  <body data-view="alerts" data-manifest="../web/data/bitcoin/site-manifest.json" data-asset-prefix="../">
+    <header class="terminal-header">
+      <a class="terminal-brand" href="../" aria-label="Fintech Charts dashboard">
+        <span class="terminal-brand-mark" aria-hidden="true">F<span>/</span></span>
+        <span>Fintech<br>Charts</span>
+      </a>
+      <nav class="terminal-nav" aria-label="Primary navigation">
+        <a href="../">Dashboard</a>
+        <a href="../charts/">Charts</a>
+        <a href="../signals/">Signals</a>
+        <a class="active" href="./">Alerts</a>
+      </nav>
+      <div class="header-actions">
+        <a class="header-link" href="../charts/?market=stocks">Stocks</a>
+        <button class="icon-button theme-toggle" type="button" aria-label="Toggle color theme" title="Toggle color theme"><span aria-hidden="true">◐</span></button>
+        <a class="primary-button compact" href="https://github.com/JamesTsetsekas/Fintech" target="_blank" rel="noopener noreferrer">View repo</a>
+      </div>
+    </header>
+
+    <main class="alerts-workspace">
+      <div class="page-title-row alert-title-row">
+        <div>
+          <p class="kicker">Saved in this browser</p>
+          <h1>Custom alerts</h1>
+          <p>Create rules against normalized cycle scores. They are re-evaluated whenever this dashboard loads fresh repo data.</p>
+        </div>
+        <button class="primary-button" id="new-alert-button" type="button">＋ New alert</button>
+      </div>
+
+      <section class="alert-overview" id="alert-overview"></section>
+
+      <section class="alert-layout">
+        <div class="module alert-list-module">
+          <div class="module-heading">
+            <div><p class="kicker">Rules</p><h2>Your alerts</h2></div>
+            <span class="module-note" id="alert-count">0 alerts</span>
+          </div>
+          <div id="alert-list" class="alert-list"></div>
+        </div>
+
+        <form class="module alert-form" id="alert-form">
+          <div class="module-heading"><div><p class="kicker">Rule builder</p><h2 id="alert-form-title">Create an alert</h2></div></div>
+          <div class="form-grid">
+            <label>
+              <span>Signal</span>
+              <select id="alert-signal" name="signal" required></select>
+            </label>
+            <label>
+              <span>Condition</span>
+              <select id="alert-operator" name="operator" required>
+                <option value="above">moves above</option>
+                <option value="below">moves below</option>
+                <option value="crosses-above">crosses above</option>
+                <option value="crosses-below">crosses below</option>
+              </select>
+            </label>
+            <label>
+              <span>Cycle score</span>
+              <div class="threshold-field"><input id="alert-threshold" name="threshold" type="number" min="0" max="100" step="1" value="75" required><strong>/ 100</strong></div>
+            </label>
+            <label>
+              <span>Check cadence</span>
+              <select id="alert-cadence" name="cadence"><option value="refresh">Each data refresh</option><option value="once">Trigger once</option></select>
+            </label>
+            <label class="form-wide">
+              <span>Label <em>optional</em></span>
+              <input id="alert-label" name="label" type="text" maxlength="80" placeholder="e.g. Mayer enters the top zone">
+            </label>
+          </div>
+          <div class="alert-preview" id="alert-preview"></div>
+          <div class="form-actions">
+            <button class="subtle-button" id="clear-alert-form" type="button">Clear</button>
+            <button class="primary-button" type="submit">Save alert</button>
+          </div>
+        </form>
+      </section>
+    </main>
+  </body>
+</html>
