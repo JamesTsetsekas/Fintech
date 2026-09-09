@@ -763,10 +763,40 @@ button { color: inherit; }
 }
 
 .terminal-plot {
+  position: relative;
   width: 100%;
   height: calc(100vh - 132px);
   min-height: 520px;
 }
+
+.chart-scale-rail {
+  position: absolute;
+  z-index: 14;
+  touch-action: none;
+  cursor: ns-resize;
+}
+
+.chart-axis-badge {
+  position: absolute;
+  z-index: 16;
+  display: none;
+  padding: 3px 5px;
+  border-radius: 2px;
+  background: #292a27;
+  color: #fff;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.62rem;
+  font-weight: 600;
+  line-height: 1;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.chart-axis-badge.visible { display: block; }
+
+.chart-axis-badge-x { transform: translate(-50%, 0); }
+
+.chart-axis-badge-y { transform: translate(-100%, -50%); }
 
 .terminal-plot.loading-block::before {
   height: calc(100% - 30px);

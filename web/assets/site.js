@@ -428,14 +428,13 @@ async function renderTerminalPlot() {
   target.innerHTML = "";
   const series = terminalSeries(payload);
   const layout = terminalLayout(payload);
-  await renderPlot(target, payload, { series, layout, grid: appState.chartOptions.grid, maxPoints: 2200 });
   if (payload.allow_scale_toggle && appState.chartOptions.scale && payload.layout?.yaxis !== undefined) {
-    const updates = {};
     (payload.scale_axes || ["y"]).forEach((axis) => {
-      updates[`${axis === "y" ? "yaxis" : `yaxis${axis.replace("y", "")}`}.type`] = appState.chartOptions.scale;
+      const key = axis === "y" ? "yaxis" : `yaxis${axis.replace("y", "")}`;
+      layout[key] = { ...(layout[key] || {}), type: appState.chartOptions.scale };
     });
-    if (Object.keys(updates).length) Plotly.relayout(target, updates).catch(() => {});
   }
+  await renderPlot(target, payload, { series, layout, grid: appState.chartOptions.grid, maxPoints: 2200 });
 }
 
 function terminalSeries(payload) {
@@ -521,7 +520,7 @@ function renderChartDetails(payload) {
     const values = primaryValues(series);
     const value = last(values);
     return `
-      <div class="series-row">
+      <div class="series-row" data-series-index="${index}">
         <span class="series-dot" style="background:${seriesColor(series, index)}"></span>
         <span class="series-name" title="${escapeHtml(series.name)}">${escapeHtml(series.name)}</span>
         <strong class="series-value">${formatMetricValue(series.name, value)}</strong>
@@ -675,12 +674,7 @@ function toggleChartScale() {
   if (!payload?.allow_scale_toggle) return;
   appState.chartOptions.scale = appState.chartOptions.scale === "log" ? "linear" : "log";
   updateScaleButton();
-  const update = {};
-  (payload.scale_axes || ["y"]).forEach((axis) => {
-    const layoutKey = axis === "y" ? "yaxis" : `yaxis${axis.replace("y", "")}`;
-    update[`${layoutKey}.type`] = appState.chartOptions.scale;
-  });
-  Plotly.relayout(document.querySelector("#terminal-plot"), update);
+  renderTerminalPlot();
 }
 
 function updateScaleButton() {
@@ -1181,6 +1175,7 @@ function renderSignalHeatmap(target, signals, columns = 56) {
 
 function renderPlot(target, payload, options = {}) {
   if (!window.Plotly || !target) return;
+  cleanupChartInteractions(target);
   const dark = document.documentElement.dataset.theme === "dark";
   const colorMap = {
     "#f5c84b": "#c85f3c",
@@ -1254,16 +1249,35 @@ function renderPlot(target, payload, options = {}) {
         }
       }
     }
-    next.hovertemplate = next.hovertemplate || "%{x}<br>%{y}<extra>%{fullData.name}</extra>";
+    if (next.hoverinfo === "skip") delete next.hovertemplate;
+    else next.hovertemplate = next.hovertemplate || "%{x}<br>%{y}<extra>%{fullData.name}</extra>";
+    if (next.hoverinfo !== "skip" && !options.compact
+        && ["scatter", "scattergl"].includes(next.type) && Array.isArray(next.y)) {
+      next.hovertemplate = premiumHoverTemplate(next);
+    }
     return next;
   });
   const baseLayout = {
     autosize: true,
+    dragmode: "zoom",
     paper_bgcolor: "rgba(0,0,0,0)",
     plot_bgcolor: "rgba(0,0,0,0)",
     font: { family: "Inter, sans-serif", color: dark ? "#aaa69d" : "#6f6d67", size: 11 },
     margin: options.compact ? { l: 56, r: 28, t: 18, b: 42 } : { l: 68, r: 44, t: 28, b: 70 },
     hovermode: "x unified",
+    hoverdistance: -1,
+    spikedistance: -1,
+    hoverlabel: {
+      align: "left",
+      bgcolor: dark ? "#1f211f" : "#ffffff",
+      bordercolor: dark ? "#565852" : "#d5d3cc",
+      font: {
+        family: "IBM Plex Mono, monospace",
+        color: dark ? "#f2f1ec" : "#34332f",
+        size: options.compact ? 10 : 11,
+      },
+      namelength: -1,
+    },
     showlegend: true,
     legend: { orientation: "h", x: 0, y: 1.08, font: { size: 10 } },
     xaxis: { gridcolor: dark ? "#34332e" : "#e8e6df", zerolinecolor: dark ? "#4b4941" : "#c9c6be", rangeslider: { visible: false } },
@@ -1281,12 +1295,27 @@ function renderPlot(target, payload, options = {}) {
   layout = remapLayoutColors(layout);
   if (payload.x_value_type === "category") layout.xaxis = { ...layout.xaxis, type: "category" };
   if (payload.x_value_type === "number") layout.xaxis = { ...layout.xaxis, type: "linear" };
+  if (payload.x_value_type === "date") layout.xaxis = { ...layout.xaxis, hoverformat: "%b %-d, %Y" };
   const categoricalY = traces.some((trace) => (
     (trace.type === "heatmap" || trace.orientation === "h")
     && Array.isArray(trace.y)
     && trace.y.some((value) => typeof value === "string")
   ));
   if (categoricalY) layout.yaxis = { ...layout.yaxis, type: "category" };
+  const spikeColor = dark ? "rgba(238,243,248,0.58)" : "rgba(47,46,42,0.58)";
+  Object.keys(layout).filter((key) => /^xaxis\d*$/.test(key) || /^yaxis\d*$/.test(key)).forEach((key) => {
+    const axis = layout[key];
+    if (!axis || axis.type === "category" || options.compact) return;
+    const primaryAxis = key === "xaxis" || key === "yaxis";
+    Object.assign(axis, {
+      showspikes: primaryAxis,
+      spikecolor: spikeColor,
+      spikedash: "dot",
+      spikethickness: 1,
+      spikesnap: "cursor",
+      spikemode: "across",
+    });
+  });
   if (options.compact) {
     delete layout.xaxis?.rangeselector;
     if (layout.legend) layout.legend.y = 1.12;
@@ -1300,8 +1329,309 @@ function renderPlot(target, payload, options = {}) {
     responsive: true,
     displaylogo: false,
     displayModeBar: !options.compact,
+    scrollZoom: !options.compact,
+    doubleClick: "reset+autosize",
+    showAxisDragHandles: false,
+    showAxisRangeEntryBoxes: false,
     modeBarButtonsToRemove: ["lasso2d", "select2d"],
+  }).then((plot) => {
+    if (!options.compact) {
+      cleanupChartInteractions(target);
+      installPriceScaleControls(target);
+      installAxisBadges(target);
+      bindChartHoverDetails(target, payload);
+    }
+    return plot;
   });
+}
+
+function cleanupChartInteractions(target) {
+  if (typeof target?._fintechChartCleanup === "function") target._fintechChartCleanup();
+  if (target) target._fintechChartCleanup = null;
+}
+
+function installPriceScaleControls(target) {
+  const fullLayout = target?._fullLayout;
+  if (!fullLayout?._size) return;
+  target.classList.add("premium-chart");
+  const cleanups = [];
+  const resizeObserver = new ResizeObserver(() => positionScaleRails(target));
+  resizeObserver.observe(target);
+  cleanups.push(() => resizeObserver.disconnect());
+
+  [
+    { axisName: "yaxis", side: "left" },
+    { axisName: "yaxis2", side: "right" },
+  ].forEach(({ axisName, side }) => {
+    const axis = target._fullLayout?.[axisName];
+    if (!axis || axis.type === "category" || axis.fixedrange) return;
+    const rail = document.createElement("div");
+    rail.className = `chart-scale-rail chart-scale-rail-${side}`;
+    rail.dataset.axis = axisName;
+    rail.setAttribute("aria-hidden", "true");
+    rail.title = "Drag to scale price · double-click to reset";
+    target.appendChild(rail);
+
+    const initialRange = Array.isArray(axis.range) ? axis.range.slice() : null;
+    let gesture = null;
+    let pendingRange = null;
+    let frame = 0;
+    const applyPendingRange = () => {
+      frame = 0;
+      if (!pendingRange) return;
+      const range = pendingRange;
+      pendingRange = null;
+      Plotly.relayout(target, { [`${axisName}.range`]: range }).catch(() => {});
+    };
+    const queueRange = (range) => {
+      pendingRange = range;
+      if (!frame) frame = requestAnimationFrame(applyPendingRange);
+    };
+    const scaledRange = (range, factor) => {
+      if (!Array.isArray(range) || range.length < 2) return null;
+      const start = Number(range[0]);
+      const end = Number(range[1]);
+      if (!Number.isFinite(start) || !Number.isFinite(end) || start === end) return null;
+      const center = (start + end) / 2;
+      const halfSpan = ((end - start) / 2) * clamp(factor, 0.08, 12);
+      return [center - halfSpan, center + halfSpan];
+    };
+    const onPointerDown = (event) => {
+      if (event.button !== 0) return;
+      const current = target._fullLayout?.[axisName]?.range;
+      if (!Array.isArray(current)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      gesture = { pointerId: event.pointerId, startY: event.clientY, range: current.slice() };
+      rail.classList.add("active");
+      rail.setPointerCapture(event.pointerId);
+    };
+    const onPointerMove = (event) => {
+      if (!gesture || gesture.pointerId !== event.pointerId) return;
+      event.preventDefault();
+      const factor = Math.exp((event.clientY - gesture.startY) / 180);
+      const range = scaledRange(gesture.range, factor);
+      if (range) queueRange(range);
+    };
+    const endGesture = (event) => {
+      if (!gesture || gesture.pointerId !== event.pointerId) return;
+      gesture = null;
+      rail.classList.remove("active");
+      if (rail.hasPointerCapture(event.pointerId)) rail.releasePointerCapture(event.pointerId);
+    };
+    const onWheel = (event) => {
+      const current = target._fullLayout?.[axisName]?.range;
+      const range = scaledRange(current, Math.exp(event.deltaY / 500));
+      if (!range) return;
+      event.preventDefault();
+      event.stopPropagation();
+      queueRange(range);
+    };
+    const onDoubleClick = (event) => {
+      if (!initialRange) return;
+      event.preventDefault();
+      event.stopPropagation();
+      queueRange(initialRange.slice());
+    };
+    rail.addEventListener("pointerdown", onPointerDown);
+    rail.addEventListener("pointermove", onPointerMove);
+    rail.addEventListener("pointerup", endGesture);
+    rail.addEventListener("pointercancel", endGesture);
+    rail.addEventListener("wheel", onWheel, { passive: false });
+    rail.addEventListener("dblclick", onDoubleClick);
+    cleanups.push(() => {
+      if (frame) cancelAnimationFrame(frame);
+      rail.remove();
+    });
+  });
+
+  positionScaleRails(target);
+  const priorCleanup = target._fintechChartCleanup;
+  target._fintechChartCleanup = () => {
+    if (typeof priorCleanup === "function") priorCleanup();
+    cleanups.forEach((cleanup) => cleanup());
+    target.classList.remove("premium-chart");
+  };
+}
+
+function positionScaleRails(target) {
+  const size = target?._fullLayout?._size;
+  if (!size) return;
+  target.querySelectorAll(".chart-scale-rail").forEach((rail) => {
+    const side = rail.classList.contains("chart-scale-rail-right") ? "right" : "left";
+    rail.style.top = `${size.t}px`;
+    rail.style.height = `${size.h}px`;
+    rail.style.width = `${Math.max(28, side === "left" ? size.l : size.r)}px`;
+    rail.style[side] = "0";
+  });
+}
+
+function installAxisBadges(target) {
+  const fullLayout = target?._fullLayout;
+  if (!fullLayout?._size || !fullLayout.xaxis || !fullLayout.yaxis
+      || fullLayout.xaxis.type === "category" || fullLayout.yaxis.type === "category") return;
+  const xBadge = document.createElement("span");
+  const yBadge = document.createElement("span");
+  xBadge.className = "chart-axis-badge chart-axis-badge-x";
+  yBadge.className = "chart-axis-badge chart-axis-badge-y";
+  xBadge.setAttribute("aria-hidden", "true");
+  yBadge.setAttribute("aria-hidden", "true");
+  target.append(xBadge, yBadge);
+
+  const hideBadges = () => {
+    xBadge.classList.remove("visible");
+    yBadge.classList.remove("visible");
+  };
+  const onPointerMove = (event) => {
+    const layout = target._fullLayout;
+    const size = layout?._size;
+    if (!size) return;
+    const bounds = target.getBoundingClientRect();
+    const plotX = event.clientX - bounds.left - size.l;
+    const plotY = event.clientY - bounds.top - size.t;
+    if (plotX < 0 || plotX > size.w || plotY < 0 || plotY > size.h) {
+      hideBadges();
+      return;
+    }
+    const xValue = layout.xaxis?.p2d?.(plotX);
+    const yValue = layout.yaxis?.p2d?.(plotY);
+    xBadge.textContent = layout.xaxis.type === "date"
+      ? formatCrosshairDate(xValue)
+      : formatCrosshairValue(xValue, layout.xaxis);
+    yBadge.textContent = formatCrosshairValue(yValue, layout.yaxis);
+    xBadge.style.left = `${size.l + plotX}px`;
+    xBadge.style.top = `${size.t + size.h + 8}px`;
+    yBadge.style.left = `${size.l}px`;
+    yBadge.style.top = `${size.t + plotY}px`;
+    xBadge.classList.add("visible");
+    yBadge.classList.add("visible");
+  };
+  target.addEventListener("pointermove", onPointerMove);
+  target.addEventListener("pointerleave", hideBadges);
+  const priorCleanup = target._fintechChartCleanup;
+  target._fintechChartCleanup = () => {
+    target.removeEventListener("pointermove", onPointerMove);
+    target.removeEventListener("pointerleave", hideBadges);
+    xBadge.remove();
+    yBadge.remove();
+    if (typeof priorCleanup === "function") priorCleanup();
+  };
+}
+
+function formatCrosshairDate(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value ?? "");
+  const parts = new Intl.DateTimeFormat("en", {
+    day: "2-digit",
+    month: "short",
+    year: "2-digit",
+    timeZone: "UTC",
+  }).formatToParts(date);
+  const part = (type) => parts.find((item) => item.type === type)?.value || "";
+  return `${part("day")} ${part("month")} '${part("year")}`;
+}
+
+function formatCrosshairValue(value, axis) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "—";
+  const absolute = Math.abs(number);
+  let formatted;
+  if (absolute >= 1e9) formatted = `${(number / 1e9).toFixed(absolute >= 1e10 ? 0 : 1)}B`;
+  else if (absolute >= 1e6) formatted = `${(number / 1e6).toFixed(absolute >= 1e7 ? 0 : 1)}M`;
+  else if (absolute >= 1e3) formatted = `${(number / 1e3).toFixed(absolute >= 1e4 ? 0 : 1)}K`;
+  else if (absolute >= 100) formatted = number.toFixed(0);
+  else if (absolute >= 10) formatted = number.toFixed(1);
+  else if (absolute >= 1) formatted = number.toFixed(2);
+  else formatted = number.toPrecision(3);
+  return `${formatted}${axis?.ticksuffix || ""}`;
+}
+
+function bindChartHoverDetails(target, payload) {
+  if (typeof target?.on !== "function" || payload.x_value_type !== "date") return;
+  let restoreTimer = 0;
+  const onHover = (event) => {
+    clearTimeout(restoreTimer);
+    const xValue = event?.points?.find((point) => point.x !== undefined)?.x;
+    if (xValue !== undefined) updateHoveredSeriesDetails(payload, xValue);
+  };
+  const onUnhover = () => {
+    clearTimeout(restoreTimer);
+    restoreTimer = window.setTimeout(() => updateHoveredSeriesDetails(payload, null), 80);
+  };
+  target.on("plotly_hover", onHover);
+  target.on("plotly_unhover", onUnhover);
+  const priorCleanup = target._fintechChartCleanup;
+  target._fintechChartCleanup = () => {
+    clearTimeout(restoreTimer);
+    if (typeof target.removeListener === "function") {
+      target.removeListener("plotly_hover", onHover);
+      target.removeListener("plotly_unhover", onUnhover);
+    }
+    if (typeof priorCleanup === "function") priorCleanup();
+  };
+}
+
+function premiumHoverTemplate(series) {
+  const label = String(series.name || "").toLowerCase();
+  let valueFormat = ",.3~g";
+  let suffix = "";
+  if (label.includes("price") || label.includes("usd") || label.includes("cost basis")) valueFormat = "$,.2f";
+  else if (label.includes("percent") || label.includes("return") || label.includes("drawdown") || label.includes("volatility")) {
+    valueFormat = ",.2f";
+    suffix = "%";
+  }
+  return `%{y:${valueFormat}}${suffix}<extra>%{fullData.name}</extra>`;
+}
+
+function updateHoveredSeriesDetails(payload, xValue) {
+  const dateNode = document.querySelector("#series-date");
+  const referenceSeries = payload.series.find((series) => Array.isArray(series.x) && series.x.length);
+  const referenceIndex = xValue === null ? -1 : nearestSeriesIndex(referenceSeries, xValue);
+  const referenceDate = referenceIndex >= 0 ? referenceSeries.x[referenceIndex] : referenceSeries?.x?.at(-1);
+  if (dateNode) dateNode.textContent = referenceDate ? shortDate(referenceDate) : "Latest";
+  document.querySelectorAll("#series-list .series-row[data-series-index]").forEach((row) => {
+    const series = payload.series[Number(row.dataset.seriesIndex)];
+    const valueNode = row.querySelector(".series-value");
+    if (!series || !valueNode) return;
+    const index = xValue === null ? -1 : nearestSeriesIndex(series, xValue);
+    const values = seriesValueArray(series);
+    const rawValue = index >= 0 ? values[index] : values.at(-1);
+    valueNode.textContent = formatMetricValue(series.name, rawValue);
+  });
+}
+
+function nearestSeriesIndex(series, xValue) {
+  const values = series?.x;
+  if (!Array.isArray(values) || !values.length) return -1;
+  const target = comparableX(xValue);
+  if (!Number.isFinite(target)) return -1;
+  let low = 0;
+  let high = values.length - 1;
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2);
+    if (comparableX(values[middle]) < target) low = middle + 1;
+    else high = middle;
+  }
+  if (low === 0) return 0;
+  const previous = comparableX(values[low - 1]);
+  const current = comparableX(values[low]);
+  return Math.abs(target - previous) <= Math.abs(current - target) ? low - 1 : low;
+}
+
+function comparableX(value) {
+  if (value === null || value === undefined || value === "") return NaN;
+  const numeric = Number(value);
+  if (Number.isFinite(numeric)) return numeric;
+  const timestamp = new Date(value).getTime();
+  return Number.isFinite(timestamp) ? timestamp : NaN;
+}
+
+function seriesValueArray(series) {
+  if (series?.orientation === "h" && Array.isArray(series.x)) return series.x;
+  for (const key of ["y", "close", "open", "high", "low"]) {
+    if (Array.isArray(series?.[key])) return series[key];
+  }
+  return [];
 }
 
 function expandGradientLine(series) {
@@ -1336,14 +1666,25 @@ function expandGradientLine(series) {
 
   const visibleBuckets = buckets.filter((bucket) => bucket.x.length);
   const { marker: _marker, ...lineSeries } = series;
-  return visibleBuckets.map((bucket, index) => ({
+  const coloredSegments = visibleBuckets.map((bucket, index) => ({
     ...lineSeries,
     x: bucket.x,
     y: bucket.y,
     mode: "lines",
     line: { color: bucket.color, width: 1.8 },
+    hoverinfo: "skip",
     showlegend: index === 0,
   }));
+  const hoverCarrier = {
+    ...lineSeries,
+    x: series.x,
+    y: series.y,
+    mode: "lines",
+    fill: "none",
+    line: { color: "rgba(0,0,0,0)", width: 10 },
+    showlegend: false,
+  };
+  return [...coloredSegments, hoverCarrier];
 }
 
 function gradientColor(scale, ratio) {
