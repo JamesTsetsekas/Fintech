@@ -179,7 +179,7 @@ async function renderDashboard() {
   const dashboardSignals = buildDashboardSignalSet(appState.signals);
   await Promise.all([
     renderMetricRibbon(dashboardSignals.slice(1)),
-    renderSignalHeatmap(document.querySelector("#dashboard-signal-heatmap"), dashboardSignals, 92),
+    renderSignalHeatmap(document.querySelector("#dashboard-signal-heatmap"), dashboardSignals, 92, { startDate: "2012-01-01" }),
     renderDashboardCharts(),
   ]);
   const updated = new Date(appState.manifest.generated_at);
@@ -1151,16 +1151,21 @@ function recentSignalValues(signal, days) {
     .filter(Number.isFinite);
 }
 
-function renderSignalHeatmap(target, signals, columns = 56) {
+function renderSignalHeatmap(target, signals, columns = 56, options = {}) {
   if (!target) return;
   target.classList.remove("loading-block");
   if (!signals.length) {
     target.innerHTML = `<p class="empty-state">No signal history matches these filters.</p>`;
     return;
   }
-  const sampled = signals.map((signal) => sampleEvenly(signal.points, columns));
+  const cutoff = options.startDate ? new Date(options.startDate).getTime() : -Infinity;
+  const visibleSignals = signals.map((signal) => ({
+    ...signal,
+    points: signal.points.filter((point) => new Date(point.date).getTime() >= cutoff),
+  }));
+  const sampled = visibleSignals.map((signal) => sampleEvenly(signal.points, columns));
   const labels = sampled[0] || [];
-  const rows = signals.map((signal, rowIndex) => {
+  const rows = visibleSignals.map((signal, rowIndex) => {
     const cells = sampled[rowIndex].map((point) => `
       <span class="heatmap-cell ${phaseFor(point.score).className}" title="${escapeHtml(signal.label)} · ${escapeHtml(formatDate(new Date(point.date)))} · ${Math.round(point.score)}"></span>
     `).join("");
