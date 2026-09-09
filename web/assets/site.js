@@ -1031,10 +1031,66 @@ function formatMetricValue(name, value) {
   const number = toFiniteNumber(value);
   if (!Number.isFinite(number)) return "—";
   const label = String(name || "").toLowerCase();
-  if (label.includes("price") || label.includes("usd") || label.includes("cost basis")) return formatUsd(number);
+  if (label.includes("price") || label.includes("usd") || label.includes("cost basis")) return formatReadableUsd(number);
   if (label.includes("percent") || label.includes("return") || label.includes("drawdown") || label.includes("volatility") || label.includes("share")) return `${number.toFixed(1)}%`;
-  if (Math.abs(number) >= 1000) return new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 2 }).format(number);
-  return number.toFixed(Math.abs(number) < 10 ? 2 : 1);
+  return formatReadableNumber(number);
+}
+
+function formatHoverMetricValue(name, value, sourceTemplate = "") {
+  const number = toFiniteNumber(value);
+  if (!Number.isFinite(number)) return "—";
+  const label = String(name || "").toLowerCase();
+  const template = String(sourceTemplate || "");
+  const isCurrency = label.includes("price")
+    || label.includes("usd")
+    || label.includes("cost basis")
+    || label.includes("hashprice")
+    || template.includes("$%{");
+  if (isCurrency) return formatReadableUsd(number);
+  const formatted = formatReadableNumber(number);
+  if (label.includes("percent")
+      || label.includes("return")
+      || label.includes("drawdown")
+      || label.includes("volatility")
+      || label.includes("share")
+      || /}\s*%/.test(template)) return `${formatted}%`;
+  if (label.includes("[btc]") || /}\s*btc\b/i.test(template)) return `${formatted} BTC`;
+  if (/}\s*sat\/vb\b/i.test(template)) return `${formatted} sat/vB`;
+  if (/}\s*sats?\b/i.test(template)) return `${formatted} sats`;
+  if (label.includes("days") || /}\s*days?\b/i.test(template)) return `${formatted} days`;
+  if (label.includes("multiple") || /}\s*x\b/i.test(template)) return `${formatted}x`;
+  return formatted;
+}
+
+function formatReadableUsd(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "—";
+  if (Math.abs(number) >= 1_000_000) {
+    const sign = number < 0 ? "-" : "";
+    return `${sign}$${formatReadableNumber(Math.abs(number))}`;
+  }
+  return formatUsd(number);
+}
+
+function formatReadableNumber(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "—";
+  const absolute = Math.abs(number);
+  const unit = [
+    [1_000_000_000_000, "T"],
+    [1_000_000_000, "B"],
+    [1_000_000, "M"],
+    [1_000, "K"],
+  ].find(([threshold]) => absolute >= threshold);
+  if (unit) {
+    const [threshold, suffix] = unit;
+    return `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(number / threshold)}${suffix}`;
+  }
+  if (absolute >= 100) return new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(number);
+  if (absolute >= 10) return new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 }).format(number);
+  if (absolute >= 1) return new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(number);
+  if (absolute === 0) return "0";
+  return new Intl.NumberFormat("en-US", { maximumSignificantDigits: 3 }).format(number);
 }
 
 function shortDate(value) {
@@ -1244,10 +1300,9 @@ function renderPlot(target, payload, options = {}) {
       }
     }
     if (next.hoverinfo === "skip") delete next.hovertemplate;
-    else next.hovertemplate = next.hovertemplate || "%{x}<br>%{y}<extra>%{fullData.name}</extra>";
-    if (next.hoverinfo !== "skip" && !options.compact
-        && ["scatter", "scattergl"].includes(next.type) && Array.isArray(next.y)) {
-      next.hovertemplate = premiumHoverTemplate(next);
+    else {
+      next.hovertemplate = next.hovertemplate || "%{x}<br>%{y}<extra>%{fullData.name}</extra>";
+      applyReadableHover(next);
     }
     return next;
   });
@@ -1528,16 +1583,7 @@ function formatCrosshairDate(value) {
 function formatCrosshairValue(value, axis) {
   const number = Number(value);
   if (!Number.isFinite(number)) return "—";
-  const absolute = Math.abs(number);
-  let formatted;
-  if (absolute >= 1e9) formatted = `${(number / 1e9).toFixed(absolute >= 1e10 ? 0 : 1)}B`;
-  else if (absolute >= 1e6) formatted = `${(number / 1e6).toFixed(absolute >= 1e7 ? 0 : 1)}M`;
-  else if (absolute >= 1e3) formatted = `${(number / 1e3).toFixed(absolute >= 1e4 ? 0 : 1)}K`;
-  else if (absolute >= 100) formatted = number.toFixed(0);
-  else if (absolute >= 10) formatted = number.toFixed(1);
-  else if (absolute >= 1) formatted = number.toFixed(2);
-  else formatted = number.toPrecision(3);
-  return `${formatted}${axis?.ticksuffix || ""}`;
+  return `${formatReadableNumber(number)}${axis?.ticksuffix || ""}`;
 }
 
 function bindChartHoverDetails(target, payload) {
@@ -1565,16 +1611,20 @@ function bindChartHoverDetails(target, payload) {
   };
 }
 
-function premiumHoverTemplate(series) {
-  const label = String(series.name || "").toLowerCase();
-  let valueFormat = ",.3~g";
-  let suffix = "";
-  if (label.includes("price") || label.includes("usd") || label.includes("cost basis")) valueFormat = "$,.2f";
-  else if (label.includes("percent") || label.includes("return") || label.includes("drawdown") || label.includes("volatility")) {
-    valueFormat = ",.2f";
-    suffix = "%";
+function applyReadableHover(series) {
+  const sourceTemplate = series.hovertemplate || "";
+  if (series.type === "heatmap" && Array.isArray(series.z)) {
+    series.customdata = series.z.map((row) => (
+      Array.isArray(row) ? row.map((value) => formatHoverMetricValue(series.name, value, sourceTemplate)) : row
+    ));
+    series.hovertemplate = "%{x}<br>%{y}<br>%{customdata}<extra></extra>";
+    return;
   }
-  return `%{y:${valueFormat}}${suffix}<extra>%{fullData.name}</extra>`;
+  if (!["scatter", "scattergl", "bar"].includes(series.type)) return;
+  const values = series.orientation === "h" ? series.x : series.y;
+  if (!Array.isArray(values)) return;
+  series.hovertext = values.map((value) => formatHoverMetricValue(series.name, value, sourceTemplate));
+  series.hovertemplate = "%{hovertext}<extra>%{fullData.name}</extra>";
 }
 
 function updateHoveredSeriesDetails(payload, xValue) {
@@ -1843,7 +1893,11 @@ function deepMerge(target, source) {
 }
 
 function formatUsd(value) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(value);
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "—";
+  const absolute = Math.abs(number);
+  const maximumFractionDigits = absolute >= 100 ? 0 : absolute >= 1 ? 2 : absolute >= 0.01 ? 4 : 8;
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits }).format(number);
 }
 
 function formatDate(date) {
