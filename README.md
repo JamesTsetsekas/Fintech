@@ -17,7 +17,7 @@ The scheduled Bitcoin library is the non-duplicating union of 46 repo-native cha
 
 Preview the site locally from the repository root with `python3 -m http.server 8000`, then open `http://127.0.0.1:8000/`.
 
-The cron runner generates the latest Bitcoin reports locally, builds the static dashboard data, and force-publishes a latest-only `gh-pages` branch. Stock reports and the experimental ML classifier are intentionally excluded from the scheduled Raspberry Pi path; their source remains available for manual runs. This keeps chart output available on GitHub Pages without committing every hourly chart refresh to `main`.
+The cron runner checks the upstream Bitcoin CSVs hourly, regenerates native reports only when those files change, builds the static dashboard data, and force-publishes a latest-only `gh-pages` branch. Conditional HTTP requests keep unchanged large CSVs off the wire. Stock reports and the experimental ML classifier are intentionally excluded from the scheduled Raspberry Pi path; their source remains available for manual runs. This keeps chart output available on GitHub Pages without committing every hourly chart refresh to `main`.
 
 ## Bitcoin Analytics
 

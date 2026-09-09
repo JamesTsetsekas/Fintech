@@ -309,13 +309,13 @@ def filter_reports(reports, filters):
     return selected
 
 def update_data():
-    """Update Bitcoin data files before running reports."""
+    """Update Bitcoin data files and report whether their contents changed."""
     update_script = script_dir / 'data' / 'update.py'
     
     if not update_script.exists():
-        print(f"WARNING: Update script not found: {update_script}")
-        print("Continuing with existing data files...")
-        return False
+        print(f"ERROR: Update script not found: {update_script}")
+        print("Cannot verify source freshness.")
+        return None
     
     print("\n" + "="*60)
     print("UPDATING BITCOIN DATA FILES")
@@ -342,25 +342,31 @@ def update_data():
                 for line in lines[-5:]:
                     if line.strip():
                         print(f"  {line}")
-            return True
+            changed_line = next(
+                (line for line in (result.stdout or "").splitlines() if line.startswith("Changed:")),
+                None,
+            )
+            if changed_line is None:
+                return True
+            return not changed_line.startswith("Changed: 0/")
         else:
-            print("⚠ Warning: Data update failed or had errors")
-            print("Continuing with existing data files...")
+            print("[FAILED] Data update failed or had errors")
+            print("The scheduled runner will not publish stale data.")
             if result.stderr:
                 print("Error output:")
                 for line in result.stderr.strip().split('\n')[-5:]:
                     if line.strip():
                         print(f"  {line}")
-            return False
+            return None
             
     except subprocess.TimeoutExpired:
-        print("⚠ Warning: Data update timed out (exceeded 30 minutes)")
-        print("Continuing with existing data files...")
-        return False
+        print("[FAILED] Data update timed out (exceeded 30 minutes)")
+        print("The scheduled runner will not publish stale data.")
+        return None
     except Exception as e:
-        print(f"⚠ Warning: Exception during data update: {e}")
-        print("Continuing with existing data files...")
-        return False
+        print(f"[FAILED] Exception during data update: {e}")
+        print("The scheduled runner will not publish stale data.")
+        return None
 
 def run_report(report_info):
     """Run a single report script and return success status."""
@@ -448,12 +454,18 @@ def main():
     print("="*60)
     
     # Update data files first
+    data_changed = True
     if args.skip_update:
         print("\nSkipping Bitcoin data update (--skip-update).")
     else:
-        if not update_data():
+        data_changed = update_data()
+        if data_changed is None:
             print("\n[FAILED] Bitcoin source data refresh did not complete; refusing to publish stale data.")
             sys.exit(1)
+
+    if data_changed is False and not args.only and os.getenv("FINTECH_ENABLE_ML") != "1":
+        print("\n[OK] Bitcoin source files are unchanged; skipping native report regeneration.")
+        sys.exit(0)
     
     # Track results
     results = {

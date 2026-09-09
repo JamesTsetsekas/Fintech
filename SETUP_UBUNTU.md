@@ -82,6 +82,8 @@ Add one of these lines:
 
 Use the repository's `run_cron.sh` wrapper rather than invoking `run.py` directly. The wrapper uses a non-blocking lock so an unusually long refresh cannot overlap the next hourly run. Publishing is refused unless the checkout is on `main` with no uncommitted tracked source files.
 
+The data updater uses ETag/Last-Modified validators and content hashes. When all upstream CSVs are unchanged, the native PNG report suite is skipped; the lightweight dashboard generator still runs so web data can refresh.
+
 ### View logs
 ```bash
 tail -f logs/reports.log

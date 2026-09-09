@@ -24,6 +24,7 @@ Bitcoin/data/bitcoin_csv_data/daily_block_metrics_cache.csv
 *.png
 web/data/
 Bitcoin/data/bitcoin_csv_data/*.csv
+Bitcoin/data/bitcoin_csv_data/.download_metadata.json
 
 # Local site publish staging
 .site-publish/
