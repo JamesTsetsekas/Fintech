@@ -654,12 +654,25 @@ button { color: inherit; }
   border-bottom: 1px solid var(--line);
 }
 
-.dashboard-card-heading strong { font-size: 0.83rem; }
+.dashboard-card-title {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 0.83rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
-.dashboard-card-heading a {
+.dashboard-card-title:hover { color: var(--accent); }
+
+.dashboard-card-menu {
+  flex: 0 0 auto;
   color: var(--faint);
   font-size: 1.1rem;
 }
+
+.dashboard-card-menu:hover { color: var(--ink); }
 
 .dashboard-mini-plot {
   width: 100%;

@@ -262,11 +262,13 @@ async function renderDashboardCharts() {
   const chartIds = POPULAR_IDS.filter((id) => chartById(id));
   grid.innerHTML = chartIds.map((id) => {
     const chart = chartById(id);
+    const title = chart?.title || id;
+    const href = `charts/?chart=${encodeURIComponent(id)}`;
     return `
       <article class="dashboard-chart-card">
         <div class="dashboard-card-heading">
-          <strong>${escapeHtml(chart?.title || id)}</strong>
-          <a href="charts/?chart=${encodeURIComponent(id)}" aria-label="Open ${escapeHtml(chart?.title || id)}">•••</a>
+          <a class="dashboard-card-title" href="${href}">${escapeHtml(title)}</a>
+          <a class="dashboard-card-menu" href="${href}" aria-label="Open ${escapeHtml(title)}">•••</a>
         </div>
         <div id="dashboard-plot-${escapeHtml(id)}" class="dashboard-mini-plot loading-block"></div>
       </article>
