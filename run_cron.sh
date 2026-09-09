@@ -14,11 +14,18 @@ mkdir -p "$LOG_DIR"
 LOG_FILE="$LOG_DIR/reports.log"
 TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
 LOCK_FILE="$SCRIPT_DIR/.report_generation.lock"
+PUBLISH_SOURCE_BRANCH="${PUBLISH_SOURCE_BRANCH:-main}"
 
 # Function to log with timestamp
 log() {
     echo "[$TIMESTAMP] $1" | tee -a "$LOG_FILE"
 }
+
+CURRENT_BRANCH="$(git -C "$SCRIPT_DIR" branch --show-current 2>/dev/null || true)"
+if [ "$CURRENT_BRANCH" != "$PUBLISH_SOURCE_BRANCH" ]; then
+    log "Skipping scheduled refresh on branch '${CURRENT_BRANCH:-unknown}'; expected '$PUBLISH_SOURCE_BRANCH'."
+    exit 0
+fi
 
 exec 9>"$LOCK_FILE"
 if ! flock -n 9; then

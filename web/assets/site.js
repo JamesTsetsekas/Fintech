@@ -317,6 +317,7 @@ async function selectTerminalChart(chartId, options = {}) {
     if (appState.activeChartId !== chart.id) return;
     appState.currentPayload = payload;
     appState.chartOptions.scale = payload.default_scale || payload.layout?.yaxis?.type || "linear";
+    updateChartControls(payload);
     target.classList.remove("loading-block");
     await renderTerminalPlot();
     renderChartDetails(payload);
@@ -327,6 +328,20 @@ async function selectTerminalChart(chartId, options = {}) {
     if (chart.image_path) renderImageChart(chart, target);
     else target.innerHTML = `<p class="error-state">${escapeHtml(error.message)}</p>`;
   }
+}
+
+function updateChartControls(payload) {
+  const hasNumericLine = payload.series.some((series) => (
+    series.type === "scatter"
+    && Array.isArray(series.y)
+    && series.y.some((value) => Number.isFinite(toFiniteNumber(value)))
+  ));
+  const movingAverage = document.querySelector('[data-chart-action="moving-average"]');
+  const halvings = document.querySelector('[data-chart-action="halvings"]');
+  const rangeOptions = document.querySelector(".range-options");
+  if (movingAverage) movingAverage.disabled = !hasNumericLine;
+  if (halvings) halvings.disabled = pageConfig.market !== "bitcoin" || payload.x_value_type !== "date";
+  if (rangeOptions) rangeOptions.hidden = payload.show_range_selector === false || payload.x_value_type !== "date";
 }
 
 function updateChartHeadings(chart) {
@@ -355,7 +370,7 @@ async function renderTerminalPlot() {
   const series = terminalSeries(payload);
   const layout = terminalLayout(payload);
   await renderPlot(target, payload, { series, layout, grid: appState.chartOptions.grid, maxPoints: 2200 });
-  if (appState.chartOptions.scale && payload.layout?.yaxis !== undefined) {
+  if (payload.allow_scale_toggle && appState.chartOptions.scale && payload.layout?.yaxis !== undefined) {
     const updates = {};
     (payload.scale_axes || ["y"]).forEach((axis) => {
       updates[`${axis === "y" ? "yaxis" : `yaxis${axis.replace("y", "")}`}.type`] = appState.chartOptions.scale;
@@ -429,7 +444,9 @@ function renderImageChart(chart, target) {
 function renderChartDetails(payload) {
   const seriesList = document.querySelector("#series-list");
   const performanceList = document.querySelector("#performance-list");
-  const latestDate = payload.series.find((series) => Array.isArray(series.x))?.x?.at(-1);
+  const latestDate = payload.x_value_type === "date"
+    ? payload.series.find((series) => Array.isArray(series.x))?.x?.at(-1)
+    : null;
   document.querySelector("#series-date").textContent = latestDate ? shortDate(latestDate) : "Latest";
   document.querySelector("#chart-summary").textContent = payload.summary_text || appState.currentChart.description;
 
@@ -445,7 +462,9 @@ function renderChartDetails(payload) {
     `;
   }).join("");
 
-  const base = payload.series.find((series) => primaryValues(series).length > 2);
+  const base = payload.x_value_type === "date"
+    ? payload.series.find((series) => series.type !== "heatmap" && primaryValues(series).length > 2)
+    : null;
   performanceList.innerHTML = base
     ? [[7, "1W"], [30, "1M"], [90, "3M"], [180, "6M"], [365, "1Y"]].map(([days, label]) => {
       const change = seriesReturn(base, days);
@@ -468,7 +487,28 @@ function renderChartDetails(payload) {
 
 function renderDataSheet(payload) {
   const sheet = document.querySelector("#data-sheet");
-  const compatible = payload.series.filter((series) => Array.isArray(series.x) && Array.isArray(series.y));
+  const horizontal = payload.series.filter((series) => (
+    series.orientation === "h"
+    && Array.isArray(series.x)
+    && Array.isArray(series.y)
+    && series.x.length === series.y.length
+  ));
+  if (horizontal.length) {
+    const base = horizontal[0];
+    const headers = horizontal.map((series) => `<th>${escapeHtml(series.name)}</th>`).join("");
+    const rows = base.y.map((label, index) => {
+      const values = horizontal.map((series) => `<td>${escapeHtml(formatMetricValue(series.name, series.x[index]))}</td>`).join("");
+      return `<tr><td>${escapeHtml(String(label))}</td>${values}</tr>`;
+    }).reverse().join("");
+    sheet.innerHTML = `<table><thead><tr><th>Category</th>${headers}</tr></thead><tbody>${rows}</tbody></table>`;
+    return;
+  }
+  const compatible = payload.series.filter((series) => (
+    series.type !== "heatmap"
+    && Array.isArray(series.x)
+    && Array.isArray(series.y)
+    && series.x.length === series.y.length
+  ));
   if (!compatible.length) {
     sheet.innerHTML = `<p class="empty-state">A tabular view is not available for this chart type.</p>`;
     return;
@@ -479,9 +519,11 @@ function renderDataSheet(payload) {
   const rows = base.x.slice(start).map((date, rowIndex) => {
     const sourceIndex = start + rowIndex;
     const values = compatible.map((series) => `<td>${escapeHtml(formatMetricValue(series.name, Number(series.y[sourceIndex])))}</td>`).join("");
-    return `<tr><td>${escapeHtml(shortDate(date))}</td>${values}</tr>`;
+    const coordinate = payload.x_value_type === "date" ? shortDate(date) : String(date);
+    return `<tr><td>${escapeHtml(coordinate)}</td>${values}</tr>`;
   }).reverse().join("");
-  sheet.innerHTML = `<table><thead><tr><th>Date</th>${headers}</tr></thead><tbody>${rows}</tbody></table>`;
+  const coordinateLabel = payload.x_value_type === "date" ? "Date" : "X";
+  sheet.innerHTML = `<table><thead><tr><th>${coordinateLabel}</th>${headers}</tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 async function handleChartAction(action, button) {
@@ -585,6 +627,10 @@ function movingAverage(values, windowSize) {
 }
 
 function primaryValues(series) {
+  if (series?.type === "heatmap") return [];
+  if (series?.orientation === "h" && Array.isArray(series.x)) {
+    return series.x.map(toFiniteNumber).filter(Number.isFinite);
+  }
   for (const key of ["y", "close", "open", "high", "low"]) {
     if (Array.isArray(series?.[key])) return series[key].map(toFiniteNumber).filter(Number.isFinite);
   }
@@ -992,6 +1038,7 @@ function renderSignalHeatmap(target, signals, columns = 56) {
 
 function renderPlot(target, payload, options = {}) {
   if (!window.Plotly || !target) return;
+  const dark = document.documentElement.dataset.theme === "dark";
   const colorMap = {
     "#f5c84b": "#c85f3c",
     "#55d6ff": "#2863a7",
@@ -999,7 +1046,25 @@ function renderPlot(target, payload, options = {}) {
     "#ff5f63": "#c91f50",
     "#ff9f43": "#d98945",
     "#ff5ccd": "#9d4c83",
+    "#eef3f8": dark ? "#eef3f8" : "#393732",
+    "rgba(238,243,248,0.62)": dark ? "rgba(238,243,248,0.62)" : "rgba(57,55,50,0.46)",
   };
+  const lightSequentialScale = [
+    [0, "#f7f5f0"],
+    [0.22, "#f0ded5"],
+    [0.48, "#dfa993"],
+    [0.72, "#c96f50"],
+    [0.9, "#b4472f"],
+    [1, "#8f291f"],
+  ];
+  const lightDivergingScale = [
+    [0, "#b63f38"],
+    [0.38, "#e8aaa0"],
+    [0.5, "#f7f5f0"],
+    [0.62, "#a9d4bd"],
+    [1, "#167247"],
+  ];
+  const mapColor = (color) => typeof color === "string" ? (colorMap[color.toLowerCase()] || color) : color;
   const sourceSeries = options.series || payload.series;
   const traces = sourceSeries.slice(0, options.compact ? 4 : sourceSeries.length).map((series) => {
     const { axis, ...trace } = series;
@@ -1010,12 +1075,35 @@ function renderPlot(target, payload, options = {}) {
         if (Array.isArray(next[key])) next[key] = next[key].filter((_, index) => index % step === 0 || index === next[key].length - 1);
       });
     }
-    if (next.line?.color) next.line = { ...next.line, color: colorMap[next.line.color] || next.line.color };
-    if (next.marker?.color && typeof next.marker.color === "string") next.marker = { ...next.marker, color: colorMap[next.marker.color] || next.marker.color };
+    if (next.line?.color) next.line = { ...next.line, color: mapColor(next.line.color) };
+    if (next.marker?.color) {
+      const markerColor = Array.isArray(next.marker.color)
+        ? next.marker.color.map(mapColor)
+        : mapColor(next.marker.color);
+      next.marker = { ...next.marker, color: markerColor };
+    }
+    if (next.fillcolor) next.fillcolor = mapColor(next.fillcolor);
+    if (next.increasing?.line?.color) {
+      next.increasing = { ...next.increasing, line: { ...next.increasing.line, color: mapColor(next.increasing.line.color) } };
+    }
+    if (next.decreasing?.line?.color) {
+      next.decreasing = { ...next.decreasing, line: { ...next.decreasing.line, color: mapColor(next.decreasing.line.color) } };
+    }
+    if (next.type === "heatmap" && !dark) {
+      next.colorscale = next.zmid !== undefined ? lightDivergingScale : lightSequentialScale;
+      if (next.zmid !== undefined && Array.isArray(next.z)) {
+        const magnitudes = next.z.flat().map(toFiniteNumber).filter(Number.isFinite).map(Math.abs);
+        const cap = quantile(magnitudes, 0.95);
+        if (Number.isFinite(cap) && cap > 0) {
+          next.zmin = -cap;
+          next.zmax = cap;
+          next.zauto = false;
+        }
+      }
+    }
     next.hovertemplate = next.hovertemplate || "%{x}<br>%{y}<extra>%{fullData.name}</extra>";
     return next;
   });
-  const dark = document.documentElement.dataset.theme === "dark";
   const baseLayout = {
     autosize: true,
     paper_bgcolor: "rgba(0,0,0,0)",
@@ -1028,8 +1116,24 @@ function renderPlot(target, payload, options = {}) {
     xaxis: { gridcolor: dark ? "#34332e" : "#e8e6df", zerolinecolor: dark ? "#4b4941" : "#c9c6be", rangeslider: { visible: false } },
     yaxis: { gridcolor: dark ? "#34332e" : "#e8e6df", zerolinecolor: dark ? "#4b4941" : "#c9c6be", automargin: true },
   };
-  const layout = deepMerge(baseLayout, payload.layout || {});
+  let layout = deepMerge(baseLayout, payload.layout || {});
   if (options.layout) Object.assign(layout, deepMerge(layout, options.layout));
+  const remapLayoutColors = (value) => {
+    if (Array.isArray(value)) return value.map(remapLayoutColors);
+    if (value && typeof value === "object") {
+      return Object.fromEntries(Object.entries(value).map(([key, nested]) => [key, remapLayoutColors(nested)]));
+    }
+    return mapColor(value);
+  };
+  layout = remapLayoutColors(layout);
+  if (payload.x_value_type === "category") layout.xaxis = { ...layout.xaxis, type: "category" };
+  if (payload.x_value_type === "number") layout.xaxis = { ...layout.xaxis, type: "linear" };
+  const categoricalY = traces.some((trace) => (
+    (trace.type === "heatmap" || trace.orientation === "h")
+    && Array.isArray(trace.y)
+    && trace.y.some((value) => typeof value === "string")
+  ));
+  if (categoricalY) layout.yaxis = { ...layout.yaxis, type: "category" };
   if (options.compact) {
     delete layout.xaxis?.rangeselector;
     if (layout.legend) layout.legend.y = 1.12;
@@ -1116,9 +1220,28 @@ async function getPayload(chartId) {
   if (appState.payloadCache.has(chartId)) return appState.payloadCache.get(chartId);
   const chart = chartById(chartId);
   if (!chart?.data_path) throw new Error(`No interactive data for ${chartId}`);
-  const promise = fetchJson(assetPath(chart.data_path));
+  const promise = fetchJson(assetPath(chart.data_path)).then(normalizePayload);
   appState.payloadCache.set(chartId, promise);
   return promise;
+}
+
+function normalizePayload(payload) {
+  if (payload?.id !== "never-look-back-price") return payload;
+  return {
+    ...payload,
+    series: payload.series.map((series) => {
+      if (!String(series.name || "").toLowerCase().includes("never look back") || !Array.isArray(series.y)) return series;
+      let floor = null;
+      return {
+        ...series,
+        y: series.y.map((raw) => {
+          const value = toFiniteNumber(raw);
+          if (Number.isFinite(value) && value > 0) floor = floor === null ? value : Math.max(floor, value);
+          return floor;
+        }),
+      };
+    }),
+  };
 }
 
 function chartById(chartId) {

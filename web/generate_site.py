@@ -444,7 +444,7 @@ def add_never_look_back_columns(data):
     prices = modeled["Price"].to_numpy(dtype=float)
     min_ahead = np.minimum.accumulate(prices[::-1])[::-1]
     valid_levels = np.where(prices <= min_ahead + 1e-9, prices, np.nan)
-    modeled["Never_Look_Back_Price"] = pd.Series(valid_levels).cummax().fillna(0).to_numpy()
+    modeled["Never_Look_Back_Price"] = pd.Series(valid_levels).cummax().ffill().to_numpy()
     return modeled
 
 

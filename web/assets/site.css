@@ -731,6 +731,10 @@ button { color: inherit; }
   overflow-x: auto;
 }
 
+.range-options[hidden] {
+  display: none;
+}
+
 .range-options button,
 .scale-toggle {
   min-height: 28px;
@@ -751,6 +755,13 @@ button { color: inherit; }
 .scale-toggle.active {
   background: var(--surface-muted);
   color: var(--ink);
+}
+
+.toolbar-button:disabled,
+.range-options button:disabled,
+.scale-toggle:disabled {
+  cursor: default;
+  opacity: 0.38;
 }
 
 .chart-detail-panel {

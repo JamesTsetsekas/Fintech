@@ -28,22 +28,23 @@ def download_file(url, save_path, is_update=False):
     """Download file with progress indication"""
     action = "Updating" if is_update else "Downloading"
     print(f"{action}: {save_path.name} ... ", end="", flush=True)
-    
+    partial_path = save_path.with_name(f"{save_path.name}.part")
+
     try:
-        response = requests.get(url, stream=True, timeout=15)
-        response.raise_for_status()
-        
         save_path.parent.mkdir(parents=True, exist_ok=True)
-        
-        with open(save_path, 'wb') as f:
-            for chunk in response.iter_content(chunk_size=8192):
-                if chunk:
-                    f.write(chunk)
-        
+        with requests.get(url, stream=True, timeout=15) as response:
+            response.raise_for_status()
+            with open(partial_path, 'wb') as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    if chunk:
+                        f.write(chunk)
+        os.replace(partial_path, save_path)
+
         print("[OK] done")
         return True
 
     except Exception as e:
+        partial_path.unlink(missing_ok=True)
         print(f"[FAILED] {e}")
         return False
 
@@ -71,6 +72,9 @@ def main():
     print(f"Successful: {success_count}/{len(FILES)} files")
     print(f"Saved to: {Path(SAVE_DIR).resolve()}")
     print("="*60)
+
+    if success_count != len(FILES):
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

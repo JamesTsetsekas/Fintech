@@ -436,7 +436,9 @@ def main():
     if args.skip_update:
         print("\nSkipping Bitcoin data update (--skip-update).")
     else:
-        update_data()
+        if not update_data():
+            print("\n[FAILED] Bitcoin source data refresh did not complete; refusing to publish stale data.")
+            sys.exit(1)
     
     # Track results
     results = {

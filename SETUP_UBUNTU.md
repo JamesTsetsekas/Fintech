@@ -75,20 +75,12 @@ crontab -e
 
 Add one of these lines:
 
-**Run every day at 2 AM:**
+**Run every hour (recommended):**
 ```cron
-0 2 * * * cd ~/Fintech && ~/Fintech/venv/bin/python run.py >> ~/Fintech/logs/reports.log 2>&1
+0 * * * * /home/your-user/Fintech/run_cron.sh
 ```
 
-**Run every 6 hours:**
-```cron
-0 */6 * * * cd ~/Fintech && ~/Fintech/venv/bin/python run.py >> ~/Fintech/logs/reports.log 2>&1
-```
-
-**Run every hour:**
-```cron
-0 * * * * cd ~/Fintech && ~/Fintech/venv/bin/python run.py >> ~/Fintech/logs/reports.log 2>&1
-```
+Use the repository's `run_cron.sh` wrapper rather than invoking `run.py` directly. The wrapper uses a non-blocking lock so an unusually long refresh cannot overlap the next hourly run. Publishing is refused unless the checkout is on `main` with no uncommitted tracked source files.
 
 ### View logs
 ```bash

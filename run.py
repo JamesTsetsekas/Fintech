@@ -811,6 +811,9 @@ def stage_static_site(site_dir):
         Path("index.html"),
         Path("Bitcoin/index.html"),
         Path("Stocks/index.html"),
+        Path("charts"),
+        Path("signals"),
+        Path("alerts"),
         Path("web/assets"),
         Path("web/data"),
     ]:
@@ -830,6 +833,30 @@ def stage_static_site(site_dir):
 def publish_static_site():
     """Force-publish the latest generated site to a history-light Pages branch."""
     publish_branch = os.getenv("PUBLISH_BRANCH", "gh-pages")
+    required_source_branch = os.getenv("PUBLISH_SOURCE_BRANCH", "main")
+
+    current_branch = get_current_branch()
+    if current_branch != required_source_branch and os.getenv("ALLOW_NON_MAIN_PUBLISH") != "1":
+        print(
+            f"✗ Refusing to publish from {current_branch or 'an unknown branch'}; "
+            f"expected {required_source_branch}. Set ALLOW_NON_MAIN_PUBLISH=1 only for an intentional override."
+        )
+        return False
+
+    status_result = subprocess.run(
+        ["git", "status", "--porcelain", "--untracked-files=no"],
+        capture_output=True,
+        text=True,
+        cwd=script_dir,
+    )
+    if status_result.returncode != 0:
+        print("✗ Could not verify the repository source before publishing")
+        print_git_output_tail(status_result.stderr, "Git status error:")
+        return False
+    if status_result.stdout.strip() and os.getenv("ALLOW_UNCOMMITTED_SITE_PUBLISH") != "1":
+        print("✗ Refusing to publish from a checkout with uncommitted tracked source changes")
+        print_git_output_tail(status_result.stdout, "Modified tracked paths:")
+        return False
 
     print(f"\n{'='*60}")
     print("PUBLISHING STATIC WEBSITE")
