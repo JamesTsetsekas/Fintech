@@ -583,7 +583,7 @@ button { color: inherit; }
   display: grid;
   grid-template-columns: minmax(150px, 190px) repeat(var(--heatmap-columns, 56), minmax(7px, 1fr));
   min-width: 810px;
-  gap: 1px;
+  gap: 0;
 }
 
 .heatmap-label {
