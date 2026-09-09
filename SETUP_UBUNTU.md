@@ -27,7 +27,7 @@ chmod +x setup_ubuntu.sh
 
 This script will:
 - Create a virtual environment in `venv/`
-- Install all Python dependencies
+- Install the Python dependencies used by the scheduled Bitcoin build
 - Display setup instructions
 
 ### 3. Create your `.env` file with GitHub token
@@ -60,7 +60,7 @@ mkdir -p logs
 
 This will:
 - Pull latest changes from GitHub
-- Generate all reports
+- Generate the scheduled Bitcoin reports (excluding the experimental ML classifier)
 - Generate static dashboard data
 - Publish the latest generated site to the `gh-pages` branch
 
@@ -134,13 +134,13 @@ Fintech/
 ├── venv/                       # Virtual environment (not committed)
 ├── logs/                       # Log files (not committed)
 ├── Bitcoin/                    # Bitcoin reports
-└── Stock/                      # Stock reports
+└── Stock/                      # Manual-only stock reports
 ```
 
 ## What the automation does
 
 1. **Git Pull**: Updates project with latest source changes
-2. **Generate Reports**: Runs all Bitcoin and Stock visualization scripts
+2. **Generate Reports**: Runs the Bitcoin visualization scripts used by the public site; stock and experimental ML reports are skipped
 3. **Generate Website Data**: Refreshes `web/data/`
 4. **Publish Website**: Force-pushes the latest static site to `gh-pages`
 

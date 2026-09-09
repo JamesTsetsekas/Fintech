@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
-"""
-Master script to run all Bitcoin and Stock visualization reports.
-
-This script executes both Bitcoin and Stock report runners and provides
-a consolidated summary of all reports.
-"""
+"""Run the scheduled Bitcoin report and static-site publishing pipeline."""
 
 import subprocess
 import sys
@@ -41,6 +36,9 @@ DEFAULT_PUSH_RETRY_DELAY_SECONDS = 30
 PUBLISH_EXCLUDED_PNG_NAMES = {
     "visual_qa_contact_sheet.png",
 }
+PUBLISH_EXCLUDED_BITCOIN_PATHS = {
+    Path("Bitcoin/price_prediction/price_prediction.png"),
+}
 
 # Define report runners to execute
 REPORT_RUNNERS = [
@@ -49,12 +47,16 @@ REPORT_RUNNERS = [
         'path': script_dir / 'Bitcoin' / 'run_all_reports.py',
         'description': 'Bitcoin visualization reports'
     },
-    {
-        'name': 'Stock Reports',
-        'path': script_dir / 'Stock' / 'run_all_reports.py',
-        'description': 'Stock visualization reports'
-    },
 ]
+
+
+def get_scheduled_requirement_files():
+    """Return requirements used by the lean Bitcoin-only scheduled build."""
+    bitcoin_dir = script_dir / "Bitcoin"
+    req_files = sorted(bitcoin_dir.rglob("requirements.txt")) if bitcoin_dir.exists() else []
+    ml_dir = (bitcoin_dir / "price_prediction").resolve()
+    return [req_file for req_file in req_files if ml_dir not in req_file.resolve().parents]
+
 
 def get_env_int(name, default, minimum=1):
     """Read a positive integer env var with a conservative fallback."""
@@ -435,12 +437,9 @@ def check_requirements_changed():
     try:
         os.chdir(script_dir)
         
-        # Get list of all requirements.txt files
-        req_files = []
-        for search_dir in ['Bitcoin', 'Stock']:
-            dir_path = script_dir / search_dir
-            if dir_path.exists():
-                req_files.extend(dir_path.rglob("requirements.txt"))
+        # Only inspect dependencies used by the scheduled Bitcoin build. Stock
+        # reports and the experimental ML model remain available for manual runs.
+        req_files = get_scheduled_requirement_files()
         
         # Also check root requirements.txt
         root_req = script_dir / "requirements.txt"
@@ -576,12 +575,8 @@ def install_requirements_if_needed():
             # Install all project requirements
             print("\nInstalling all project requirements...")
             
-            # Collect all requirements.txt files
-            req_files = []
-            for search_dir in ['Bitcoin', 'Stock']:
-                dir_path = script_dir / search_dir
-                if dir_path.exists():
-                    req_files.extend(sorted(dir_path.rglob("requirements.txt")))
+            # Collect only requirements used by the scheduled Bitcoin build.
+            req_files = get_scheduled_requirement_files()
             
             if not req_files:
                 print("⚠ No requirements.txt files found")
@@ -810,20 +805,20 @@ def stage_static_site(site_dir):
     for relative_path in [
         Path("index.html"),
         Path("Bitcoin/index.html"),
-        Path("Stocks/index.html"),
         Path("charts"),
         Path("signals"),
         Path("alerts"),
         Path("web/assets"),
-        Path("web/data"),
+        Path("web/data/site-manifest.json"),
+        Path("web/data/bitcoin"),
     ]:
         copy_path_to_site(script_dir / relative_path, site_dir, relative_path)
 
     for png_path in sorted((script_dir / "Bitcoin").rglob("*.png")):
         if png_path.name in PUBLISH_EXCLUDED_PNG_NAMES:
             continue
-        copy_path_to_site(png_path, site_dir)
-    for png_path in sorted((script_dir / "Stock").rglob("*.png")):
+        if png_path.relative_to(script_dir) in PUBLISH_EXCLUDED_BITCOIN_PATHS:
+            continue
         copy_path_to_site(png_path, site_dir)
     for png_path in sorted(script_dir.glob("*.png")):
         copy_path_to_site(png_path, site_dir)
@@ -935,8 +930,8 @@ def main():
     print(f"Start time: {start_time.strftime('%Y-%m-%d %H:%M:%S')}{tz_label}")
     print(f"Total report runners: {len(REPORT_RUNNERS)}")
     print("="*60)
-    print("\nThis will run all Bitcoin and Stock visualization reports.")
-    print("Note: This may take a considerable amount of time.")
+    print("\nThis will run the Bitcoin visualization reports used by the public site.")
+    print("Stock reports and the experimental ML report are excluded from scheduled runs.")
     print("Individual runners will show detailed progress for each report.\n")
 
     # Pull latest changes from GitHub
@@ -995,7 +990,7 @@ def main():
         sys.exit(1)
 
     print("\nAll report runners completed successfully!")
-    print("All Bitcoin and Stock visualization reports have been generated.")
+    print("All scheduled Bitcoin visualization reports have been generated.")
 
     if not run_site_generator():
         print("\n" + "="*60)

@@ -60,8 +60,8 @@ if [ -f "$SCRIPT_DIR/requirements.txt" ]; then
     echo ""
 fi
 
-# Install all project requirements
-echo "Installing all project requirements..."
+# Install dependencies for the scheduled Bitcoin pipeline
+echo "Installing scheduled Bitcoin requirements..."
 python "$SCRIPT_DIR/install_all_requirements.py"
 echo ""
 

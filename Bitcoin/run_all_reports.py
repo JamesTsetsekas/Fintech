@@ -9,6 +9,7 @@ Before running reports, it updates the data files from the GitHub repository.
 """
 
 import argparse
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -256,6 +257,16 @@ REPORTS = [
     },
 ]
 
+EXPENSIVE_REPORT_NAMES = {"Price Prediction (ML)"}
+
+
+def scheduled_reports():
+    """Exclude expensive experimental reports unless explicitly enabled."""
+    if os.getenv("FINTECH_ENABLE_ML") == "1":
+        return REPORTS
+    return [report for report in REPORTS if report["name"] not in EXPENSIVE_REPORT_NAMES]
+
+
 def parse_args():
     """Parse runner options."""
     parser = argparse.ArgumentParser(description="Run Bitcoin chart reports.")
@@ -413,10 +424,14 @@ def main():
         print("Available Bitcoin reports:")
         for report in REPORTS:
             rel_path = report['path'].relative_to(script_dir)
-            print(f"  {report['name']} ({rel_path})")
+            suffix = " [manual/opt-in]" if report['name'] in EXPENSIVE_REPORT_NAMES else ""
+            print(f"  {report['name']} ({rel_path}){suffix}")
         sys.exit(0)
 
-    selected_reports = filter_reports(REPORTS, args.only)
+    # An explicit --only selection is a deliberate manual request, so it may
+    # select the ML report. Default scheduled runs stay lean on Raspberry Pi.
+    report_pool = REPORTS if args.only else scheduled_reports()
+    selected_reports = filter_reports(report_pool, args.only)
     if not selected_reports:
         print(f"ERROR: No reports matched --only filters: {', '.join(args.only)}")
         sys.exit(2)

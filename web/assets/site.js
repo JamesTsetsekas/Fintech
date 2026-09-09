@@ -19,12 +19,7 @@ const pageConfig = {
   view: document.body.dataset.view || "dashboard",
   manifestPath: document.body.dataset.manifest || "web/data/bitcoin/site-manifest.json",
   assetPrefix: document.body.dataset.assetPrefix || "",
-  market: document.body.dataset.market || initialParams.get("market") || "bitcoin",
 };
-
-if (pageConfig.view === "charts" && pageConfig.market === "stocks") {
-  pageConfig.manifestPath = `${pageConfig.assetPrefix}web/data/stocks/site-manifest.json`;
-}
 
 const POPULAR_IDS = [
   "pb-various",
@@ -135,8 +130,7 @@ function renderSidebar(query = "") {
     return !query || haystack.includes(query);
   }).sort((a, b) => a.title.localeCompare(b.title));
   const selectedPopular = POPULAR_IDS.map((id) => charts.find((chart) => chart.id === id)).filter(Boolean);
-  const stockPopular = charts.filter((chart) => chart.title.startsWith("Popular Stocks") || chart.title.includes("Sector Performance"));
-  const popularLayer = selectedPopular.length ? selectedPopular : (stockPopular.length ? stockPopular.slice(0, 8) : charts.slice(0, 8));
+  const popularLayer = selectedPopular.length ? selectedPopular : charts.slice(0, 8);
   const allList = document.querySelector("#all-chart-list");
   const popularList = document.querySelector("#popular-list");
   if (!allList || !popularList) return;
@@ -162,10 +156,9 @@ function renderSidebar(query = "") {
 }
 
 function sidebarChartLink(chart) {
-  const marketParam = pageConfig.market === "stocks" ? "market=stocks&" : "";
   const href = pageConfig.assetPrefix
-    ? `${pageConfig.assetPrefix}charts/?${marketParam}chart=${encodeURIComponent(chart.id)}`
-    : `charts/?${marketParam}chart=${encodeURIComponent(chart.id)}`;
+    ? `${pageConfig.assetPrefix}charts/?chart=${encodeURIComponent(chart.id)}`
+    : `charts/?chart=${encodeURIComponent(chart.id)}`;
   return `
     <a class="sidebar-chart-link ${chart.id === appState.activeChartId ? "active" : ""}" href="${href}" data-chart-id="${escapeHtml(chart.id)}">
       <span>${escapeHtml(chart.title)}</span>
@@ -289,15 +282,9 @@ async function renderDashboardCharts() {
 }
 
 async function renderChartTerminal() {
-  const marketSwitch = document.querySelector(".market-switch");
-  if (marketSwitch) {
-    marketSwitch.textContent = pageConfig.market === "stocks" ? "Bitcoin" : "Stocks";
-    marketSwitch.href = pageConfig.market === "stocks" ? "./" : "?market=stocks";
-  }
-
   bindChartToolbar();
   document.querySelectorAll(".sidebar-chart-link[data-chart-id]").forEach(bindChartLink);
-  if (pageConfig.market !== "stocks") appState.signals = await buildSignals();
+  appState.signals = await buildSignals();
   const requestedId = initialParams.get("chart");
   const firstInteractive = appState.manifest.charts.find((chart) => chart.kind === "interactive" && chart.data_path);
   const firstChart = appState.manifest.charts.find((chart) => chart.id === requestedId)
@@ -356,7 +343,7 @@ async function selectTerminalChart(chartId, options = {}) {
   if (options.updateUrl !== false) {
     const url = new URL(window.location.href);
     url.searchParams.set("chart", chart.id);
-    if (pageConfig.market === "stocks") url.searchParams.set("market", "stocks");
+    url.searchParams.delete("market");
     history.replaceState(null, "", url);
   }
 
@@ -401,7 +388,7 @@ function updateChartControls(payload) {
   const halvings = document.querySelector('[data-chart-action="halvings"]');
   const rangeOptions = document.querySelector(".range-options");
   if (movingAverage) movingAverage.disabled = !hasNumericLine;
-  if (halvings) halvings.disabled = pageConfig.market !== "bitcoin" || payload.x_value_type !== "date";
+  if (halvings) halvings.disabled = payload.x_value_type !== "date";
   if (rangeOptions) rangeOptions.hidden = payload.show_range_selector === false || payload.x_value_type !== "date";
 }
 
@@ -412,7 +399,7 @@ function updateChartHeadings(chart) {
   });
   ["#chart-section", "#chart-mobile-section"].forEach((selector) => {
     const node = document.querySelector(selector);
-    if (node) node.textContent = pageConfig.market === "stocks" ? `Stocks · ${chart.section}` : chart.section;
+    if (node) node.textContent = chart.section;
   });
   const summary = document.querySelector("#chart-summary");
   if (summary) setChartSummary(chart.description);

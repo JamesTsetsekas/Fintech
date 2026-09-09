@@ -6,20 +6,19 @@ from __future__ import annotations
 import json
 import math
 import re
+import shutil
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import yfinance as yf
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 WEB_DATA_DIR = REPO_ROOT / "web" / "data"
 BITCOIN_DATA_DIR = REPO_ROOT / "Bitcoin" / "data" / "bitcoin_csv_data"
 BITCOIN_SITE_DATA_DIR = WEB_DATA_DIR / "bitcoin"
-STOCK_SITE_DATA_DIR = WEB_DATA_DIR / "stocks"
 
 sys.path.insert(0, str(REPO_ROOT))
 sys.path.insert(0, str(REPO_ROOT / "Bitcoin"))
@@ -34,7 +33,6 @@ from Bitcoin.bitcoin_chart_utils import (  # noqa: E402
 )
 from Bitcoin.run_all_reports import REPORTS as BITCOIN_REPORTS  # noqa: E402
 from model_projection import apply_price_models, build_projection_frame, load_daily_fees, load_price_history  # noqa: E402
-from Stock.run_all_reports import REPORTS as STOCK_REPORTS  # noqa: E402
 from blockhorizon_data import import_reference_charts  # noqa: E402
 
 
@@ -269,7 +267,6 @@ INTERACTIVE_IDS = {
     "drawdown-duration-heatmap",
     "price-distribution",
     "cycle-phase-dashboard",
-    "price-prediction-ml",
     "puell-multiple",
     "power-law-oscillator",
     "volatility-regimes",
@@ -2070,7 +2067,6 @@ INTERACTIVE_BUILDERS = {
     "drawdown-duration-heatmap": build_drawdown_duration_heatmap,
     "price-distribution": build_price_distribution,
     "cycle-phase-dashboard": build_cycle_phase_dashboard,
-    "price-prediction-ml": build_price_prediction_ml,
     "puell-multiple": build_puell_multiple,
     "power-law-oscillator": build_power_law_oscillator,
     "volatility-regimes": build_volatility_regimes,
@@ -2150,6 +2146,10 @@ def stock_period_for_chart(chart: dict) -> str:
 
 
 def fetch_stock_prices(tickers: list[str], period: str = "1y") -> pd.DataFrame:
+    # Stock tooling is manual-only; keep its dependency out of the scheduled
+    # Bitcoin process and import it only when this helper is deliberately used.
+    import yfinance as yf
+
     tickers = clean_tickers(tickers)
     cache_key = (tuple(tickers), period)
     if cache_key in STOCK_PRICE_CACHE:
@@ -2459,6 +2459,8 @@ def build_chart_manifest(reference_charts=None):
     for index, report in enumerate(BITCOIN_REPORTS):
         title = report["name"]
         chart_id = slugify(title)
+        if chart_id == "price-prediction-ml":
+            continue
         section_id = SECTION_BY_NAME.get(title, "technical")
         image_path = (Path(report["path"]).parent / report["output"]).resolve()
         image_rel = image_path.relative_to(REPO_ROOT).as_posix()
@@ -2486,6 +2488,8 @@ def build_chart_manifest(reference_charts=None):
 
 
 def build_stock_chart_manifest():
+    from Stock.run_all_reports import REPORTS as stock_reports
+
     charts = []
     seen_paths = set()
     order = 0
@@ -2523,7 +2527,7 @@ def build_stock_chart_manifest():
         )
         order += 1
 
-    for report in STOCK_REPORTS:
+    for report in stock_reports:
         report_title = report["name"]
         output = report["output"]
         output_dir = Path(report["path"]).parent
@@ -2642,18 +2646,15 @@ def generate_stock_interactive_data(charts) -> None:
 
 def main() -> int:
     print("Generating static website data...")
+    (BITCOIN_SITE_DATA_DIR / "price-prediction-ml.json").unlink(missing_ok=True)
+    shutil.rmtree(WEB_DATA_DIR / "stocks", ignore_errors=True)
     generate_interactive_data()
     reference_charts = import_reference_charts(BITCOIN_SITE_DATA_DIR, section_name)
     print(f"Generated {len(reference_charts)} imported BlockHorizon charts")
-    stock_charts = build_stock_chart_manifest()
-    generate_stock_interactive_data(stock_charts)
     bitcoin_manifest = build_bitcoin_manifest(reference_charts)
-    stock_manifest = build_stock_manifest(stock_charts)
     write_json(WEB_DATA_DIR / "site-manifest.json", bitcoin_manifest)
     write_json(WEB_DATA_DIR / "bitcoin" / "site-manifest.json", bitcoin_manifest)
-    write_json(WEB_DATA_DIR / "stocks" / "site-manifest.json", stock_manifest)
     print(f"Generated Bitcoin manifest with {len(bitcoin_manifest['charts'])} charts")
-    print(f"Generated Stocks manifest with {len(stock_manifest['charts'])} charts")
     return 0
 
 

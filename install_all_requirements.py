@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
-"""
-Install all Python requirements from subdirectories.
-Cross-platform script to find and install all requirements.txt files efficiently.
-Collects all unique requirements first, then installs each package only once.
-"""
+"""Install dependencies used by the scheduled Bitcoin publishing pipeline."""
 
 import subprocess
 import sys
@@ -36,6 +32,9 @@ def collect_all_requirements(root_dir, search_dirs):
             req_files.extend(sorted(dir_path.rglob("requirements.txt")))
         else:
             print(f"Warning: Directory '{search_dir}' not found, skipping...")
+
+    ml_dir = (root_dir / "Bitcoin" / "price_prediction").resolve()
+    req_files = [req_file for req_file in req_files if ml_dir not in req_file.resolve().parents]
 
     if not req_files:
         return None, 0
@@ -92,11 +91,11 @@ def install_requirements(requirements):
 
 
 def main():
-    """Find and install all requirements efficiently."""
-    print("Installing all Python requirements from subdirectories...\n")
+    """Find and install scheduled-pipeline requirements efficiently."""
+    print("Installing scheduled Bitcoin requirements...\n")
 
     root_dir = Path(__file__).parent
-    search_dirs = ["Bitcoin", "Stock"]
+    search_dirs = ["Bitcoin"]
 
     # Check for root requirements.txt
     root_req_file = root_dir / "requirements.txt"
@@ -115,7 +114,7 @@ def main():
     all_requirements, file_count = collect_all_requirements(root_dir, search_dirs)
 
     if all_requirements is None:
-        print("No requirements.txt files found in Bitcoin or Stock directories.")
+        print("No scheduled Bitcoin requirements.txt files found.")
         return
 
     print(f"\nTotal unique requirements: {len(all_requirements)}")

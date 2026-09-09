@@ -1,6 +1,6 @@
 # Fintech
 
-A comprehensive collection of Bitcoin on-chain analytics, market cycle indicators, and stock analysis tools. Each tool generates publication-quality charts with dark themes, built in Python using matplotlib.
+A collection of Bitcoin on-chain analytics and market-cycle indicators, with separate stock-analysis tools retained for manual use. Each tool generates publication-quality charts in Python.
 
 ## Web Dashboard
 
@@ -9,15 +9,15 @@ The repo includes a static, GitHub Pages-friendly dashboard at `index.html`. The
 The browser experience includes four linked workspaces:
 
 - `index.html` — dense market overview with live metrics, an 18-row cycle timeline, and eight featured charts.
-- `charts/` — full interactive Bitcoin and stock chart terminal with ranges, overlays, sheet view, pinning, and PNG export.
+- `charts/` — full interactive Bitcoin chart terminal with ranges, overlays, sheet view, pinning, and PNG export.
 - `signals/` — normalized cycle scores across 17 on-chain and 12 repo-native indicators, with historical phases and momentum.
 - `alerts/` — device-local alert rules evaluated against the latest generated signal scores.
 
-The Bitcoin library is the non-duplicating union of 47 repo-native charts and 144 charts currently adapted from BlockHorizon's chart bundle (191 total). Source provenance remains recorded in the generated chart metadata. The hourly build refreshes that bundle with the rest of the dashboard and stops before publishing if the reviewed upstream catalog is incomplete.
+The scheduled Bitcoin library is the non-duplicating union of 46 repo-native charts and 144 charts currently adapted from BlockHorizon's chart bundle (190 total). Source provenance remains recorded in the generated chart metadata. The hourly build refreshes that bundle with the rest of the dashboard and stops before publishing if the reviewed upstream catalog is incomplete.
 
 Preview the site locally from the repository root with `python3 -m http.server 8000`, then open `http://127.0.0.1:8000/`.
 
-The cron runner generates the latest reports locally, builds the static dashboard data, and force-publishes a latest-only `gh-pages` branch. This keeps chart output available on GitHub Pages without committing every hourly chart refresh to `main`.
+The cron runner generates the latest Bitcoin reports locally, builds the static dashboard data, and force-publishes a latest-only `gh-pages` branch. Stock reports and the experimental ML classifier are intentionally excluded from the scheduled Raspberry Pi path; their source remains available for manual runs. This keeps chart output available on GitHub Pages without committing every hourly chart refresh to `main`.
 
 ## Bitcoin Analytics
 
@@ -67,13 +67,6 @@ Monthly state map showing how Bitcoin moves across trend, Mayer, Puell, drawdown
 Heatmap showing where BTC spent the most time by price bucket, both by calendar year and by halving epoch, using repo-local 10-minute prices.
 
 ![Price Acceptance Heatmap](https://jamestsetsekas.github.io/Fintech/Bitcoin/price_acceptance_heatmap/price_acceptance_heatmap.png)
-
-#### Price Prediction (Machine Learning)
-Random Forest classifier predicting next-day price direction using features like daily % change, 7/21/200-day moving averages, and volatility measures.
-
-![Price Prediction](https://jamestsetsekas.github.io/Fintech/Bitcoin/price_prediction/price_prediction.png)
-
----
 
 ### Halving & Epoch Analysis
 
@@ -352,6 +345,8 @@ python3 create_contact_sheet.py --only puell --only volatility
 ```
 
 ### Run All Stock Reports
+
+Stock reports are manual-only and are not included in the public dashboard or hourly cron run.
 
 ```bash
 cd Stock

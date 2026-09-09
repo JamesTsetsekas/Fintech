@@ -27,6 +27,11 @@ if [ "$CURRENT_BRANCH" != "$PUBLISH_SOURCE_BRANCH" ]; then
     exit 0
 fi
 
+if ! git -C "$SCRIPT_DIR" diff --quiet || ! git -C "$SCRIPT_DIR" diff --cached --quiet; then
+    log "ERROR: Refusing scheduled refresh with uncommitted tracked source changes."
+    exit 1
+fi
+
 exec 9>"$LOCK_FILE"
 if ! flock -n 9; then
     log "Another report generation run is already active; exiting without starting a second run."
@@ -35,6 +40,7 @@ fi
 
 log "============================================================"
 log "Starting automated report generation"
+log "Mode: Bitcoin-only (stock and experimental ML reports disabled)"
 log "============================================================"
 
 # Check if venv exists
