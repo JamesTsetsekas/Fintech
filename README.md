@@ -13,7 +13,7 @@ The browser experience includes four linked workspaces:
 - `signals/` — normalized cycle scores across 17 on-chain and 12 repo-native indicators, with historical phases and momentum.
 - `alerts/` — device-local alert rules evaluated against the latest generated signal scores.
 
-The Bitcoin library is the non-duplicating union of 47 repo-native charts and 144 charts adapted from BlockHorizon's public chart bundle (191 total). Imported charts identify and link to their source in the terminal. The hourly build refreshes that bundle with the rest of the dashboard and stops before publishing if the reviewed upstream catalog is incomplete.
+The Bitcoin library is the non-duplicating union of 47 repo-native charts and 144 charts currently adapted from BlockHorizon's chart bundle (191 total). Source provenance remains recorded in the generated chart metadata. The hourly build refreshes that bundle with the rest of the dashboard and stops before publishing if the reviewed upstream catalog is incomplete.
 
 Preview the site locally from the repository root with `python3 -m http.server 8000`, then open `http://127.0.0.1:8000/`.
 

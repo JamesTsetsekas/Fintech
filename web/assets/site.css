@@ -507,14 +507,6 @@ button { color: inherit; }
 
 .text-action:hover { color: var(--accent); }
 
-.chart-source-link {
-  display: inline-block;
-  color: var(--accent);
-  font-weight: 600;
-}
-
-.chart-source-link:hover { text-decoration: underline; }
-
 .module {
   margin: 0 18px 16px;
   overflow: hidden;

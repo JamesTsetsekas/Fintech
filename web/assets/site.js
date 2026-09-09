@@ -413,7 +413,7 @@ function updateChartHeadings(chart) {
     if (node) node.textContent = pageConfig.market === "stocks" ? `Stocks · ${chart.section}` : chart.section;
   });
   const summary = document.querySelector("#chart-summary");
-  if (summary) setChartSummary(chart.description, chart.source_label, chart.source_url);
+  if (summary) setChartSummary(chart.description);
   const alertLink = document.querySelector("#chart-alert-link");
   if (alertLink) {
     const definition = SIGNAL_DEFINITIONS.find((item) => item.chartId === chart.id);
@@ -510,11 +510,7 @@ function renderChartDetails(payload) {
     ? payload.series.find((series) => Array.isArray(series.x))?.x?.at(-1)
     : null;
   document.querySelector("#series-date").textContent = latestDate ? shortDate(latestDate) : "Latest";
-  setChartSummary(
-    payload.summary_text || appState.currentChart.description,
-    payload.source_label || appState.currentChart.source_label,
-    payload.source_url || appState.currentChart.source_url,
-  );
+  setChartSummary(payload.summary_text || appState.currentChart.description);
 
   seriesList.innerHTML = payload.series.slice(0, 8).map((series, index) => {
     const values = primaryValues(series);
@@ -551,19 +547,10 @@ function renderChartDetails(payload) {
   else phaseBox.innerHTML = `<span>Data status</span><strong>${formatDate(new Date(payload.updated_at || appState.manifest.generated_at))}</strong>`;
 }
 
-function setChartSummary(text, sourceLabel, sourceUrl) {
+function setChartSummary(text) {
   const summary = document.querySelector("#chart-summary");
   if (!summary) return;
   summary.textContent = text || "";
-  if (!sourceLabel || !sourceUrl) return;
-  const separator = document.createTextNode(" ");
-  const source = document.createElement("a");
-  source.href = sourceUrl;
-  source.target = "_blank";
-  source.rel = "noopener noreferrer";
-  source.className = "chart-source-link";
-  source.textContent = `Source: ${sourceLabel} ↗`;
-  summary.append(separator, source);
 }
 
 function renderDataSheet(payload) {

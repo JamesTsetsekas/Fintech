@@ -478,7 +478,7 @@ def _build_payload(chart: dict, price_chart: dict, built_at: str | None) -> dict
         "id": chart["slug"],
         "title": chart["name"].strip(),
         "summary_text": (
-            f"Historical on-chain series from BlockHorizon's public chart bundle"
+            f"Historical on-chain series"
             f"{f'; latest observation {latest_date}' if latest_date else ''}."
         ),
         "updated_at": source_updated,
@@ -535,7 +535,7 @@ def import_reference_charts(output_dir: Path, section_name, *, timeout: int = 90
             "title": title,
             "section_id": section_id,
             "section": section_name(section_id),
-            "description": "Public BlockHorizon on-chain series, refreshed during the Fintech site build.",
+            "description": "Historical on-chain series, refreshed during the Fintech site build.",
             "image_path": None,
             "kind": "interactive",
             "data_path": f"web/data/bitcoin/{chart_id}.json",
