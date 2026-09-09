@@ -407,10 +407,11 @@ button { color: inherit; }
 .terminal-metric svg {
   position: absolute;
   right: 14px;
-  bottom: 9px;
-  width: 46%;
-  height: 28px;
+  bottom: 5px;
+  width: 42%;
+  height: 18px;
   overflow: visible;
+  pointer-events: none;
 }
 
 .terminal-metric path,
@@ -418,6 +419,13 @@ button { color: inherit; }
   fill: none;
   stroke: var(--accent);
   stroke-width: 1.5;
+}
+
+.wide-only-metric { display: none; }
+
+@media (min-width: 1500px) {
+  .metric-ribbon { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .wide-only-metric { display: block; }
 }
 
 .metric-phase {

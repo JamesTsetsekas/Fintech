@@ -194,6 +194,14 @@ PALETTE = (
     "#a24d68",
 )
 
+GRADIENT_COLORSCALE = (
+    (0.0, "#ef4444"),
+    (0.22, "#f97316"),
+    (0.46, "#facc15"),
+    (0.72, "#84cc16"),
+    (1.0, "#16a34a"),
+)
+
 
 def _fetch_bundle(timeout: int = 90) -> tuple[list[dict], str | None]:
     request = Request(
@@ -240,6 +248,46 @@ def _point_colors(source_series: dict, length: int) -> list[str] | None:
     return [overrides.get(str(index), {}).get("color", fallback) for index in range(length)]
 
 
+def _gradient_marker(chart: dict, source_series: dict, values: list[float | None]) -> dict | None:
+    config = chart.get("gradient_config") or {}
+    if config.get("default_mode") != "absolute":
+        return None
+    if config.get("default_series_key") != source_series.get("series_key"):
+        return None
+    bounds = config.get("absolute") or {}
+    lower = bounds.get("default_min")
+    upper = bounds.get("default_max")
+    if not isinstance(lower, (int, float)) or not isinstance(upper, (int, float)) or lower >= upper:
+        return None
+
+    colorscale = list(GRADIENT_COLORSCALE)
+    zones = (chart.get("style_config") or {}).get("valueZones") or []
+    zone = next(
+        (item for item in zones if item.get("seriesKey") == source_series.get("series_key")),
+        None,
+    )
+    if zone:
+        green_at = max(0.0, min(1.0, (float(zone.get("greenBelow", lower)) - lower) / (upper - lower)))
+        red_at = max(green_at, min(1.0, (float(zone.get("redAbove", upper)) - lower) / (upper - lower)))
+        colorscale = [
+            (0.0, "#16a34a"),
+            (green_at, "#16a34a"),
+            (min(1.0, green_at + 0.002), "#facc15"),
+            (max(0.0, red_at - 0.002), "#facc15"),
+            (red_at, "#ef4444"),
+            (1.0, "#ef4444"),
+        ]
+
+    return {
+        "color": values,
+        "colorscale": colorscale,
+        "cmin": lower,
+        "cmax": upper,
+        "size": 6 if zone else 3.2,
+        "showscale": False,
+    }
+
+
 def _line_trace(chart: dict, source_series: dict, index: int) -> dict | None:
     dates, values = _decode_series(source_series)
     if not dates:
@@ -277,7 +325,13 @@ def _line_trace(chart: dict, source_series: dict, index: int) -> dict | None:
     colors = _point_colors(source_series, len(values))
     if colors:
         trace["mode"] = "lines+markers"
-        trace["marker"] = {"color": colors, "size": 4}
+        trace["marker"] = {"color": colors, "size": 6}
+    elif gradient_marker := _gradient_marker(chart, source_series, values):
+        # Dense value-colored points read as a continuous line while retaining
+        # the complete source series for signals, hover, and table views.
+        trace["mode"] = "lines+markers"
+        trace["line"] = {"color": "rgba(0,0,0,0)", "width": 0.5}
+        trace["marker"] = gradient_marker
     return trace
 
 
@@ -407,6 +461,8 @@ def _build_payload(chart: dict, price_chart: dict, built_at: str | None) -> dict
             "automargin": True,
             "ticksuffix": first_series.get("value_suffix") or "",
         }
+        if chart.get("slug") == "nupl":
+            layout["yaxis2"].update({"range": [-2, 1], "tickvals": [-2, -1, 0, 1]})
     elif chart.get("series"):
         suffixes = {series.get("value_suffix") for series in chart["series"] if series.get("value_suffix")}
         if len(suffixes) == 1:
@@ -433,6 +489,7 @@ def _build_payload(chart: dict, price_chart: dict, built_at: str | None) -> dict
         "scale_axes": ["y"],
         "x_value_type": "date",
         "show_range_selector": bool((chart.get("toolbar_config") or {}).get("has_date", True)),
+        "show_halvings_default": bool(chart.get("show_halvings")),
         "series": traces,
         "layout": layout,
     }

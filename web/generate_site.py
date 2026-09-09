@@ -278,6 +278,11 @@ INTERACTIVE_IDS = {
     "miner-hashprice",
 }
 
+REFERENCE_TITLE_OVERRIDES = {
+    "200-dma-200-wma": "PlanB: Moving Averages",
+    "pi-cycle-top": "Pi Cycle Top Indicator",
+}
+
 HALVING_INFO = [
     {"block": 0, "date": datetime(2009, 1, 3), "reward": 50},
     {"block": 210000, "date": datetime(2012, 11, 28), "reward": 25},
@@ -710,12 +715,12 @@ def build_pi_cycle_top():
     latest = data.iloc[-1]
     return base_payload(
         "pi-cycle-top",
-        "Pi Cycle Top",
+        "Pi Cycle Top Indicator",
         f"Latest 111D average {usd_label(latest['SMA111D'])}; 350D x2 average {usd_label(latest['SMA350D_X2'])}.",
         [
-            trace("BTC price", data["Date"], data["Price"], "#f5c84b", width=2.2, hovertemplate="%{x}<br>$%{y:,.0f}<extra>BTC price</extra>"),
+            trace("BTC price", data["Date"], data["Price"], "#eef3f8", width=1.8, hovertemplate="%{x}<br>$%{y:,.0f}<extra>BTC price</extra>"),
             trace("111D MA", data["Date"], data["SMA111D"], "#55d6ff", width=1.8, hovertemplate="%{x}<br>$%{y:,.0f}<extra>111D MA</extra>"),
-            trace("350D MA x2", data["Date"], data["SMA350D_X2"], "#ff5f63", width=1.8, hovertemplate="%{x}<br>$%{y:,.0f}<extra>350D MA x2</extra>"),
+            trace("350D MA x2", data["Date"], data["SMA350D_X2"], "#f5c84b", width=1.8, hovertemplate="%{x}<br>$%{y:,.0f}<extra>350D MA x2</extra>"),
         ],
         {"yaxis": {"title": "BTC price (USD)", "type": "log", "tickprefix": "$"}},
         allow_scale_toggle=True,
@@ -2461,7 +2466,7 @@ def build_chart_manifest(reference_charts=None):
         charts.append(
             {
                 "id": chart_id,
-                "title": title,
+                "title": REFERENCE_TITLE_OVERRIDES.get(chart_id, title),
                 "section_id": section_id,
                 "section": section_name(section_id),
                 "description": DESCRIPTIONS.get(title, "Generated Bitcoin chart report."),

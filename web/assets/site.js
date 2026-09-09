@@ -199,7 +199,7 @@ async function renderMetricRibbon(referenceSignals = appState.signals) {
   const supplySignal = referenceSignals.find((signal) => signal.id === "supply-profit");
   const supplyValue = Number(supplySignal?.rawValue);
   const supplyChange30 = rawSignalDelta(supplySignal, 30);
-  const supplyHistory = (supplySignal?.points || []).map((point) => point.value).filter(Number.isFinite);
+  const supplyHistory = recentSignalValues(supplySignal, 45);
   const cycleIndex = average(referenceSignals.map((signal) => signal.score));
   const bullishCount = referenceSignals.filter((signal) => signal.score >= 50).length;
   const phases = phaseCounts(referenceSignals);
@@ -209,21 +209,29 @@ async function renderMetricRibbon(referenceSignals = appState.signals) {
   const recentRatios = recentPrice.map((value, index) => Number(value) / Number(recentAverage[index]));
 
   ribbon.innerHTML = `
-    <article class="terminal-metric">
+    <article class="terminal-metric has-sparkline">
       <span class="terminal-metric-label">Bitcoin price</span>
       <div class="terminal-metric-row">
         <strong class="terminal-metric-value">${formatUsd(latestPrice)}</strong>
-        <span class="terminal-metric-change ${change30 < 0 ? "negative" : ""}">${signed(change30)} 30d</span>
+        <span class="terminal-metric-change ${change30 < 0 ? "negative" : ""}">${change30 < 0 ? "↘" : "↗"} ${signed(change30)} 30d</span>
       </div>
       ${sparklineSvg(prices.slice(-45))}
     </article>
-    <article class="terminal-metric">
+    <article class="terminal-metric has-sparkline">
       <span class="terminal-metric-label">Supply in profit</span>
       <div class="terminal-metric-row">
         <strong class="terminal-metric-value">${Number.isFinite(supplyValue) ? `${supplyValue.toFixed(1)}%` : signed(distance)}</strong>
-        <span class="terminal-metric-change ${supplyChange30 < 0 ? "negative" : ""}">${Number.isFinite(supplyChange30) ? `${supplyChange30 >= 0 ? "+" : ""}${supplyChange30.toFixed(1)}pp 30d` : (distance >= 0 ? "above trend" : "below trend")}</span>
+        <span class="terminal-metric-change ${supplyChange30 < 0 ? "negative" : ""}">${Number.isFinite(supplyChange30) ? `${supplyChange30 < 0 ? "↘" : "↗"} ${supplyChange30 >= 0 ? "+" : ""}${supplyChange30.toFixed(1)}pp 30d` : (distance >= 0 ? "above trend" : "below trend")}</span>
       </div>
-      ${sparklineSvg(supplyHistory.length ? supplyHistory.slice(-45) : recentRatios)}
+      ${sparklineSvg(supplyHistory.length ? supplyHistory : recentRatios)}
+    </article>
+    <article class="terminal-metric has-sparkline wide-only-metric">
+      <span class="terminal-metric-label">Price vs 200D</span>
+      <div class="terminal-metric-row">
+        <strong class="terminal-metric-value">${signed(distance)}</strong>
+        <span class="terminal-metric-change ${distance < 0 ? "negative" : ""}">${distance >= 0 ? "above trend" : "below trend"}</span>
+      </div>
+      ${sparklineSvg(recentRatios)}
     </article>
     <article class="terminal-metric">
       <span class="terminal-metric-label">Cycle index</span>
@@ -269,7 +277,12 @@ async function renderDashboardCharts() {
     const payload = await getPayload(id);
     const target = document.querySelector(`#dashboard-plot-${CSS.escape(id)}`);
     target.classList.remove("loading-block");
-    renderPlot(target, payload, { compact: true, maxPoints: 600 });
+    const showHalvings = payload.show_halvings_default || ["pi-cycle-top", "200-dma-200-wma"].includes(payload.id);
+    renderPlot(target, payload, {
+      compact: true,
+      maxPoints: 600,
+      layout: showHalvings ? halvingOverlayLayout(payload) : undefined,
+    });
   }));
 }
 
@@ -358,7 +371,11 @@ async function selectTerminalChart(chartId, options = {}) {
     const payload = await getPayload(chart.id);
     if (appState.activeChartId !== chart.id) return;
     appState.currentPayload = payload;
+    appState.chartOptions.halvings = Boolean(
+      payload.show_halvings_default || ["pi-cycle-top", "200-dma-200-wma"].includes(payload.id),
+    );
     appState.chartOptions.scale = payload.default_scale || payload.layout?.yaxis?.type || "linear";
+    document.querySelector('[data-chart-action="halvings"]')?.classList.toggle("active", appState.chartOptions.halvings);
     updateChartControls(payload);
     target.classList.remove("loading-block");
     await renderTerminalPlot();
@@ -440,12 +457,17 @@ function terminalSeries(payload) {
 }
 
 function terminalLayout(payload) {
-  const layout = {};
-  if (appState.chartOptions.halvings && payload.x_value_type !== "number") {
-    const existingShapes = payload.layout?.shapes || [];
-    layout.shapes = [
-      ...existingShapes,
-      ...["2012-11-28", "2016-07-09", "2020-05-11", "2024-04-20"].map((date) => ({
+  return appState.chartOptions.halvings && payload.x_value_type !== "number"
+    ? halvingOverlayLayout(payload)
+    : {};
+}
+
+function halvingOverlayLayout(payload) {
+  const dates = ["2012-11-28", "2016-07-09", "2020-05-11", "2024-04-20"];
+  return {
+    shapes: [
+      ...(payload.layout?.shapes || []),
+      ...dates.map((date) => ({
         type: "line",
         xref: "x",
         yref: "paper",
@@ -455,10 +477,10 @@ function terminalLayout(payload) {
         y1: 1,
         line: { color: "#c85f3c", width: 1, dash: "dot" },
       })),
-    ];
-    layout.annotations = [
+    ],
+    annotations: [
       ...(payload.layout?.annotations || []),
-      ...["2012-11-28", "2016-07-09", "2020-05-11", "2024-04-20"].map((date, index) => ({
+      ...dates.map((date, index) => ({
         x: date,
         y: 0.02,
         xref: "x",
@@ -468,9 +490,8 @@ function terminalLayout(payload) {
         textangle: 90,
         font: { size: 9, color: "#98958e" },
       })),
-    ];
-  }
-  return layout;
+    ],
+  };
 }
 
 function renderImageChart(chart, target) {
@@ -1125,6 +1146,17 @@ function rawSignalDelta(signal, days) {
   return Number(latest.value) - Number(previous.value);
 }
 
+function recentSignalValues(signal, days) {
+  if (!signal?.points?.length) return [];
+  const latest = new Date(last(signal.points).date);
+  const cutoff = new Date(latest);
+  cutoff.setUTCDate(cutoff.getUTCDate() - days);
+  return signal.points
+    .filter((point) => new Date(point.date) >= cutoff)
+    .map((point) => Number(point.value))
+    .filter(Number.isFinite);
+}
+
 function renderSignalHeatmap(target, signals, columns = 56) {
   if (!target) return;
   target.classList.remove("loading-block");
@@ -1177,14 +1209,24 @@ function renderPlot(target, payload, options = {}) {
   ];
   const mapColor = (color) => typeof color === "string" ? (colorMap[color.toLowerCase()] || color) : color;
   const sourceSeries = options.series || payload.series;
-  const traces = sourceSeries.slice(0, options.compact ? 4 : sourceSeries.length).map((series) => {
+  const displaySeries = sourceSeries
+    .slice(0, options.compact ? 4 : sourceSeries.length)
+    .flatMap(expandGradientLine);
+  const traces = displaySeries.map((series) => {
     const { axis, ...trace } = series;
     const next = { ...trace, yaxis: axis || trace.yaxis || "y" };
-    if (options.maxPoints && Array.isArray(trace.x)) {
+    if (options.maxPoints && Array.isArray(trace.x) && !trace.x.includes(null)) {
       const step = Math.max(1, Math.ceil(trace.x.length / options.maxPoints));
+      const sourceLength = trace.x.length;
       ["x", "y", "open", "high", "low", "close", "text"].forEach((key) => {
         if (Array.isArray(next[key])) next[key] = next[key].filter((_, index) => index % step === 0 || index === next[key].length - 1);
       });
+      if (Array.isArray(next.marker?.color) && next.marker.color.length === sourceLength) {
+        next.marker = {
+          ...next.marker,
+          color: next.marker.color.filter((_, index) => index % step === 0 || index === sourceLength - 1),
+        };
+      }
     }
     if (next.line?.color) next.line = { ...next.line, color: mapColor(next.line.color) };
     if (next.marker?.color) {
@@ -1260,6 +1302,66 @@ function renderPlot(target, payload, options = {}) {
     displayModeBar: !options.compact,
     modeBarButtonsToRemove: ["lasso2d", "select2d"],
   });
+}
+
+function expandGradientLine(series) {
+  const values = series.marker?.color;
+  const scale = series.marker?.colorscale;
+  if (!Array.isArray(values) || !Array.isArray(scale) || !Array.isArray(series.x) || !Array.isArray(series.y)) {
+    return [series];
+  }
+  if (values.length !== series.y.length || series.x.length !== series.y.length) return [series];
+  if (Number(series.marker.size) > 4) return [series];
+
+  const lower = Number(series.marker.cmin);
+  const upper = Number(series.marker.cmax);
+  if (!Number.isFinite(lower) || !Number.isFinite(upper) || lower >= upper) return [series];
+
+  const bucketCount = 12;
+  const buckets = Array.from({ length: bucketCount }, (_, index) => ({
+    color: gradientColor(scale, (index + 0.5) / bucketCount),
+    x: [],
+    y: [],
+  }));
+  for (let index = 0; index < series.y.length - 1; index += 1) {
+    const start = Number(series.y[index]);
+    const end = Number(series.y[index + 1]);
+    if (!Number.isFinite(start) || !Number.isFinite(end)) continue;
+    const midpoint = (start + end) / 2;
+    const ratio = Math.max(0, Math.min(1, (midpoint - lower) / (upper - lower)));
+    const bucket = buckets[Math.min(bucketCount - 1, Math.floor(ratio * bucketCount))];
+    bucket.x.push(series.x[index], series.x[index + 1], null);
+    bucket.y.push(start, end, null);
+  }
+
+  const visibleBuckets = buckets.filter((bucket) => bucket.x.length);
+  const { marker: _marker, ...lineSeries } = series;
+  return visibleBuckets.map((bucket, index) => ({
+    ...lineSeries,
+    x: bucket.x,
+    y: bucket.y,
+    mode: "lines",
+    line: { color: bucket.color, width: 1.8 },
+    showlegend: index === 0,
+  }));
+}
+
+function gradientColor(scale, ratio) {
+  const stops = scale
+    .map(([position, color]) => [Number(position), String(color)])
+    .filter(([position, color]) => Number.isFinite(position) && /^#[0-9a-f]{6}$/i.test(color))
+    .sort((left, right) => left[0] - right[0]);
+  if (!stops.length) return "#c85f3c";
+  const upperIndex = stops.findIndex(([position]) => position >= ratio);
+  if (upperIndex <= 0) return stops[0][1];
+  if (upperIndex < 0) return stops.at(-1)[1];
+  const [startAt, startColor] = stops[upperIndex - 1];
+  const [endAt, endColor] = stops[upperIndex];
+  const mix = endAt === startAt ? 1 : (ratio - startAt) / (endAt - startAt);
+  const start = startColor.slice(1).match(/.{2}/g).map((part) => parseInt(part, 16));
+  const end = endColor.slice(1).match(/.{2}/g).map((part) => parseInt(part, 16));
+  const rgb = start.map((channel, index) => Math.round(channel + ((end[index] - channel) * mix)));
+  return `#${rgb.map((channel) => channel.toString(16).padStart(2, "0")).join("")}`;
 }
 
 function ratioSeries(numeratorIndex, denominatorIndex) {
