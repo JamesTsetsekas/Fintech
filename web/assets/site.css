@@ -884,11 +884,37 @@ button { color: inherit; }
 }
 
 .chart-summary {
-  margin: 8px 0 14px;
+  margin: 8px 0 5px;
   color: var(--muted);
   font-size: 0.77rem;
   line-height: 1.5;
 }
+
+.chart-attribution {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 7px;
+  margin: 0 0 14px;
+  color: var(--faint);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.75rem;
+  line-height: 1.45;
+}
+
+.chart-attribution[hidden] { display: none; }
+
+.chart-attribution a {
+  color: var(--muted);
+  text-decoration: none;
+  text-underline-offset: 2px;
+}
+
+.chart-attribution a:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.chart-attribution-separator { color: var(--line-strong); }
 
 .chart-phase {
   display: flex;

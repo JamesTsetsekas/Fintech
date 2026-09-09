@@ -403,6 +403,7 @@ function updateChartHeadings(chart) {
   });
   const summary = document.querySelector("#chart-summary");
   if (summary) setChartSummary(chart.description);
+  renderChartAttribution(chart);
   const alertLink = document.querySelector("#chart-alert-link");
   if (alertLink) {
     const definition = SIGNAL_DEFINITIONS.find((item) => item.chartId === chart.id);
@@ -500,6 +501,7 @@ function renderChartDetails(payload) {
     : null;
   document.querySelector("#series-date").textContent = latestDate ? shortDate(latestDate) : "Latest";
   setChartSummary(payload.summary_text || appState.currentChart.description);
+  renderChartAttribution(payload);
 
   seriesList.innerHTML = payload.series.slice(0, 8).map((series, index) => {
     const values = primaryValues(series);
@@ -540,6 +542,34 @@ function setChartSummary(text) {
   const summary = document.querySelector("#chart-summary");
   if (!summary) return;
   summary.textContent = text || "";
+}
+
+function renderChartAttribution(source) {
+  const target = document.querySelector("#chart-attribution");
+  if (!target) return;
+  const explicit = Array.isArray(source?.attributions) ? source.attributions : [];
+  const entries = explicit.length
+    ? explicit
+    : source?.source_url
+      ? [{ kind: "Data", label: source.source_label || "Source", url: source.source_url }]
+      : [];
+  const links = entries.map((entry) => {
+    const url = safeAttributionUrl(entry?.url);
+    if (!url || !entry?.label) return "";
+    const kind = entry.kind ? `${escapeHtml(entry.kind)}: ` : "";
+    return `<span>${kind}<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(entry.label)}<span aria-hidden="true"> ↗</span></a></span>`;
+  }).filter(Boolean);
+  target.innerHTML = links.join('<span class="chart-attribution-separator" aria-hidden="true">·</span>');
+  target.hidden = links.length === 0;
+}
+
+function safeAttributionUrl(value) {
+  try {
+    const url = new URL(value, window.location.href);
+    return ["http:", "https:"].includes(url.protocol) ? url.href : "";
+  } catch {
+    return "";
+  }
 }
 
 function renderDataSheet(payload) {

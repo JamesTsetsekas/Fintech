@@ -19,6 +19,28 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 WEB_DATA_DIR = REPO_ROOT / "web" / "data"
 BITCOIN_DATA_DIR = REPO_ROOT / "Bitcoin" / "data" / "bitcoin_csv_data"
 BITCOIN_SITE_DATA_DIR = WEB_DATA_DIR / "bitcoin"
+WICKED_SMART_BITCOIN_URL = "https://github.com/w-s-bitcoin/animations"
+OMEGA60_MODEL_URL = "https://jan3.com/blog/omega60-bitcoin-price-model"
+
+
+def native_chart_attributions(chart_id: str, series=None):
+    attributions = [
+        {
+            "kind": "Data",
+            "label": "Wicked Smart Bitcoin",
+            "url": WICKED_SMART_BITCOIN_URL,
+        }
+    ]
+    has_omega60 = any("omega60" in str(item.get("name", "")).lower() for item in (series or []))
+    if chart_id == "price-prediction-models" and has_omega60:
+        attributions.append(
+            {
+                "kind": "Model",
+                "label": "OMEGA60",
+                "url": OMEGA60_MODEL_URL,
+            }
+        )
+    return attributions
 
 sys.path.insert(0, str(REPO_ROOT))
 sys.path.insert(0, str(REPO_ROOT / "Bitcoin"))
@@ -495,6 +517,7 @@ def base_payload(
         "scale_axes": scale_axes or ["y"],
         "x_value_type": x_value_type,
         "show_range_selector": show_range_selector,
+        "attributions": native_chart_attributions(chart_id, series),
         "series": series,
         "layout": layout,
     }
@@ -2477,6 +2500,7 @@ def build_chart_manifest(reference_charts=None):
                 "data_path": f"web/data/bitcoin/{chart_id}.json" if kind == "interactive" else None,
                 "order": index,
                 "image_exists": image_path.exists(),
+                "attributions": native_chart_attributions(chart_id),
             }
         )
     charts.extend(reference_charts or [])

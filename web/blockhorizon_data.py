@@ -484,6 +484,13 @@ def _build_payload(chart: dict, price_chart: dict, built_at: str | None) -> dict
         "updated_at": source_updated,
         "source_label": "BlockHorizon public chart bundle",
         "source_url": SOURCE_DASHBOARD_URL,
+        "attributions": [
+            {
+                "kind": "Data",
+                "label": "BlockHorizon",
+                "url": SOURCE_DASHBOARD_URL,
+            }
+        ],
         "allow_scale_toggle": bool((chart.get("toolbar_config") or {}).get("has_scale")),
         "default_scale": "log" if (price_trace or default_log) else "linear",
         "scale_axes": ["y"],
@@ -543,5 +550,12 @@ def import_reference_charts(output_dir: Path, section_name, *, timeout: int = 90
             "image_exists": False,
             "source_label": "BlockHorizon",
             "source_url": SOURCE_DASHBOARD_URL,
+            "attributions": [
+                {
+                    "kind": "Data",
+                    "label": "BlockHorizon",
+                    "url": SOURCE_DASHBOARD_URL,
+                }
+            ],
         })
     return manifest_entries
