@@ -16,6 +16,8 @@ from model_projection import (  # noqa: E402
     build_projection_frame,
     fit_log_log_model,
     hpr_price,
+    omega60_decimal_year,
+    omega60_price,
     predict_log_log_model,
     power_law_price,
 )
@@ -64,6 +66,16 @@ class ModelProjectionTests(unittest.TestCase):
         self.assertTrue(np.isnan(result[1]))
         self.assertTrue(np.isfinite(result[2]))
 
+    def test_omega60_matches_public_formula(self):
+        result = omega60_price([2013.99, 2014.0, 2015.0])
+
+        self.assertTrue(np.isnan(result[0]))
+        self.assertAlmostEqual(result[1], 318.0, places=6)
+        self.assertAlmostEqual(result[2], 508.8, places=6)
+
+        decimal_year = omega60_decimal_year(pd.Series([pd.Timestamp("2026-08-12")])).iloc[0]
+        self.assertAlmostEqual(omega60_price(decimal_year), 119_423.133657, places=3)
+
     def test_stock_to_income_includes_fees(self):
         history = synthetic_price_history()
         fees = pd.DataFrame({"Date": history["Date"], "Fees_BTC": np.full(len(history), 5.0)})
@@ -92,6 +104,7 @@ class ModelProjectionTests(unittest.TestCase):
         self.assertGreater(last["Supply_BTC"], history["Supply_BTC"].iloc[-1])
         self.assertTrue(np.isfinite(last["Power_Law"]))
         self.assertAlmostEqual(last["Power_Law"], power_law_price(last["Days_Since_Genesis"]))
+        self.assertTrue(np.isfinite(last["Omega60"]))
         self.assertTrue(np.isfinite(last["S2F"]))
         self.assertTrue(np.isfinite(last["S2I"]))
 

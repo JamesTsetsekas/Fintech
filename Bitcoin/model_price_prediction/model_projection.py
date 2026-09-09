@@ -18,6 +18,34 @@ from bitcoin_chart_utils import POWER_LAW_CONSTANT_LOG10, POWER_LAW_EXPONENT, po
 
 GENESIS_DATE = pd.Timestamp("2009-01-03")
 SATOSHIS_PER_BTC = 100_000_000
+OMEGA60_ANCHOR_PRICE = 318.0
+OMEGA60_ANCHOR_YEAR = 2014.0
+OMEGA60_ANNUAL_GROWTH = 0.60
+
+
+def omega60_decimal_year(dates):
+    """Return JAN3-style decimal years for OMEGA60 date inputs."""
+    timestamps = pd.to_datetime(dates)
+    if hasattr(timestamps, "dt"):
+        return (
+            timestamps.dt.year
+            + (timestamps.dt.month - 1) / 12
+            + (timestamps.dt.day - 1) / 365
+        )
+    return timestamps.year + (timestamps.month - 1) / 12 + (timestamps.day - 1) / 365
+
+
+def omega60_price(decimal_years):
+    """Return JAN3 OMEGA60 prices using a 60% annual growth trajectory."""
+    years = np.asarray(decimal_years, dtype=float)
+    result = np.full(years.shape, np.nan, dtype=float)
+    mask = np.isfinite(years) & (years >= OMEGA60_ANCHOR_YEAR)
+    result[mask] = OMEGA60_ANCHOR_PRICE * (
+        (1 + OMEGA60_ANNUAL_GROWTH) ** (years[mask] - OMEGA60_ANCHOR_YEAR)
+    )
+    if np.isscalar(decimal_years):
+        return float(result.item())
+    return result
 
 
 def hpr_price(days):
@@ -165,11 +193,12 @@ def build_projection_frame(price_history, daily_fees, end_date, halving_info):
     metrics["S2F_Ratio"] = metrics["Supply_BTC"] / metrics["Annual_Flow_BTC"]
     metrics["S2I_Ratio"] = metrics["Supply_BTC"] / metrics["Annual_Income_BTC"]
     metrics["Days_Since_Genesis"] = (metrics["Date"] - GENESIS_DATE).dt.days
+    metrics["Omega60_Decimal_Year"] = omega60_decimal_year(metrics["Date"])
     return metrics
 
 
 def apply_price_models(metrics):
-    """Add HPR, power-law, S2F, and S2I model-price columns."""
+    """Add HPR, power-law, OMEGA60, S2F, and S2I model-price columns."""
     modeled = metrics.copy()
     historical = modeled[modeled["Price"].notna() & (modeled["Price"] > 0)]
 
@@ -184,6 +213,7 @@ def apply_price_models(metrics):
 
     modeled["HPR"] = hpr_price(modeled["Days_Since_Genesis"])
     modeled["Power_Law"] = power_law_price(modeled["Days_Since_Genesis"])
+    modeled["Omega60"] = omega60_price(modeled["Omega60_Decimal_Year"])
     modeled["S2F"] = predict_log_log_model(modeled["S2F_Ratio"], s2f_slope, s2f_intercept)
     modeled["S2I"] = predict_log_log_model(modeled["S2I_Ratio"], s2i_slope, s2i_intercept)
 

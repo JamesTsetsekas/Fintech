@@ -239,7 +239,7 @@ DESCRIPTIONS = {
     "Cycle High Drawdown": "Drawdowns from cycle highs overlaid across market cycles.",
     "Drawdown Recovery Map": "Major drawdowns and recovery durations.",
     "Drawdown Duration Heatmap": "Time spent at each drawdown depth during major underwater periods.",
-    "Price Prediction Models": "Spot price, Stock-to-Flow, and Power Law on one overview chart.",
+    "Price Prediction Models": "Spot price, Stock-to-Flow, OMEGA60, and Power Law on one overview chart.",
     "Cycle Phase Dashboard": "Compact cycle summary combining trend, drawdown, halving progress, fees, and volatility.",
     "Price Prediction (ML)": "Random Forest next-day direction model using price-derived features.",
     "Puell Multiple": "Miner revenue divided by its 365-day moving average.",
@@ -612,10 +612,11 @@ def build_model_overview():
     return base_payload(
         "price-prediction-models",
         "Model Price Overview",
-        f"Spot {usd_label(latest['Price'])}; chart compares one scarcity model and one time-based model through 2035.",
+        f"Spot {usd_label(latest['Price'])}; chart compares scarcity, OMEGA60, and time-based models through 2035.",
         [
             trace("BTC price", historical["Date"], historical["Price"], "#f5c84b", width=2.6, hovertemplate="%{x}<br>$%{y:,.0f}<extra>BTC price</extra>"),
             trace("Stock-to-Flow", projection["Date"], projection["S2F"], "#55d6ff", hovertemplate="%{x}<br>$%{y:,.0f}<extra>S2F</extra>"),
+            trace("OMEGA60", projection["Date"], projection["Omega60"], "#ff5ccd", hovertemplate="%{x}<br>$%{y:,.0f}<extra>OMEGA60</extra>"),
             trace("Power Law", projection["Date"], projection["Power_Law"], "#3ce38a", hovertemplate="%{x}<br>$%{y:,.0f}<extra>Power Law</extra>"),
         ],
         {

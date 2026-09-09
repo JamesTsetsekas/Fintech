@@ -4,6 +4,7 @@ Bitcoin Price Prediction Models
 
 Shows historical Bitcoin price with a concise overview of:
 - Stock-to-Flow
+- OMEGA60
 - Power Law
 
 Detailed Rainbow/HPR and Power Law band views live in their dedicated charts.
@@ -76,7 +77,7 @@ def main():
 
     historical_data = projection_df[projection_df["Price"].notna() & (projection_df["Price"] > 0)]
     x_min = historical_data["Date"].min()
-    valid_model_values = projection_df[["Price", "S2F", "Power_Law"]].to_numpy()
+    valid_model_values = projection_df[["Price", "S2F", "Omega60", "Power_Law"]].to_numpy()
     y_max = np.nanmax(valid_model_values)
     y_upper = max(20_000_000, y_max * 1.15)
 
@@ -112,6 +113,15 @@ def main():
         alpha=0.9,
         zorder=5,
     )
+    ax.plot(
+        projection_df["Date"],
+        projection_df["Omega60"],
+        color="#FF5CCD",
+        linewidth=2,
+        label="OMEGA60 (60% MAGR)",
+        alpha=0.9,
+        zorder=6,
+    )
 
     for halving_date in HALVING_DATES:
         if x_min <= halving_date <= end_date:
@@ -142,7 +152,7 @@ def main():
     fig.text(
         0.5,
         0.018,
-        "Overview chart intentionally shows one scarcity model and one time-based model. See Rainbow and Power Law charts for band detail.",
+        "Overview chart compares scarcity, time-based, and OMEGA60 MAGR models. See Rainbow and Power Law charts for band detail.",
         ha="center",
         va="bottom",
         color="gray",
