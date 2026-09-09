@@ -35,6 +35,7 @@ from Bitcoin.bitcoin_chart_utils import (  # noqa: E402
 from Bitcoin.run_all_reports import REPORTS as BITCOIN_REPORTS  # noqa: E402
 from model_projection import apply_price_models, build_projection_frame, load_daily_fees, load_price_history  # noqa: E402
 from Stock.run_all_reports import REPORTS as STOCK_REPORTS  # noqa: E402
+from blockhorizon_data import import_reference_charts  # noqa: E402
 
 
 SECTION_ORDER = [
@@ -2448,7 +2449,7 @@ def stock_chart_title(report_title: str, image_path: Path) -> str:
     return report_title
 
 
-def build_chart_manifest():
+def build_chart_manifest(reference_charts=None):
     charts = []
     for index, report in enumerate(BITCOIN_REPORTS):
         title = report["name"]
@@ -2471,6 +2472,11 @@ def build_chart_manifest():
                 "image_exists": image_path.exists(),
             }
         )
+    charts.extend(reference_charts or [])
+    chart_ids = [chart["id"] for chart in charts]
+    if len(chart_ids) != len(set(chart_ids)):
+        duplicates = sorted({chart_id for chart_id in chart_ids if chart_ids.count(chart_id) > 1})
+        raise RuntimeError(f"Duplicate Bitcoin chart ids: {', '.join(duplicates)}")
     return charts
 
 
@@ -2586,12 +2592,12 @@ def manifest_sections(charts, section_order):
     return [section for section in sections if section["count"] > 0]
 
 
-def build_bitcoin_manifest():
-    charts = build_chart_manifest()
+def build_bitcoin_manifest(reference_charts=None):
+    charts = build_chart_manifest(reference_charts)
     market = build_market_summary()
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
-        "site_version": 2,
+        "site_version": 3,
         "asset_scope": "bitcoin",
         "sections": manifest_sections(charts, SECTION_ORDER),
         "charts": charts,
@@ -2632,9 +2638,11 @@ def generate_stock_interactive_data(charts) -> None:
 def main() -> int:
     print("Generating static website data...")
     generate_interactive_data()
+    reference_charts = import_reference_charts(BITCOIN_SITE_DATA_DIR, section_name)
+    print(f"Generated {len(reference_charts)} imported BlockHorizon charts")
     stock_charts = build_stock_chart_manifest()
     generate_stock_interactive_data(stock_charts)
-    bitcoin_manifest = build_bitcoin_manifest()
+    bitcoin_manifest = build_bitcoin_manifest(reference_charts)
     stock_manifest = build_stock_manifest(stock_charts)
     write_json(WEB_DATA_DIR / "site-manifest.json", bitcoin_manifest)
     write_json(WEB_DATA_DIR / "bitcoin" / "site-manifest.json", bitcoin_manifest)

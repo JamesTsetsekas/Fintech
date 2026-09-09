@@ -27,17 +27,34 @@ if (pageConfig.view === "charts" && pageConfig.market === "stocks") {
 }
 
 const POPULAR_IDS = [
-  "price-prediction-models",
-  "200-dma-200-wma",
-  "mayer-multiple",
+  "pb-various",
+  "ohlc",
+  "nupl",
   "pi-cycle-top",
-  "power-law-oscillator",
-  "cycle-phase-dashboard",
-  "monthly-yearly-returns",
-  "drawdown-recovery-map",
+  "mvrv-z-score",
+  "circulating-supply",
+  "difficulty",
+  "pb-realized-prices",
 ];
 
 const SIGNAL_DEFINITIONS = [
+  { id: "nupl", chartId: "nupl", label: "NUPL (Net Unrealized Profit Loss)", category: "Valuation", seriesKey: "nupl" },
+  { id: "utxos-profit", chartId: "percent-utxos-in-profit", label: "UTXOs in Profit (%)", category: "Profitability", seriesKey: "Percent UTXOs in profit" },
+  { id: "thermocap", chartId: "market-cap-to-thermocap-ratio", label: "Market Cap To Thermocap Ratio", category: "Valuation", seriesKey: "Market cap to thermocap ratio" },
+  { id: "sts-nupl", chartId: "sts-nupl", label: "NUPL Short Term Supply (STS)", category: "Cohorts", seriesKey: "sts_nupl" },
+  { id: "lts-nupl", chartId: "lts-nupl", label: "NUPL Long Term Supply (LTS)", category: "Cohorts", seriesKey: "lts_nupl" },
+  { id: "realized-price-sts", chartId: "realized-price-sts", label: "Realized Price - Short Term Supply (STS)", category: "Cost Basis", seriesKey: "Realized price STS", build: ratioByKeys("price", "Realized price STS") },
+  { id: "balanced-price", chartId: "balanced-price", label: "Balanced Price", category: "Cost Basis", seriesKey: "balanced_price", build: ratioByKeys("price", "balanced_price") },
+  { id: "sth-mvrv", chartId: "sth-mvrv", label: "MVRV Short Term Supply", category: "Cohorts", seriesKey: "sth_mvrv" },
+  { id: "realized-price", chartId: "realized-price", label: "Realized Price", category: "Cost Basis", seriesKey: "realized_price", build: ratioByKeys("price", "realized_price") },
+  { id: "mvrv", chartId: "mvrv", label: "MVRV (Market Value to Realized Value Ratio)", category: "Valuation", seriesKey: "mvrv" },
+  { id: "adjusted-mvrv", chartId: "adjusted-mvrv", label: "MVRV Adjusted Ratio", category: "Valuation", seriesKey: "adjusted_mvrv" },
+  { id: "supply-profit", chartId: "percent-supply-in-profit", label: "Supply in Profit (%)", category: "Profitability", seriesKey: "Percent supply in profit" },
+  { id: "top-price", chartId: "top-price", label: "Top Price", category: "Cost Basis", seriesKey: "top_price", build: ratioByKeys("price", "top_price") },
+  { id: "mvrv-z", chartId: "mvrv-z-score", label: "MVRV Z-Score", category: "Valuation", seriesKey: "mvrv_z_score" },
+  { id: "delta-price", chartId: "delta-price", label: "Delta Price", category: "Cost Basis", seriesKey: "delta_price", build: ratioByKeys("price", "delta_price") },
+  { id: "lth-mvrv", chartId: "lth-mvrv", label: "MVRV Long Term Supply", category: "Cohorts", seriesKey: "lth_mvrv" },
+  { id: "realized-price-lts", chartId: "realized-price-lts", label: "Realized Price - Long Term Supply (LTS)", category: "Cost Basis", seriesKey: "Realized price LTS", build: ratioByKeys("price", "Realized price LTS") },
   { id: "trend", chartId: "200-dma-200-wma", label: "Price vs 200D average", category: "Trend", build: ratioSeries(0, 1) },
   { id: "mayer", chartId: "mayer-multiple", label: "Mayer Multiple", category: "Valuation", series: 0 },
   { id: "drawdown", chartId: "drawdown-recovery-map", label: "Drawdown from ATH", category: "Cycle", series: 0 },
@@ -50,6 +67,26 @@ const SIGNAL_DEFINITIONS = [
   { id: "fees", chartId: "fee-pressure", label: "Fee pressure", category: "Mining", series: 0 },
   { id: "hashprice", chartId: "miner-hashprice", label: "Miner hashprice", category: "Mining", series: 1 },
   { id: "ath-age", chartId: "days-since-ath", label: "ATH recency", category: "Cycle", series: 1, invert: true },
+];
+
+const REFERENCE_SIGNAL_IDS = [
+  "nupl",
+  "utxos-profit",
+  "thermocap",
+  "sts-nupl",
+  "lts-nupl",
+  "realized-price-sts",
+  "balanced-price",
+  "sth-mvrv",
+  "realized-price",
+  "mvrv",
+  "adjusted-mvrv",
+  "supply-profit",
+  "top-price",
+  "mvrv-z",
+  "delta-price",
+  "lth-mvrv",
+  "realized-price-lts",
 ];
 
 document.addEventListener("DOMContentLoaded", init);
@@ -139,9 +176,10 @@ function sidebarChartLink(chart) {
 
 async function renderDashboard() {
   appState.signals = await buildSignals();
+  const dashboardSignals = buildDashboardSignalSet(appState.signals);
   await Promise.all([
-    renderMetricRibbon(),
-    renderSignalHeatmap(document.querySelector("#dashboard-signal-heatmap"), appState.signals, 56),
+    renderMetricRibbon(dashboardSignals.slice(1)),
+    renderSignalHeatmap(document.querySelector("#dashboard-signal-heatmap"), dashboardSignals, 92),
     renderDashboardCharts(),
   ]);
   const updated = new Date(appState.manifest.generated_at);
@@ -149,7 +187,7 @@ async function renderDashboard() {
   document.addEventListener("fintech-theme-change", renderDashboardCharts);
 }
 
-async function renderMetricRibbon() {
+async function renderMetricRibbon(referenceSignals = appState.signals) {
   const ribbon = document.querySelector("#metric-ribbon");
   const trend = await getPayload("200-dma-200-wma");
   const prices = numericSeries(trend.series[0]);
@@ -158,9 +196,13 @@ async function renderMetricRibbon() {
   const change30 = ((latestPrice / monthAgoPrice) - 1) * 100;
   const ma200 = last(numericSeries(trend.series[1]));
   const distance = ((latestPrice / ma200) - 1) * 100;
-  const cycleIndex = average(appState.signals.map((signal) => signal.score));
-  const bullishCount = appState.signals.filter((signal) => signal.score >= 50).length;
-  const phases = phaseCounts(appState.signals);
+  const supplySignal = referenceSignals.find((signal) => signal.id === "supply-profit");
+  const supplyValue = Number(supplySignal?.rawValue);
+  const supplyChange30 = rawSignalDelta(supplySignal, 30);
+  const supplyHistory = (supplySignal?.points || []).map((point) => point.value).filter(Number.isFinite);
+  const cycleIndex = average(referenceSignals.map((signal) => signal.score));
+  const bullishCount = referenceSignals.filter((signal) => signal.score >= 50).length;
+  const phases = phaseCounts(referenceSignals);
   const phase = phaseFor(cycleIndex);
   const recentPrice = trend.series[0].y.slice(-45);
   const recentAverage = trend.series[1].y.slice(-45);
@@ -176,12 +218,12 @@ async function renderMetricRibbon() {
       ${sparklineSvg(prices.slice(-45))}
     </article>
     <article class="terminal-metric">
-      <span class="terminal-metric-label">Price vs 200D</span>
+      <span class="terminal-metric-label">Supply in profit</span>
       <div class="terminal-metric-row">
-        <strong class="terminal-metric-value">${signed(distance)}</strong>
-        <span class="terminal-metric-change ${distance < 0 ? "negative" : ""}">${distance >= 0 ? "above trend" : "below trend"}</span>
+        <strong class="terminal-metric-value">${Number.isFinite(supplyValue) ? `${supplyValue.toFixed(1)}%` : signed(distance)}</strong>
+        <span class="terminal-metric-change ${supplyChange30 < 0 ? "negative" : ""}">${Number.isFinite(supplyChange30) ? `${supplyChange30 >= 0 ? "+" : ""}${supplyChange30.toFixed(1)}pp 30d` : (distance >= 0 ? "above trend" : "below trend")}</span>
       </div>
-      ${sparklineSvg(recentRatios)}
+      ${sparklineSvg(supplyHistory.length ? supplyHistory.slice(-45) : recentRatios)}
     </article>
     <article class="terminal-metric">
       <span class="terminal-metric-label">Cycle index</span>
@@ -195,13 +237,13 @@ async function renderMetricRibbon() {
       <span class="terminal-metric-label">Signal breadth</span>
       <div class="terminal-metric-row">
         <strong class="terminal-metric-value">${bullishCount}</strong>
-        <span class="terminal-metric-change">/ ${appState.signals.length} bullish</span>
+        <span class="terminal-metric-change">/ ${referenceSignals.length} bullish</span>
       </div>
       <div class="metric-bar" aria-label="${phaseCountLabel(phases)}">
-        <span style="width:${phases.bottom / appState.signals.length * 100}%"></span>
-        <span style="width:${phases.bearish / appState.signals.length * 100}%"></span>
-        <span style="width:${phases.bullish / appState.signals.length * 100}%"></span>
-        <span style="width:${phases.top / appState.signals.length * 100}%"></span>
+        <span style="width:${phases.bottom / referenceSignals.length * 100}%"></span>
+        <span style="width:${phases.bearish / referenceSignals.length * 100}%"></span>
+        <span style="width:${phases.bullish / referenceSignals.length * 100}%"></span>
+        <span style="width:${phases.top / referenceSignals.length * 100}%"></span>
       </div>
     </article>
   `;
@@ -209,7 +251,7 @@ async function renderMetricRibbon() {
 
 async function renderDashboardCharts() {
   const grid = document.querySelector("#dashboard-chart-grid");
-  const chartIds = ["price-prediction-models", "200-dma-200-wma", "mayer-multiple", "drawdown-recovery-map"];
+  const chartIds = POPULAR_IDS.filter((id) => chartById(id));
   grid.innerHTML = chartIds.map((id) => {
     const chart = chartById(id);
     return `
@@ -354,7 +396,7 @@ function updateChartHeadings(chart) {
     if (node) node.textContent = pageConfig.market === "stocks" ? `Stocks · ${chart.section}` : chart.section;
   });
   const summary = document.querySelector("#chart-summary");
-  if (summary) summary.textContent = chart.description;
+  if (summary) setChartSummary(chart.description, chart.source_label, chart.source_url);
   const alertLink = document.querySelector("#chart-alert-link");
   if (alertLink) {
     const definition = SIGNAL_DEFINITIONS.find((item) => item.chartId === chart.id);
@@ -448,7 +490,11 @@ function renderChartDetails(payload) {
     ? payload.series.find((series) => Array.isArray(series.x))?.x?.at(-1)
     : null;
   document.querySelector("#series-date").textContent = latestDate ? shortDate(latestDate) : "Latest";
-  document.querySelector("#chart-summary").textContent = payload.summary_text || appState.currentChart.description;
+  setChartSummary(
+    payload.summary_text || appState.currentChart.description,
+    payload.source_label || appState.currentChart.source_label,
+    payload.source_url || appState.currentChart.source_url,
+  );
 
   seriesList.innerHTML = payload.series.slice(0, 8).map((series, index) => {
     const values = primaryValues(series);
@@ -483,6 +529,21 @@ function renderChartDetails(payload) {
   const phaseBox = document.querySelector("#chart-phase");
   if (signal) phaseBox.innerHTML = `<span>Cycle signal</span><strong>${Math.round(signal.score)} · ${signal.phase.label}</strong>`;
   else phaseBox.innerHTML = `<span>Data status</span><strong>${formatDate(new Date(payload.updated_at || appState.manifest.generated_at))}</strong>`;
+}
+
+function setChartSummary(text, sourceLabel, sourceUrl) {
+  const summary = document.querySelector("#chart-summary");
+  if (!summary) return;
+  summary.textContent = text || "";
+  if (!sourceLabel || !sourceUrl) return;
+  const separator = document.createTextNode(" ");
+  const source = document.createElement("a");
+  source.href = sourceUrl;
+  source.target = "_blank";
+  source.rel = "noopener noreferrer";
+  source.className = "chart-source-link";
+  source.textContent = `Source: ${sourceLabel} ↗`;
+  summary.append(separator, source);
 }
 
 function renderDataSheet(payload) {
@@ -657,7 +718,7 @@ function seriesReturn(series, days) {
 }
 
 function seriesColor(series, index) {
-  const legacyMap = { "#f5c84b": "#c85f3c", "#55d6ff": "#2863a7", "#3ce38a": "#16844d", "#ff5f63": "#c91f50", "#ff9f43": "#d98945", "#ff5ccd": "#9d4c83" };
+  const legacyMap = { "#f5c84b": "#c85f3c", "#55d6ff": "#2863a7", "#3ce38a": "#16844d", "#ff5f63": "#c91f50", "#ff9f43": "#d98945", "#ff5ccd": "#9d4c83", "#eef3f8": document.documentElement.dataset.theme === "dark" ? "#eef3f8" : "#393732" };
   const color = series.line?.color || (typeof series.marker?.color === "string" ? series.marker.color : null);
   return legacyMap[color] || color || ["#c85f3c", "#2863a7", "#16844d", "#c91f50", "#7c5ca8"][index % 5];
 }
@@ -986,16 +1047,16 @@ async function buildSignals() {
   const results = await Promise.all(SIGNAL_DEFINITIONS.map(async (definition) => {
     try {
       const payload = await getPayload(definition.chartId);
+      const sourceSeries = signalSourceSeries(payload, definition);
       const points = definition.build
         ? definition.build(payload)
-        : seriesPoints(payload.series[definition.series || 0], definition.invert ? -1 : 1);
+        : seriesPoints(sourceSeries, definition.invert ? -1 : 1);
       const valid = points.filter((point) => Number.isFinite(point.value));
       const values = valid.map((point) => point.value);
       const low = quantile(values, 0.05);
       const high = quantile(values, 0.95);
       const scored = valid.map((point) => ({ ...point, score: normalizedScore(point.value, low, high) }));
       const current = last(scored);
-      const sourceSeries = payload.series[definition.series || 0];
       return {
         ...definition,
         payload,
@@ -1012,6 +1073,56 @@ async function buildSignals() {
     }
   }));
   return results.filter(Boolean);
+}
+
+function signalSourceSeries(payload, definition) {
+  if (definition.seriesKey) {
+    const matching = payload.series.find((series) => series.source_key === definition.seriesKey);
+    if (matching) return matching;
+  }
+  return payload.series[definition.series || 0];
+}
+
+function buildDashboardSignalSet(signals) {
+  const selected = REFERENCE_SIGNAL_IDS.map((id) => signals.find((signal) => signal.id === id)).filter(Boolean);
+  if (!selected.length) return signals;
+  const dateScores = new Map();
+  selected.forEach((signal) => {
+    signal.points.forEach((point) => {
+      const values = dateScores.get(point.date) || [];
+      values.push(point.score);
+      dateScores.set(point.date, values);
+    });
+  });
+  const points = [...dateScores.entries()]
+    .map(([date, scores]) => ({ date, value: average(scores), score: average(scores) }))
+    .sort((a, b) => new Date(a.date) - new Date(b.date));
+  const score = last(points)?.score || 0;
+  return [{
+    id: "cycle-index",
+    chartId: "cycle-phase-dashboard",
+    label: "Cycle Index",
+    category: "Composite",
+    points,
+    score,
+    rawValue: score,
+    phase: phaseFor(score),
+  }, ...selected];
+}
+
+function rawSignalDelta(signal, days) {
+  if (!signal?.points?.length) return NaN;
+  const latest = last(signal.points);
+  const target = new Date(latest.date);
+  target.setUTCDate(target.getUTCDate() - days);
+  let previous = signal.points[0];
+  for (let index = signal.points.length - 1; index >= 0; index -= 1) {
+    if (new Date(signal.points[index].date) <= target) {
+      previous = signal.points[index];
+      break;
+    }
+  }
+  return Number(latest.value) - Number(previous.value);
 }
 
 function renderSignalHeatmap(target, signals, columns = 56) {
@@ -1033,7 +1144,7 @@ function renderSignalHeatmap(target, signals, columns = 56) {
     const show = index % 8 === 0;
     return `<span class="heatmap-year">${show ? new Date(point.date).getUTCFullYear() : ""}</span>`;
   }).join("");
-  target.innerHTML = `<div class="heatmap-table" style="grid-template-columns:minmax(150px, 190px) repeat(${columns}, minmax(7px, 1fr))">${rows}<span></span>${yearRow}</div>`;
+  target.innerHTML = `<div class="heatmap-table" style="--heatmap-columns:${columns}">${rows}<span></span>${yearRow}</div>`;
 }
 
 function renderPlot(target, payload, options = {}) {
@@ -1158,6 +1269,19 @@ function ratioSeries(numeratorIndex, denominatorIndex) {
     return numerator.x.map((date, index) => ({
       date,
       value: toFiniteNumber(numerator.y[index]) / toFiniteNumber(denominator.y[index]),
+    }));
+  };
+}
+
+function ratioByKeys(numeratorKey, denominatorKey) {
+  return (payload) => {
+    const numerator = payload.series.find((series) => series.source_key === numeratorKey);
+    const denominator = payload.series.find((series) => series.source_key === denominatorKey);
+    if (!numerator || !denominator) return [];
+    const denominatorByDate = new Map(denominator.x.map((date, index) => [date, toFiniteNumber(denominator.y[index])]));
+    return numerator.x.map((date, index) => ({
+      date,
+      value: toFiniteNumber(numerator.y[index]) / denominatorByDate.get(date),
     }));
   };
 }

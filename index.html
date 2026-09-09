@@ -67,29 +67,22 @@
         </section>
 
         <div class="workspace-heading">
-          <div>
-            <p class="kicker">Live from repo data</p>
-            <h1>Market overview</h1>
+          <h1 id="popular-heading">Popular charts</h1>
+          <div class="workspace-heading-actions">
+            <span id="dashboard-updated">Loading latest data</span>
+            <a class="text-action" href="charts/">Open chart terminal <span aria-hidden="true">→</span></a>
           </div>
-          <a class="text-action" href="charts/">Open chart terminal <span aria-hidden="true">→</span></a>
         </div>
 
         <section class="module signal-timeline-module" aria-labelledby="timeline-title">
           <div class="module-heading">
-            <div>
-              <p class="kicker">Cycle model</p>
-              <h2 id="timeline-title">Signal timeline</h2>
-            </div>
-            <a class="subtle-button" href="signals/">Explore signals</a>
+            <h2 id="timeline-title">Signal Timeline</h2>
+            <a class="module-note" href="signals/">All history · open signal explorer →</a>
           </div>
           <div id="dashboard-signal-heatmap" class="signal-heatmap loading-block" aria-live="polite"></div>
         </section>
 
         <section class="dashboard-chart-section" aria-labelledby="popular-heading">
-          <div class="section-inline-heading">
-            <h2 id="popular-heading">Popular charts</h2>
-            <span id="dashboard-updated">Loading latest data</span>
-          </div>
           <div id="dashboard-chart-grid" class="dashboard-chart-grid"></div>
         </section>
       </main>

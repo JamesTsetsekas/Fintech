@@ -8,10 +8,12 @@ The repo includes a static, GitHub Pages-friendly dashboard at `index.html`. The
 
 The browser experience includes four linked workspaces:
 
-- `index.html` — compact market overview with live metrics, cycle signal timeline, and featured charts.
+- `index.html` — dense market overview with live metrics, an 18-row cycle timeline, and eight featured charts.
 - `charts/` — full interactive Bitcoin and stock chart terminal with ranges, overlays, sheet view, pinning, and PNG export.
-- `signals/` — normalized cycle scores derived from twelve repo indicators, with historical phases and momentum.
+- `signals/` — normalized cycle scores across 17 on-chain and 12 repo-native indicators, with historical phases and momentum.
 - `alerts/` — device-local alert rules evaluated against the latest generated signal scores.
+
+The Bitcoin library is the non-duplicating union of 47 repo-native charts and 144 charts adapted from BlockHorizon's public chart bundle (191 total). Imported charts identify and link to their source in the terminal. The hourly build refreshes that bundle with the rest of the dashboard and stops before publishing if the reviewed upstream catalog is incomplete.
 
 Preview the site locally from the repository root with `python3 -m http.server 8000`, then open `http://127.0.0.1:8000/`.
 
