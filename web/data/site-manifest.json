@@ -1,0 +1,3955 @@
+{
+  "generated_at": "2026-09-12T16:07:10.632897+00:00",
+  "site_version": 3,
+  "asset_scope": "bitcoin",
+  "sections": [
+    {
+      "id": "cycle-models",
+      "name": "Cycle Models",
+      "count": 33
+    },
+    {
+      "id": "technical",
+      "name": "Technical",
+      "count": 11
+    },
+    {
+      "id": "returns",
+      "name": "Returns",
+      "count": 7
+    },
+    {
+      "id": "drawdowns",
+      "name": "Drawdowns",
+      "count": 5
+    },
+    {
+      "id": "halving",
+      "name": "Halving",
+      "count": 5
+    },
+    {
+      "id": "onchain",
+      "name": "On-Chain",
+      "count": 117
+    },
+    {
+      "id": "heatmaps",
+      "name": "Heatmaps",
+      "count": 12
+    }
+  ],
+  "charts": [
+    {
+      "id": "200-dma-200-wma",
+      "title": "PlanB: Moving Averages",
+      "section_id": "technical",
+      "section": "Technical",
+      "description": "BTC price with long-term daily and weekly moving-average trend lines.",
+      "image_path": "Bitcoin/200_dma_200_wma/200_dma_200_wma.png",
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/200-dma-200-wma.json",
+      "order": 0,
+      "image_exists": true,
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "Wicked Smart Bitcoin",
+          "url": "https://github.com/w-s-bitcoin/animations"
+        }
+      ]
+    },
+    {
+      "id": "mayer-multiple",
+      "title": "Mayer Multiple",
+      "section_id": "technical",
+      "section": "Technical",
+      "description": "Price divided by the 200-day moving average, with classic cycle zones.",
+      "image_path": "Bitcoin/mayer_multiple/mayer_multiple.png",
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/mayer-multiple.json",
+      "order": 1,
+      "image_exists": true,
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "Wicked Smart Bitcoin",
+          "url": "https://github.com/w-s-bitcoin/animations"
+        }
+      ]
+    },
+    {
+      "id": "days-at-a-loss",
+      "title": "Days at a Loss",
+      "section_id": "drawdowns",
+      "section": "Drawdowns",
+      "description": "How long historical purchase prices spent underwater.",
+      "image_path": "Bitcoin/days_at_a_loss/days_at_a_loss.png",
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/days-at-a-loss.json",
+      "order": 2,
+      "image_exists": true,
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "Wicked Smart Bitcoin",
+          "url": "https://github.com/w-s-bitcoin/animations"
+        }
+      ]
+    },
+    {
+      "id": "days-since-ath",
+      "title": "Days Since ATH",
+      "section_id": "drawdowns",
+      "section": "Drawdowns",
+      "description": "Days since Bitcoin last made an all-time high.",
+      "image_path": "Bitcoin/days_since_ath/days_since_ath.png",
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/days-since-ath.json",
+      "order": 3,
+      "image_exists": true,
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "Wicked Smart Bitcoin",
+          "url": "https://github.com/w-s-bitcoin/animations"
+        }
+      ]
+    },
+    {
+      "id": "regime-mosaic",
+      "title": "Regime Mosaic",
+      "section_id": "heatmaps",
+      "section": "Heatmaps",
+      "description": "Monthly state map across trend, Mayer, Puell, drawdown, and volatility regimes.",
+      "image_path": "Bitcoin/regime_mosaic/regime_mosaic.png",
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/regime-mosaic.json",
+      "order": 4,
+      "image_exists": true,
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "Wicked Smart Bitcoin",
+          "url": "https://github.com/w-s-bitcoin/animations"
+        }
+      ]
+    },
+    {
+      "id": "price-acceptance-heatmap",
+      "title": "Price Acceptance Heatmap",
+      "section_id": "heatmaps",
+      "section": "Heatmaps",
+      "description": "Where BTC spent the most time by price bucket across years and halving epochs.",
+      "image_path": "Bitcoin/price_acceptance_heatmap/price_acceptance_heatmap.png",
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/price-acceptance-heatmap.json",
+      "order": 5,
+      "image_exists": true,
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "Wicked Smart Bitcoin",
+          "url": "https://github.com/w-s-bitcoin/animations"
+        }
+      ]
+    },
+    {
+      "id": "bollinger-bands",
+      "title": "Bollinger Bands",
+      "section_id": "technical",
+      "section": "Technical",
+      "description": "20-day moving average with volatility bands around recent price action.",
+      "image_path": "Bitcoin/bollinger-bands/bollinger_bands.png",
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/bollinger-bands.json",
+      "order": 6,
+      "image_exists": true,
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "Wicked Smart Bitcoin",
+          "url": "https://github.com/w-s-bitcoin/animations"
+        }
+      ]
+    },
+    {
+      "id": "volatility-regimes",
+      "title": "Volatility Regimes",
+      "section_id": "technical",
+      "section": "Technical",
+      "description": "Rolling realized volatility with percentile bands.",
+      "image_path": "Bitcoin/volatility_regimes/volatility_regimes.png",
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/volatility-regimes.json",
+      "order": 7,
+      "image_exists": true,
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "Wicked Smart Bitcoin",
+          "url": "https://github.com/w-s-bitcoin/animations"
+        }
+      ]
+    },
+    {
+      "id": "intraday-volatility-heatmap",
+      "title": "Intraday Volatility Heatmap",
+      "section_id": "heatmaps",
+      "section": "Heatmaps",
+      "description": "24/7 volatility by weekday, month, and UTC hour.",
+      "image_path": "Bitcoin/intraday_volatility_heatmap/intraday_volatility_heatmap.png",
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/intraday-volatility-heatmap.json",
+      "order": 8,
+      "image_exists": true,
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "Wicked Smart Bitcoin",
+          "url": "https://github.com/w-s-bitcoin/animations"
+        }
+      ]
+    },
+    {
+      "id": "distance-from-200dma-heatmap",
+      "title": "Distance From 200DMA Heatmap",
+      "section_id": "heatmaps",
+      "section": "Heatmaps",
+      "description": "Monthly distribution of daily distance above or below the 200-day average.",
+      "image_path": "Bitcoin/distance_from_200dma_heatmap/distance_from_200dma_heatmap.png",
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/distance-from-200dma-heatmap.json",
+      "order": 9,
+      "image_exists": true,
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "Wicked Smart Bitcoin",
+          "url": "https://github.com/w-s-bitcoin/animations"
+        }
+      ]
+    },
+    {
+      "id": "monthly-yearly-returns",
+      "title": "Monthly & Yearly Returns",
+      "section_id": "returns",
+      "section": "Returns",
+      "description": "Monthly return table with yearly totals.",
+      "image_path": "Bitcoin/monthly_yearly_returns/monthly_yearly_returns.png",
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/monthly-yearly-returns.json",
+      "order": 10,
+      "image_exists": true,
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "Wicked Smart Bitcoin",
+          "url": "https://github.com/w-s-bitcoin/animations"
+        }
+      ]
+    },
+    {
+      "id": "quarterly-yearly-returns",
+      "title": "Quarterly & Yearly Returns",
+      "section_id": "returns",
+      "section": "Returns",
+      "description": "Quarterly return table with yearly totals.",
+      "image_path": "Bitcoin/quarterly_yearly_returns/quarterly_yearly_returns.png",
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/quarterly-yearly-returns.json",
+      "order": 11,
+      "image_exists": true,
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "Wicked Smart Bitcoin",
+          "url": "https://github.com/w-s-bitcoin/animations"
+        }
+      ]
+    },
+    {
+      "id": "yearly-windows",
+      "title": "Yearly Windows",
+      "section_id": "returns",
+      "section": "Returns",
+      "description": "One-, two-, three-, and four-year price windows.",
+      "image_path": "Bitcoin/yearly_windows/yearly_windows.png",
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/yearly-windows.json",
+      "order": 12,
+      "image_exists": true,
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "Wicked Smart Bitcoin",
+          "url": "https://github.com/w-s-bitcoin/animations"
+        }
+      ]
+    },
+    {
+      "id": "cagr",
+      "title": "CAGR",
+      "section_id": "returns",
+      "section": "Returns",
+      "description": "Compound annual growth rate through Bitcoin's network age.",
+      "image_path": "Bitcoin/cagr/cagr.png",
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/cagr.json",
+      "order": 13,
+      "image_exists": true,
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "Wicked Smart Bitcoin",
+          "url": "https://github.com/w-s-bitcoin/animations"
+        }
+      ]
+    },
+    {
+      "id": "risk-adjusted-returns",
+      "title": "Risk-Adjusted Returns",
+      "section_id": "returns",
+      "section": "Returns",
+      "description": "Rolling Sharpe and Sortino proxies with realized return and volatility.",
+      "image_path": "Bitcoin/risk_adjusted_returns/risk_adjusted_returns.png",
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/risk-adjusted-returns.json",
+      "order": 14,
+      "image_exists": true,
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "Wicked Smart Bitcoin",
+          "url": "https://github.com/w-s-bitcoin/animations"
+        }
+      ]
+    },
+    {
+      "id": "return-volatility-map",
+      "title": "Return-Volatility Map",
+      "section_id": "returns",
+      "section": "Returns",
+      "description": "Monthly return and volatility phase map grouped by halving epoch.",
+      "image_path": "Bitcoin/return_volatility_map/return_volatility_map.png",
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/return-volatility-map.json",
+      "order": 15,
+      "image_exists": true,
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "Wicked Smart Bitcoin",
+          "url": "https://github.com/w-s-bitcoin/animations"
+        }
+      ]
+    },
+    {
+      "id": "seasonality-heatmap",
+      "title": "Seasonality Heatmap",
+      "section_id": "heatmaps",
+      "section": "Heatmaps",
+      "description": "Intraday and calendar return seasonality.",
+      "image_path": "Bitcoin/seasonality_heatmap/seasonality_heatmap.png",
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/seasonality-heatmap.json",
+      "order": 16,
+      "image_exists": true,
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "Wicked Smart Bitcoin",
+          "url": "https://github.com/w-s-bitcoin/animations"
+        }
+      ]
+    },
+    {
+      "id": "pi-cycle-top",
+      "title": "Pi Cycle Top Indicator",
+      "section_id": "cycle-models",
+      "section": "Cycle Models",
+      "description": "111-day and 350-day moving average crossover indicator.",
+      "image_path": "Bitcoin/pi-cycle-top/pi_cycle_top.png",
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/pi-cycle-top.json",
+      "order": 17,
+      "image_exists": true,
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "Wicked Smart Bitcoin",
+          "url": "https://github.com/w-s-bitcoin/animations"
+        }
+      ]
+    },
+    {
+      "id": "pi-cycle-top-estimate",
+      "title": "Pi Cycle Top Estimate",
+      "section_id": "cycle-models",
+      "section": "Cycle Models",
+      "description": "Projection of a possible future Pi Cycle crossover.",
+      "image_path": "Bitcoin/pi-cycle-top-estimate/pi_cycle_top_estimate.png",
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/pi-cycle-top-estimate.json",
+      "order": 18,
+      "image_exists": true,
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "Wicked Smart Bitcoin",
+          "url": "https://github.com/w-s-bitcoin/animations"
+        }
+      ]
+    },
+    {
+      "id": "power-law",
+      "title": "Power Law",
+      "section_id": "cycle-models",
+      "section": "Cycle Models",
+      "description": "Long-term log-log Bitcoin price model.",
+      "image_path": "Bitcoin/power-law/power_law.png",
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/power-law.json",
+      "order": 19,
+      "image_exists": true,
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "Wicked Smart Bitcoin",
+          "url": "https://github.com/w-s-bitcoin/animations"
+        }
+      ]
+    },
+    {
+      "id": "power-law-2",
+      "title": "Power Law 2",
+      "section_id": "cycle-models",
+      "section": "Cycle Models",
+      "description": "Power-law model with support and resistance bands.",
+      "image_path": "Bitcoin/power-law/power_law2.png",
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/power-law-2.json",
+      "order": 20,
+      "image_exists": true,
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "Wicked Smart Bitcoin",
+          "url": "https://github.com/w-s-bitcoin/animations"
+        }
+      ]
+    },
+    {
+      "id": "power-law-3",
+      "title": "Power Law 3",
+      "section_id": "cycle-models",
+      "section": "Cycle Models",
+      "description": "Alternative power-law band view.",
+      "image_path": "Bitcoin/power-law/power_law3.png",
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/power-law-3.json",
+      "order": 21,
+      "image_exists": true,
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "Wicked Smart Bitcoin",
+          "url": "https://github.com/w-s-bitcoin/animations"
+        }
+      ]
+    },
+    {
+      "id": "power-law-oscillator",
+      "title": "Power Law Oscillator",
+      "section_id": "cycle-models",
+      "section": "Cycle Models",
+      "description": "Deviation from the power-law trend.",
+      "image_path": "Bitcoin/power-law-oscillator/power_law_oscillator.png",
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/power-law-oscillator.json",
+      "order": 22,
+      "image_exists": true,
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "Wicked Smart Bitcoin",
+          "url": "https://github.com/w-s-bitcoin/animations"
+        }
+      ]
+    },
+    {
+      "id": "unit-of-account-btc-usd",
+      "title": "Unit of Account (BTC/USD)",
+      "section_id": "technical",
+      "section": "Technical",
+      "description": "BTC price in dollars and the reciprocal USD price in satoshis.",
+      "image_path": "Bitcoin/uoa_btc_usd/uoa_btc_usd.png",
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/unit-of-account-btc-usd.json",
+      "order": 23,
+      "image_exists": true,
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "Wicked Smart Bitcoin",
+          "url": "https://github.com/w-s-bitcoin/animations"
+        }
+      ]
+    },
+    {
+      "id": "rainbow-chart",
+      "title": "Rainbow Chart",
+      "section_id": "cycle-models",
+      "section": "Cycle Models",
+      "description": "Halving Price Regression bands for cycle context.",
+      "image_path": "Bitcoin/rainbow/rainbow_chart.png",
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/rainbow-chart.json",
+      "order": 24,
+      "image_exists": true,
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "Wicked Smart Bitcoin",
+          "url": "https://github.com/w-s-bitcoin/animations"
+        }
+      ]
+    },
+    {
+      "id": "never-look-back-price",
+      "title": "Never Look Back Price",
+      "section_id": "drawdowns",
+      "section": "Drawdowns",
+      "description": "Highest price Bitcoin reached and never traded below again.",
+      "image_path": "Bitcoin/never_look_back_price/never_look_back_price.png",
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/never-look-back-price.json",
+      "order": 25,
+      "image_exists": true,
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "Wicked Smart Bitcoin",
+          "url": "https://github.com/w-s-bitcoin/animations"
+        }
+      ]
+    },
+    {
+      "id": "epoch-candles",
+      "title": "Epoch Candles",
+      "section_id": "halving",
+      "section": "Halving",
+      "description": "Candles grouped by halving epoch.",
+      "image_path": "Bitcoin/epoch_candles/epoch_candles.png",
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/epoch-candles.json",
+      "order": 26,
+      "image_exists": true,
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "Wicked Smart Bitcoin",
+          "url": "https://github.com/w-s-bitcoin/animations"
+        }
+      ]
+    },
+    {
+      "id": "monthly-candles",
+      "title": "Monthly Candles",
+      "section_id": "technical",
+      "section": "Technical",
+      "description": "Monthly OHLC candles on a log price scale.",
+      "image_path": "Bitcoin/monthly_candles/monthly_candles.png",
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/monthly-candles.json",
+      "order": 27,
+      "image_exists": true,
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "Wicked Smart Bitcoin",
+          "url": "https://github.com/w-s-bitcoin/animations"
+        }
+      ]
+    },
+    {
+      "id": "yearly-candles",
+      "title": "Yearly Candles",
+      "section_id": "technical",
+      "section": "Technical",
+      "description": "Yearly OHLC candles on a log price scale.",
+      "image_path": "Bitcoin/yearly_candles/yearly_candles.png",
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/yearly-candles.json",
+      "order": 28,
+      "image_exists": true,
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "Wicked Smart Bitcoin",
+          "url": "https://github.com/w-s-bitcoin/animations"
+        }
+      ]
+    },
+    {
+      "id": "dca-cost-basis",
+      "title": "DCA Cost Basis",
+      "section_id": "returns",
+      "section": "Returns",
+      "description": "Daily dollar-cost-averaging cost basis across time windows.",
+      "image_path": "Bitcoin/dca_cost_basis/dca_cost_basis.png",
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/dca-cost-basis.json",
+      "order": 29,
+      "image_exists": true,
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "Wicked Smart Bitcoin",
+          "url": "https://github.com/w-s-bitcoin/animations"
+        }
+      ]
+    },
+    {
+      "id": "node-count",
+      "title": "Node Count",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Bitcoin node count and software version distribution.",
+      "image_path": "Bitcoin/node_count/node_count.png",
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/node-count.json",
+      "order": 30,
+      "image_exists": true,
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "Wicked Smart Bitcoin",
+          "url": "https://github.com/w-s-bitcoin/animations"
+        }
+      ]
+    },
+    {
+      "id": "hodl-waves-price",
+      "title": "HODL Waves Price",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Repo-local proxy for holding-duration supply bands with price overlay.",
+      "image_path": "Bitcoin/hodl_waves_price/hodl_waves_price.png",
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/hodl-waves-price.json",
+      "order": 31,
+      "image_exists": true,
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "Wicked Smart Bitcoin",
+          "url": "https://github.com/w-s-bitcoin/animations"
+        }
+      ]
+    },
+    {
+      "id": "price-distribution",
+      "title": "Price Distribution",
+      "section_id": "technical",
+      "section": "Technical",
+      "description": "Historical price distribution across price ranges.",
+      "image_path": "Bitcoin/price_distribution/price_distribution.png",
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/price-distribution.json",
+      "order": 32,
+      "image_exists": true,
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "Wicked Smart Bitcoin",
+          "url": "https://github.com/w-s-bitcoin/animations"
+        }
+      ]
+    },
+    {
+      "id": "epoch-over-epoch-eoe-growth",
+      "title": "Epoch-Over-Epoch (EOE) Growth",
+      "section_id": "halving",
+      "section": "Halving",
+      "description": "Growth comparison across halving epochs.",
+      "image_path": "Bitcoin/eoe_growth/eoe_growth.png",
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/epoch-over-epoch-eoe-growth.json",
+      "order": 33,
+      "image_exists": true,
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "Wicked Smart Bitcoin",
+          "url": "https://github.com/w-s-bitcoin/animations"
+        }
+      ]
+    },
+    {
+      "id": "halving-cycles",
+      "title": "Halving Cycles",
+      "section_id": "halving",
+      "section": "Halving",
+      "description": "Cycle performance normalized from halving starts.",
+      "image_path": "Bitcoin/halving_cycles/halving_cycles.png",
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/halving-cycles.json",
+      "order": 34,
+      "image_exists": true,
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "Wicked Smart Bitcoin",
+          "url": "https://github.com/w-s-bitcoin/animations"
+        }
+      ]
+    },
+    {
+      "id": "halving-phase-compass",
+      "title": "Halving Phase Compass",
+      "section_id": "halving",
+      "section": "Halving",
+      "description": "Polar view of price multiple through the current halving epoch.",
+      "image_path": "Bitcoin/halving_phase_compass/halving_phase_compass.png",
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/halving-phase-compass.json",
+      "order": 35,
+      "image_exists": true,
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "Wicked Smart Bitcoin",
+          "url": "https://github.com/w-s-bitcoin/animations"
+        }
+      ]
+    },
+    {
+      "id": "halving-era-roi-heatmap",
+      "title": "Halving Era ROI Heatmap",
+      "section_id": "heatmaps",
+      "section": "Heatmaps",
+      "description": "Month-by-month ROI since each halving.",
+      "image_path": "Bitcoin/halving_era_roi_heatmap/halving_era_roi_heatmap.png",
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/halving-era-roi-heatmap.json",
+      "order": 36,
+      "image_exists": true,
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "Wicked Smart Bitcoin",
+          "url": "https://github.com/w-s-bitcoin/animations"
+        }
+      ]
+    },
+    {
+      "id": "cycle-high-drawdown",
+      "title": "Cycle High Drawdown",
+      "section_id": "drawdowns",
+      "section": "Drawdowns",
+      "description": "Drawdowns from cycle highs overlaid across market cycles.",
+      "image_path": "Bitcoin/cycle_high_drawdown/cycle_high_drawdown.png",
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/cycle-high-drawdown.json",
+      "order": 37,
+      "image_exists": true,
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "Wicked Smart Bitcoin",
+          "url": "https://github.com/w-s-bitcoin/animations"
+        }
+      ]
+    },
+    {
+      "id": "drawdown-recovery-map",
+      "title": "Drawdown Recovery Map",
+      "section_id": "drawdowns",
+      "section": "Drawdowns",
+      "description": "Major drawdowns and recovery durations.",
+      "image_path": "Bitcoin/drawdown_recovery_map/drawdown_recovery_map.png",
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/drawdown-recovery-map.json",
+      "order": 38,
+      "image_exists": true,
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "Wicked Smart Bitcoin",
+          "url": "https://github.com/w-s-bitcoin/animations"
+        }
+      ]
+    },
+    {
+      "id": "drawdown-duration-heatmap",
+      "title": "Drawdown Duration Heatmap",
+      "section_id": "heatmaps",
+      "section": "Heatmaps",
+      "description": "Time spent at each drawdown depth during major underwater periods.",
+      "image_path": "Bitcoin/drawdown_duration_heatmap/drawdown_duration_heatmap.png",
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/drawdown-duration-heatmap.json",
+      "order": 39,
+      "image_exists": true,
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "Wicked Smart Bitcoin",
+          "url": "https://github.com/w-s-bitcoin/animations"
+        }
+      ]
+    },
+    {
+      "id": "price-prediction-models",
+      "title": "Price Prediction Models",
+      "section_id": "cycle-models",
+      "section": "Cycle Models",
+      "description": "Spot price, Stock-to-Flow, OMEGA60, and Power Law on one overview chart.",
+      "image_path": "Bitcoin/model_price_prediction/model_price_prediction.png",
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/price-prediction-models.json",
+      "order": 40,
+      "image_exists": true,
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "Wicked Smart Bitcoin",
+          "url": "https://github.com/w-s-bitcoin/animations"
+        }
+      ]
+    },
+    {
+      "id": "cycle-phase-dashboard",
+      "title": "Cycle Phase Dashboard",
+      "section_id": "cycle-models",
+      "section": "Cycle Models",
+      "description": "Compact cycle summary combining trend, drawdown, halving progress, fees, and volatility.",
+      "image_path": "Bitcoin/cycle_phase_dashboard/cycle_phase_dashboard.png",
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/cycle-phase-dashboard.json",
+      "order": 41,
+      "image_exists": true,
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "Wicked Smart Bitcoin",
+          "url": "https://github.com/w-s-bitcoin/animations"
+        }
+      ]
+    },
+    {
+      "id": "puell-multiple",
+      "title": "Puell Multiple",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Miner revenue divided by its 365-day moving average.",
+      "image_path": "Bitcoin/puell_multiple/puell_multiple.png",
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/puell-multiple.json",
+      "order": 43,
+      "image_exists": true,
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "Wicked Smart Bitcoin",
+          "url": "https://github.com/w-s-bitcoin/animations"
+        }
+      ]
+    },
+    {
+      "id": "fee-pressure",
+      "title": "Fee Pressure",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Fees, miner revenue share, and block-space fee-rate pressure.",
+      "image_path": "Bitcoin/fee_pressure/fee_pressure.png",
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/fee-pressure.json",
+      "order": 44,
+      "image_exists": true,
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "Wicked Smart Bitcoin",
+          "url": "https://github.com/w-s-bitcoin/animations"
+        }
+      ]
+    },
+    {
+      "id": "fee-pressure-heatmap",
+      "title": "Fee Pressure Heatmap",
+      "section_id": "heatmaps",
+      "section": "Heatmaps",
+      "description": "Monthly block fee-rate percentile distribution.",
+      "image_path": "Bitcoin/fee_pressure_heatmap/fee_pressure_heatmap.png",
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/fee-pressure-heatmap.json",
+      "order": 45,
+      "image_exists": true,
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "Wicked Smart Bitcoin",
+          "url": "https://github.com/w-s-bitcoin/animations"
+        }
+      ]
+    },
+    {
+      "id": "miner-hashprice",
+      "title": "Miner Hashprice",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Miner revenue per PH/s/day from difficulty-implied hashrate.",
+      "image_path": "Bitcoin/miner_hashprice/miner_hashprice.png",
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/miner-hashprice.json",
+      "order": 46,
+      "image_exists": true,
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "Wicked Smart Bitcoin",
+          "url": "https://github.com/w-s-bitcoin/animations"
+        }
+      ]
+    },
+    {
+      "id": "accumulation-addresses",
+      "title": "Addresses Accumulation",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/accumulation-addresses.json",
+      "order": 10000,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "active-addresses",
+      "title": "Addresses Active",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/active-addresses.json",
+      "order": 10001,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "addresses-in-loss",
+      "title": "Addresses in Loss",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/addresses-in-loss.json",
+      "order": 10002,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "addresses-in-profit",
+      "title": "Addresses in Profit",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/addresses-in-profit.json",
+      "order": 10003,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "percent-addresses-in-profit",
+      "title": "Addresses in Profit (%)",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/percent-addresses-in-profit.json",
+      "order": 10004,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "new-addresses",
+      "title": "Addresses New",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/new-addresses.json",
+      "order": 10005,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "receiving-addresses",
+      "title": "Addresses Receiving",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/receiving-addresses.json",
+      "order": 10006,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "sending-addresses",
+      "title": "Addresses Sending",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/sending-addresses.json",
+      "order": 10007,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "total-addresses",
+      "title": "Addresses Total",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/total-addresses.json",
+      "order": 10008,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "non-zero-addresses",
+      "title": "Addresses with Non-Zero Balance",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/non-zero-addresses.json",
+      "order": 10009,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "asol",
+      "title": "ASOL: Average Spent Output Lifespan",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/asol.json",
+      "order": 10010,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "balanced-price",
+      "title": "Balanced Price",
+      "section_id": "cycle-models",
+      "section": "Cycle Models",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/balanced-price.json",
+      "order": 10011,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "block-height",
+      "title": "Block Height",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/block-height.json",
+      "order": 10012,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "blocks-mined",
+      "title": "Blocks Mined",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/blocks-mined.json",
+      "order": 10013,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "cdd",
+      "title": "CDD (Coin Days Destroyed)",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/cdd.json",
+      "order": 10014,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "90d-cdd",
+      "title": "CDD 90-Day",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/90d-cdd.json",
+      "order": 10015,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "long-term-supply-cdd",
+      "title": "CDD Long Term Supply",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/long-term-supply-cdd.json",
+      "order": 10016,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "short-term-supply-cdd",
+      "title": "CDD Short Term Supply",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/short-term-supply-cdd.json",
+      "order": 10017,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "coin-blocks-created",
+      "title": "Coin Blocks Created (CBC)",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/coin-blocks-created.json",
+      "order": 10018,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "coin-blocks-destroyed",
+      "title": "Coin Blocks Destroyed (CBD)",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/coin-blocks-destroyed.json",
+      "order": 10019,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "coin-vintages",
+      "title": "Coin Vintages",
+      "section_id": "heatmaps",
+      "section": "Heatmaps",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/coin-vintages.json",
+      "order": 10020,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "cost-basis-heatmap",
+      "title": "Cost-Basis Heatmap",
+      "section_id": "heatmaps",
+      "section": "Heatmaps",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/cost-basis-heatmap.json",
+      "order": 10021,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "cushion-depth-fan",
+      "title": "Cushion Depth Fan",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/cushion-depth-fan.json",
+      "order": 10022,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "days-until-halving",
+      "title": "Days Until Halving",
+      "section_id": "halving",
+      "section": "Halving",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/days-until-halving.json",
+      "order": 10023,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "delta-cap",
+      "title": "Delta Cap",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/delta-cap.json",
+      "order": 10024,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "delta-price",
+      "title": "Delta Price",
+      "section_id": "cycle-models",
+      "section": "Cycle Models",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/delta-price.json",
+      "order": 10025,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "difficulty",
+      "title": "Difficulty",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/difficulty.json",
+      "order": 10026,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "difficulty-ribbon",
+      "title": "Difficulty Ribbon",
+      "section_id": "technical",
+      "section": "Technical",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/difficulty-ribbon.json",
+      "order": 10027,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "frm",
+      "title": "Fee Ratio Multiple (FRM)",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/frm.json",
+      "order": 10028,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "fees-avg",
+      "title": "Fees Mean",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/fees-avg.json",
+      "order": 10029,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "fees-total",
+      "title": "Fees Total",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/fees-total.json",
+      "order": 10030,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "hodl-waves",
+      "title": "HODL Waves",
+      "section_id": "heatmaps",
+      "section": "Heatmaps",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/hodl-waves.json",
+      "order": 10031,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "issuance",
+      "title": "Issuance",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/issuance.json",
+      "order": 10032,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "market-cap",
+      "title": "Market Cap",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/market-cap.json",
+      "order": 10033,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "market-cap-to-thermocap-ratio",
+      "title": "Market Cap To Thermocap Ratio",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/market-cap-to-thermocap-ratio.json",
+      "order": 10034,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "miner-revenue-block-rewards",
+      "title": "Miner Revenue: Block Rewards",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/miner-revenue-block-rewards.json",
+      "order": 10035,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "miner-revenue-fees",
+      "title": "Miner Revenue: Fees (%)",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/miner-revenue-fees.json",
+      "order": 10036,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "miner-revenue-total",
+      "title": "Miner Revenue: Total",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/miner-revenue-total.json",
+      "order": 10037,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "mvrv",
+      "title": "MVRV (Market Value to Realized Value Ratio)",
+      "section_id": "cycle-models",
+      "section": "Cycle Models",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/mvrv.json",
+      "order": 10038,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "adjusted-mvrv",
+      "title": "MVRV Adjusted Ratio",
+      "section_id": "cycle-models",
+      "section": "Cycle Models",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/adjusted-mvrv.json",
+      "order": 10039,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "lth-mvrv",
+      "title": "MVRV Long Term Supply",
+      "section_id": "cycle-models",
+      "section": "Cycle Models",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/lth-mvrv.json",
+      "order": 10040,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "mvrv-momentum",
+      "title": "MVRV Momentum Oscillator",
+      "section_id": "cycle-models",
+      "section": "Cycle Models",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/mvrv-momentum.json",
+      "order": 10041,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "sth-mvrv",
+      "title": "MVRV Short Term Supply",
+      "section_id": "cycle-models",
+      "section": "Cycle Models",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/sth-mvrv.json",
+      "order": 10042,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "mvrv-z-score",
+      "title": "MVRV Z-Score",
+      "section_id": "cycle-models",
+      "section": "Cycle Models",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/mvrv-z-score.json",
+      "order": 10043,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "nupl",
+      "title": "NUPL (Net Unrealized Profit Loss)",
+      "section_id": "cycle-models",
+      "section": "Cycle Models",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/nupl.json",
+      "order": 10044,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "lts-nupl",
+      "title": "NUPL Long Term Supply (LTS)",
+      "section_id": "cycle-models",
+      "section": "Cycle Models",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/lts-nupl.json",
+      "order": 10045,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "sts-nupl",
+      "title": "NUPL Short Term Supply (STS)",
+      "section_id": "cycle-models",
+      "section": "Cycle Models",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/sts-nupl.json",
+      "order": 10046,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "spent-outputs-1h",
+      "title": "Outputs Spent <1h",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/spent-outputs-1h.json",
+      "order": 10047,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "spent-outputs-1d-1w",
+      "title": "Outputs Spent 1d-1w",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/spent-outputs-1d-1w.json",
+      "order": 10048,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "spent-outputs-1h-24h",
+      "title": "Outputs Spent 1h-24h",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/spent-outputs-1h-24h.json",
+      "order": 10049,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "spent-outputs-1m-3m",
+      "title": "Outputs Spent 1m-3m",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/spent-outputs-1m-3m.json",
+      "order": 10050,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "spent-outputs-1w-1m",
+      "title": "Outputs Spent 1w-1m",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/spent-outputs-1w-1m.json",
+      "order": 10051,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "spent-outputs-1y-2y",
+      "title": "Outputs Spent 1y-2y",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/spent-outputs-1y-2y.json",
+      "order": 10052,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "spent-outputs-2y-3y",
+      "title": "Outputs Spent 2y-3y",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/spent-outputs-2y-3y.json",
+      "order": 10053,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "spent-outputs-3m-6m",
+      "title": "Outputs Spent 3m-6m",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/spent-outputs-3m-6m.json",
+      "order": 10054,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "spent-outputs-3y-5y",
+      "title": "Outputs Spent 3y-5y",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/spent-outputs-3y-5y.json",
+      "order": 10055,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "spent-outputs-5y-7y",
+      "title": "Outputs Spent 5y-7y",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/spent-outputs-5y-7y.json",
+      "order": 10056,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "spent-outputs-6m-12m",
+      "title": "Outputs Spent 6m-12m",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/spent-outputs-6m-12m.json",
+      "order": 10057,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "spent-outputs-7y-10y",
+      "title": "Outputs Spent 7y-10y",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/spent-outputs-7y-10y.json",
+      "order": 10058,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "spent-outputs-10y",
+      "title": "Outputs Spent 10y+",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/spent-outputs-10y.json",
+      "order": 10059,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "pb-realized-prices",
+      "title": "PlanB: Realized Prices",
+      "section_id": "cycle-models",
+      "section": "Cycle Models",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/pb-realized-prices.json",
+      "order": 10062,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "pb-rsi",
+      "title": "PlanB: RSI",
+      "section_id": "cycle-models",
+      "section": "Cycle Models",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/pb-rsi.json",
+      "order": 10063,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "pb-s2f",
+      "title": "PlanB: Stock to Flow (S2F)",
+      "section_id": "cycle-models",
+      "section": "Cycle Models",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/pb-s2f.json",
+      "order": 10064,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "pb-various",
+      "title": "PlanB: Stock to Flow + RSI + MA + Realized",
+      "section_id": "cycle-models",
+      "section": "Cycle Models",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/pb-various.json",
+      "order": 10065,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "price",
+      "title": "Price",
+      "section_id": "technical",
+      "section": "Technical",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/price.json",
+      "order": 10066,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "ohlc",
+      "title": "Price OHLC",
+      "section_id": "technical",
+      "section": "Technical",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/ohlc.json",
+      "order": 10068,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "realized-cap",
+      "title": "Realized Cap",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/realized-cap.json",
+      "order": 10069,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "realized-cap-hodl-waves",
+      "title": "Realized Cap HODL Waves",
+      "section_id": "heatmaps",
+      "section": "Heatmaps",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/realized-cap-hodl-waves.json",
+      "order": 10070,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "realized-price",
+      "title": "Realized Price",
+      "section_id": "cycle-models",
+      "section": "Cycle Models",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/realized-price.json",
+      "order": 10071,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "realized-price-lts",
+      "title": "Realized Price - Long Term Supply (LTS)",
+      "section_id": "cycle-models",
+      "section": "Cycle Models",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/realized-price-lts.json",
+      "order": 10072,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "realized-price-sts",
+      "title": "Realized Price - Short Term Supply (STS)",
+      "section_id": "cycle-models",
+      "section": "Cycle Models",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/realized-price-sts.json",
+      "order": 10073,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "sopr",
+      "title": "SOPR (Spent Output Profit Ratio)",
+      "section_id": "cycle-models",
+      "section": "Cycle Models",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/sopr.json",
+      "order": 10074,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "asopr",
+      "title": "SOPR Adjusted (aSOPR)",
+      "section_id": "cycle-models",
+      "section": "Cycle Models",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/asopr.json",
+      "order": 10075,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "lts-sopr",
+      "title": "SOPR Long Term Supply (LTS)",
+      "section_id": "cycle-models",
+      "section": "Cycle Models",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/lts-sopr.json",
+      "order": 10076,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "sts-sopr",
+      "title": "SOPR Short Term Supply (STS)",
+      "section_id": "cycle-models",
+      "section": "Cycle Models",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/sts-sopr.json",
+      "order": 10077,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "spent-volume-1h",
+      "title": "Spent Volume <1h",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/spent-volume-1h.json",
+      "order": 10078,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "spent-volume-1d-1w",
+      "title": "Spent Volume 1d-1w",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/spent-volume-1d-1w.json",
+      "order": 10079,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "spent-volume-1h-24h",
+      "title": "Spent Volume 1h-24h",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/spent-volume-1h-24h.json",
+      "order": 10080,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "spent-volume-1m-3m",
+      "title": "Spent Volume 1m-3m",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/spent-volume-1m-3m.json",
+      "order": 10081,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "spent-volume-1w-1m",
+      "title": "Spent Volume 1w-1m",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/spent-volume-1w-1m.json",
+      "order": 10082,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "spent-volume-1y-2y",
+      "title": "Spent Volume 1y-2y",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/spent-volume-1y-2y.json",
+      "order": 10083,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "spent-volume-2y-3y",
+      "title": "Spent Volume 2y-3y",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/spent-volume-2y-3y.json",
+      "order": 10084,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "spent-volume-3m-6m",
+      "title": "Spent Volume 3m-6m",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/spent-volume-3m-6m.json",
+      "order": 10085,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "spent-volume-3y-5y",
+      "title": "Spent Volume 3y-5y",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/spent-volume-3y-5y.json",
+      "order": 10086,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "spent-volume-5y-7y",
+      "title": "Spent Volume 5y-7y",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/spent-volume-5y-7y.json",
+      "order": 10087,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "spent-volume-6m-12m",
+      "title": "Spent Volume 6m-12m",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/spent-volume-6m-12m.json",
+      "order": 10088,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "spent-volume-7y-10y",
+      "title": "Spent Volume 7y-10y",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/spent-volume-7y-10y.json",
+      "order": 10089,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "spent-volume-10y",
+      "title": "Spent Volume 10y+",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/spent-volume-10y.json",
+      "order": 10090,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "adjusted-supply",
+      "title": "Supply Adjusted",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/adjusted-supply.json",
+      "order": 10091,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "circulating-supply",
+      "title": "Supply Circulating",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/circulating-supply.json",
+      "order": 10092,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "supply-in-loss",
+      "title": "Supply in Loss",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/supply-in-loss.json",
+      "order": 10093,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "supply-in-profit",
+      "title": "Supply in Profit",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/supply-in-profit.json",
+      "order": 10094,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "percent-supply-in-profit",
+      "title": "Supply in Profit (%)",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/percent-supply-in-profit.json",
+      "order": 10095,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "supply-last-active-24h",
+      "title": "Supply Last Active < 24 Hours",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/supply-last-active-24h.json",
+      "order": 10096,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "supply-last-active-1-year-ago",
+      "title": "Supply Last Active 1+ Years Ago (%)",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/supply-last-active-1-year-ago.json",
+      "order": 10097,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "supply-last-active-1d-1w",
+      "title": "Supply Last Active 1d-1w",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/supply-last-active-1d-1w.json",
+      "order": 10098,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "supply-last-active-1m-3m",
+      "title": "Supply Last Active 1m-3m",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/supply-last-active-1m-3m.json",
+      "order": 10099,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "supply-last-active-1w-1m",
+      "title": "Supply Last Active 1w-1m",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/supply-last-active-1w-1m.json",
+      "order": 10100,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "supply-last-active-1y-2y",
+      "title": "Supply Last Active 1y-2y",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/supply-last-active-1y-2y.json",
+      "order": 10101,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "supply-last-active-2-year-ago",
+      "title": "Supply Last Active 2+ Years Ago (%)",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/supply-last-active-2-year-ago.json",
+      "order": 10102,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "supply-last-active-2y-3y",
+      "title": "Supply Last Active 2y-3y",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/supply-last-active-2y-3y.json",
+      "order": 10103,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "supply-last-active-3-year-ago",
+      "title": "Supply Last Active 3+ Years Ago (%)",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/supply-last-active-3-year-ago.json",
+      "order": 10104,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "supply-last-active-3m-6m",
+      "title": "Supply Last Active 3m-6m",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/supply-last-active-3m-6m.json",
+      "order": 10105,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "supply-last-active-3y-5y",
+      "title": "Supply Last Active 3y-5y",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/supply-last-active-3y-5y.json",
+      "order": 10106,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "supply-last-active-5-year-ago",
+      "title": "Supply Last Active 5+ Years Ago (%)",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/supply-last-active-5-year-ago.json",
+      "order": 10107,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "supply-last-active-5y-7y",
+      "title": "Supply Last Active 5y-7y",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/supply-last-active-5y-7y.json",
+      "order": 10108,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "supply-last-active-6m-12m",
+      "title": "Supply Last Active 6m-12m",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/supply-last-active-6m-12m.json",
+      "order": 10109,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "supply-last-active-7y-10y",
+      "title": "Supply Last Active 7y-10y",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/supply-last-active-7y-10y.json",
+      "order": 10110,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "supply-last-active-10y",
+      "title": "Supply Last Active 10y+",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/supply-last-active-10y.json",
+      "order": 10111,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "long-term-supply",
+      "title": "Supply Long Term (LTS)",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/long-term-supply.json",
+      "order": 10112,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "long-term-supply-in-loss",
+      "title": "Supply Long Term (LTS) in Loss",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/long-term-supply-in-loss.json",
+      "order": 10113,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "long-term-supply-in-profit",
+      "title": "Supply Long Term (LTS) in Profit",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/long-term-supply-in-profit.json",
+      "order": 10114,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "long-term-supply-position-change",
+      "title": "Supply Long Term (LTS) Position Change",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/long-term-supply-position-change.json",
+      "order": 10115,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "probably-lost-supply",
+      "title": "Supply Probably Lost",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/probably-lost-supply.json",
+      "order": 10116,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "revived-supply-1-year",
+      "title": "Supply Revived 1+ Years",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/revived-supply-1-year.json",
+      "order": 10117,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "revived-supply-2-year",
+      "title": "Supply Revived 2+ Years",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/revived-supply-2-year.json",
+      "order": 10118,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "revived-supply-3-year",
+      "title": "Supply Revived 3+ Years",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/revived-supply-3-year.json",
+      "order": 10119,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "revived-supply-5-year",
+      "title": "Supply Revived 5+ Years",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/revived-supply-5-year.json",
+      "order": 10120,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "short-term-supply",
+      "title": "Supply Short Term (STS)",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/short-term-supply.json",
+      "order": 10121,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "short-term-supply-in-loss",
+      "title": "Supply Short Term (STS) in Loss",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/short-term-supply-in-loss.json",
+      "order": 10122,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "short-term-supply-in-profit",
+      "title": "Supply Short Term (STS) in Profit",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/short-term-supply-in-profit.json",
+      "order": 10123,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "short-term-supply-position-change",
+      "title": "Supply Short Term (STS) Position Change",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/short-term-supply-position-change.json",
+      "order": 10124,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "terminal-price",
+      "title": "Terminal Price",
+      "section_id": "cycle-models",
+      "section": "Cycle Models",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/terminal-price.json",
+      "order": 10125,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "thermocap",
+      "title": "Thermocap",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/thermocap.json",
+      "order": 10126,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "top-cap",
+      "title": "Top Cap",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/top-cap.json",
+      "order": 10127,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "top-price",
+      "title": "Top Price",
+      "section_id": "cycle-models",
+      "section": "Cycle Models",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/top-price.json",
+      "order": 10128,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "total-transactions",
+      "title": "Total Transactions",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/total-transactions.json",
+      "order": 10129,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "transaction-count-per-day",
+      "title": "Transaction Count",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/transaction-count-per-day.json",
+      "order": 10130,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "transaction-rate",
+      "title": "Transaction Rate",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/transaction-rate.json",
+      "order": 10131,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "transfer-volume-in-loss",
+      "title": "Transfer Volume in Loss",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/transfer-volume-in-loss.json",
+      "order": 10132,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "transfer-volume-in-profit",
+      "title": "Transfer Volume in Profit",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/transfer-volume-in-profit.json",
+      "order": 10133,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "percent-volume-in-profit",
+      "title": "Transfer Volume in Profit (%)",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/percent-volume-in-profit.json",
+      "order": 10134,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "transfer-volume-avg",
+      "title": "Transfer Volume Mean",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/transfer-volume-avg.json",
+      "order": 10135,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "transfer-volume-total",
+      "title": "Transfer Volume Total",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/transfer-volume-total.json",
+      "order": 10136,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "utxo-total",
+      "title": "UTXO Count Total",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/utxo-total.json",
+      "order": 10137,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "utxo-value-created-avg",
+      "title": "UTXO Value Created Mean",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/utxo-value-created-avg.json",
+      "order": 10138,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "utxo-value-created-total",
+      "title": "UTXO Value Created Total",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/utxo-value-created-total.json",
+      "order": 10139,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "utxo-value-spent-avg",
+      "title": "UTXO Value Spent Mean",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/utxo-value-spent-avg.json",
+      "order": 10140,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "utxo-value-spent-total",
+      "title": "UTXO Value Spent Total",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/utxo-value-spent-total.json",
+      "order": 10141,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "utxo-created",
+      "title": "UTXOs Created",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/utxo-created.json",
+      "order": 10142,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "utxos-in-loss",
+      "title": "UTXOs in Loss",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/utxos-in-loss.json",
+      "order": 10143,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "utxos-in-profit",
+      "title": "UTXOs in Profit",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/utxos-in-profit.json",
+      "order": 10144,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "percent-utxos-in-profit",
+      "title": "UTXOs in Profit (%)",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/percent-utxos-in-profit.json",
+      "order": 10145,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    },
+    {
+      "id": "utxo-spent",
+      "title": "UTXOs Spent",
+      "section_id": "onchain",
+      "section": "On-Chain",
+      "description": "Historical on-chain series, refreshed during the Fintech site build.",
+      "image_path": null,
+      "kind": "interactive",
+      "data_path": "web/data/bitcoin/utxo-spent.json",
+      "order": 10146,
+      "image_exists": false,
+      "source_label": "BlockHorizon",
+      "source_url": "https://charts.blockhorizon.io/dashboard",
+      "attributions": [
+        {
+          "kind": "Data",
+          "label": "BlockHorizon",
+          "url": "https://charts.blockhorizon.io/dashboard"
+        }
+      ]
+    }
+  ],
+  "market": {
+    "price": 77442.5,
+    "price_label": "$77.4k",
+    "date": "2026-09-12",
+    "date_label": "Sep 12, 2026",
+    "drawdown": -37.957155,
+    "drawdown_label": "-38.0%"
+  },
+  "hero": {
+    "kicker": "BTC/USD",
+    "value_label": "$77.4k",
+    "detail": "Sep 12, 2026 \u00b7 -38.0% from ATH"
+  }
+}

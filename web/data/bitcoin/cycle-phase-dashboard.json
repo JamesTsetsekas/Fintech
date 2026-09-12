@@ -1,0 +1,71 @@
+{
+  "id": "cycle-phase-dashboard",
+  "title": "Cycle Phase Dashboard",
+  "summary_text": "Spot is 1.10x the 200D average; drawdown is -38.0%.",
+  "updated_at": "2026-09-12T16:07:06.471250+00:00",
+  "allow_scale_toggle": false,
+  "default_scale": "linear",
+  "axis_guards": {},
+  "scale_axes": [
+    "y"
+  ],
+  "x_value_type": "number",
+  "show_range_selector": false,
+  "attributions": [
+    {
+      "kind": "Data",
+      "label": "Wicked Smart Bitcoin",
+      "url": "https://github.com/w-s-bitcoin/animations"
+    }
+  ],
+  "series": [
+    {
+      "name": "Cycle state",
+      "type": "bar",
+      "orientation": "h",
+      "x": [
+        55.240547,
+        62.042845,
+        17.870037,
+        1.83705,
+        25.472998
+      ],
+      "y": [
+        "Spot / 200D",
+        "Drawdown",
+        "Puell",
+        "Fee share",
+        "Volatility"
+      ],
+      "text": [
+        "1.10x",
+        "-38.0%",
+        "0.71",
+        "0.37%",
+        "47.7%"
+      ],
+      "marker": {
+        "color": [
+          "#3ce38a",
+          "#55d6ff",
+          "#f5c84b",
+          "#ff9f43",
+          "#ff5f63"
+        ]
+      },
+      "hovertemplate": "%{y}<br>%{text}<br>Normalized score %{x:.1f}<extra>Cycle</extra>"
+    }
+  ],
+  "layout": {
+    "xaxis": {
+      "title": "Normalized score",
+      "range": [
+        0,
+        100
+      ]
+    },
+    "yaxis": {
+      "automargin": true
+    }
+  }
+}
