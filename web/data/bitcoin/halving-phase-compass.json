@@ -1,0 +1,78 @@
+{
+  "id": "halving-phase-compass",
+  "title": "Halving Phase Compass",
+  "summary_text": "Current epoch is 0.0% complete; trend is +9.4% versus the 200D average.",
+  "updated_at": "2026-09-13T14:07:08.711093+00:00",
+  "allow_scale_toggle": false,
+  "default_scale": "linear",
+  "axis_guards": {
+    "x": {
+      "include": [
+        0,
+        100
+      ]
+    }
+  },
+  "scale_axes": [
+    "y"
+  ],
+  "x_value_type": "number",
+  "show_range_selector": false,
+  "attributions": [
+    {
+      "kind": "Data",
+      "label": "Wicked Smart Bitcoin",
+      "url": "https://github.com/w-s-bitcoin/animations"
+    }
+  ],
+  "series": [
+    {
+      "name": "Phase score",
+      "type": "bar",
+      "orientation": "h",
+      "x": [
+        0.0,
+        29.694182,
+        61.467702,
+        5.947955,
+        34.408951
+      ],
+      "y": [
+        "Halving progress",
+        "Trend strength",
+        "Drawdown recovery",
+        "Fee pressure",
+        "Volatility"
+      ],
+      "text": [
+        "0.0% through epoch",
+        "+9.4% vs 200D MA",
+        "-38.5% from ATH",
+        "1.2 sat/vB",
+        "47.7% 30D annualized"
+      ],
+      "marker": {
+        "color": [
+          "#f5c84b",
+          "#3ce38a",
+          "#55d6ff",
+          "#ff9f43",
+          "#ff5f63"
+        ]
+      },
+      "hovertemplate": "%{y}<br>%{text}<br>Score %{x:.1f}/100<extra>Phase</extra>"
+    }
+  ],
+  "layout": {
+    "xaxis": {
+      "title": "Normalized cycle score",
+      "range": [
+        0,
+        100
+      ]
+    },
+    "yaxis": {
+      "automargin": true
+    }
+  }
+}
