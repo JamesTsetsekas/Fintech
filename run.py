@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Run the scheduled Bitcoin report and static-site publishing pipeline."""
 
+import hashlib
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -39,6 +41,7 @@ PUBLISH_EXCLUDED_PNG_NAMES = {
 PUBLISH_EXCLUDED_BITCOIN_PATHS = {
     Path("Bitcoin/price_prediction/price_prediction.png"),
 }
+PUBLISH_STATE_PATH = script_dir / "logs" / "publish-state.json"
 
 # Define report runners to execute
 REPORT_RUNNERS = [
@@ -87,6 +90,62 @@ def get_authenticated_remote_url(original_url):
             repo_path = f"{repo_path}.git"
         return f"https://{github_token}@github.com/{repo_path}"
     return original_url
+
+
+def _normalized_publish_bytes(path: Path) -> bytes:
+    """Return stable bytes for a staged file, ignoring generation timestamps."""
+    if path.suffix.lower() != ".json":
+        return path.read_bytes()
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return path.read_bytes()
+
+    def strip_generated_at(value):
+        if isinstance(value, dict):
+            return {
+                key: strip_generated_at(child)
+                for key, child in value.items()
+                if key != "generated_at"
+            }
+        if isinstance(value, list):
+            return [strip_generated_at(child) for child in value]
+        return value
+
+    return json.dumps(
+        strip_generated_at(payload), sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    ).encode("utf-8")
+
+
+def static_site_fingerprint(site_dir: Path) -> str:
+    """Hash publishable content without volatile generated_at metadata."""
+    digest = hashlib.sha256()
+    for path in sorted(candidate for candidate in site_dir.rglob("*") if candidate.is_file()):
+        relative_path = path.relative_to(site_dir).as_posix().encode("utf-8")
+        digest.update(len(relative_path).to_bytes(4, "big"))
+        digest.update(relative_path)
+        content = _normalized_publish_bytes(path)
+        digest.update(len(content).to_bytes(8, "big"))
+        digest.update(content)
+    return digest.hexdigest()
+
+
+def last_published_fingerprint() -> str | None:
+    try:
+        payload = json.loads(PUBLISH_STATE_PATH.read_text(encoding="utf-8"))
+        return payload.get("fingerprint") if isinstance(payload, dict) else None
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
+def remember_published_fingerprint(fingerprint: str, branch: str) -> None:
+    PUBLISH_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    temporary_path = PUBLISH_STATE_PATH.with_suffix(".tmp")
+    temporary_path.write_text(
+        json.dumps({"fingerprint": fingerprint, "branch": branch}, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    temporary_path.replace(PUBLISH_STATE_PATH)
 
 def get_current_branch():
     result = subprocess.run(
@@ -876,6 +935,10 @@ def publish_static_site():
         with tempfile.TemporaryDirectory(prefix="fintech-site-") as temp_dir:
             site_dir = Path(temp_dir) / "site"
             stage_static_site(site_dir)
+            fingerprint = static_site_fingerprint(site_dir)
+            if fingerprint == last_published_fingerprint():
+                print("✓ Static site content is unchanged; skipped GitHub Pages deployment")
+                return True
 
             subprocess.run(['git', 'init'], cwd=site_dir, check=True, capture_output=True, text=True)
             subprocess.run(['git', 'checkout', '-B', publish_branch], cwd=site_dir, check=True, capture_output=True, text=True)
@@ -907,6 +970,7 @@ def publish_static_site():
                 return False
 
             print_git_output_tail(push_result.stdout, "Push output:")
+            remember_published_fingerprint(fingerprint, publish_branch)
             print(f"✓ Published latest static site to {publish_branch}")
             return True
 

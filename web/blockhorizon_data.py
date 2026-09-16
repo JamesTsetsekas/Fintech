@@ -515,19 +515,79 @@ def _section_id(title: str) -> str:
     return "onchain"
 
 
+def _cached_chart_payload(output_dir: Path, title: str) -> dict | None:
+    """Return the last generated payload for a reference chart, if available.
+
+    The upstream public bundle is curated independently and can temporarily
+    remove a chart.  Keeping a known-good local payload is preferable to
+    failing the entire dashboard (or silently dropping a chart) in that case.
+    """
+    for path in output_dir.glob("*.json"):
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if payload.get("title") == title and payload.get("series"):
+            return payload
+    return None
+
+
+def _manifest_entry(chart_id: str, title: str, order: int, section_name, *, cached: bool = False) -> dict:
+    section_id = _section_id(title)
+    description = "Historical on-chain series, refreshed during the Fintech site build."
+    if cached:
+        description = "Historical on-chain series; showing the last valid imported dataset while its source feed is unavailable."
+    return {
+        "id": chart_id,
+        "title": title,
+        "section_id": section_id,
+        "section": section_name(section_id),
+        "description": description,
+        "image_path": None,
+        "kind": "interactive",
+        "data_path": f"web/data/bitcoin/{chart_id}.json",
+        "order": 10_000 + order,
+        "image_exists": False,
+        "source_label": "BlockHorizon",
+        "source_url": SOURCE_DASHBOARD_URL,
+        "attributions": [
+            {
+                "kind": "Data",
+                "label": "BlockHorizon",
+                "url": SOURCE_DASHBOARD_URL,
+            }
+        ],
+    }
+
+
 def import_reference_charts(output_dir: Path, section_name, *, timeout: int = 90) -> list[dict]:
     """Download, convert, and write the reviewed public reference chart set."""
     bundle, built_at = _fetch_bundle(timeout=timeout)
     charts_by_name = {str(chart.get("name") or "").strip(): chart for chart in bundle}
     missing = [title for title in REFERENCE_CHART_TITLES if title not in charts_by_name]
+    if "Price" not in charts_by_name:
+        raise RuntimeError("BlockHorizon bundle is missing its required Price chart")
     if missing:
-        raise RuntimeError(f"BlockHorizon bundle is missing {len(missing)} reviewed charts: {', '.join(missing[:5])}")
+        print(
+            f"Warning: BlockHorizon bundle is missing {len(missing)} reviewed charts; "
+            "using cached payloads where available. "
+            f"Missing: {', '.join(missing[:5])}"
+        )
     price_chart = charts_by_name["Price"]
     output_dir.mkdir(parents=True, exist_ok=True)
 
     manifest_entries = []
     for order, title in enumerate(REFERENCE_CHART_TITLES):
         if title in REFERENCE_EQUIVALENTS:
+            continue
+        if title not in charts_by_name:
+            cached_payload = _cached_chart_payload(output_dir, title)
+            if cached_payload:
+                manifest_entries.append(
+                    _manifest_entry(cached_payload["id"], title, order, section_name, cached=True)
+                )
+            else:
+                print(f"Warning: no cached payload for unavailable reference chart: {title}")
             continue
         source_chart = charts_by_name[title]
         payload = _build_payload(source_chart, price_chart, built_at)
@@ -536,26 +596,5 @@ def import_reference_charts(output_dir: Path, section_name, *, timeout: int = 90
         chart_id = payload["id"]
         path = output_dir / f"{chart_id}.json"
         path.write_text(json.dumps(payload, separators=(",", ":")) + "\n", encoding="utf-8")
-        section_id = _section_id(title)
-        manifest_entries.append({
-            "id": chart_id,
-            "title": title,
-            "section_id": section_id,
-            "section": section_name(section_id),
-            "description": "Historical on-chain series, refreshed during the Fintech site build.",
-            "image_path": None,
-            "kind": "interactive",
-            "data_path": f"web/data/bitcoin/{chart_id}.json",
-            "order": 10_000 + order,
-            "image_exists": False,
-            "source_label": "BlockHorizon",
-            "source_url": SOURCE_DASHBOARD_URL,
-            "attributions": [
-                {
-                    "kind": "Data",
-                    "label": "BlockHorizon",
-                    "url": SOURCE_DASHBOARD_URL,
-                }
-            ],
-        })
+        manifest_entries.append(_manifest_entry(chart_id, title, order, section_name))
     return manifest_entries
