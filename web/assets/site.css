@@ -980,7 +980,7 @@ button { color: inherit; }
 .time-spent-svg text {
   fill: var(--faint);
   font-family: "IBM Plex Mono", monospace;
-  font-size: 6px;
+  font-size: 9px;
 }
 
 .insight-gridline {
@@ -996,10 +996,12 @@ button { color: inherit; }
 }
 
 .cycle-line.current {
-  stroke: #2863a7;
+  stroke: #3156fa;
   stroke-width: 1.8;
   opacity: 1;
 }
+
+.cycle-current-dot { fill: #3156fa; }
 
 .month-grid {
   display: grid;

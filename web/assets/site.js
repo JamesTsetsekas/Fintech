@@ -520,8 +520,8 @@ function renderChartDetails(payload) {
   const performanceLabel = document.querySelector("#performance-series-label");
   if (performanceLabel) performanceLabel.textContent = base ? "main series" : "—";
   performanceList.innerHTML = base
-    ? [[7, "1W"], [30, "1M"], [90, "3M"], [180, "6M"], [365, "1Y"]].map(([days, label]) => {
-      const change = seriesReturn(base, days);
+    ? [[7, "1W"], [30, "1M"], [90, "3M"], [180, "6M"], ["ytd", "YTD"], [365, "1Y"]].map(([window, label]) => {
+      const change = window === "ytd" ? seriesReturnYtd(base) : seriesReturn(base, window);
       const width = Math.min(50, Math.abs(change) / 2);
       return `
         <div class="performance-row ${change < 0 ? "negative" : ""}">
@@ -547,22 +547,28 @@ function detailSeries(payload) {
     && Array.isArray(series?.y)
     && series.x.length === series.y.length
     && primaryValues(series).length > 8;
+  const isBtcOverlay = (series) => payload.id !== "price" && series?.source_key === "price";
   return payload.series.find((series) => series.source_key === payload.main_series_key && usable(series))
-    || payload.series.find((series) => /(^|\s)price\b/i.test(series.name || "") && usable(series))
+    // Imported metric charts can carry BTC only as a visual overlay. Their
+    // sidebar modules should analyse the underlying metric, as the source
+    // terminal does, rather than silently switching to the overlay.
+    || payload.series.find((series) => usable(series) && !isBtcOverlay(series))
     || payload.series.find(usable)
     || null;
 }
 
 function clearChartInsights() {
   [
-    ["#cycle-comparison", "#cycle-series-label"],
-    ["#month-to-month", "#month-series-label"],
-    ["#time-spent", "#time-series-label"],
-  ].forEach(([contentSelector, labelSelector]) => {
+    ["#cycle-comparison", "#cycle-series-label", "#cycle-comparison-section"],
+    ["#month-to-month", "#month-series-label", "#month-to-month-section"],
+    ["#time-spent", "#time-series-label", "#time-spent-section"],
+  ].forEach(([contentSelector, labelSelector, sectionSelector]) => {
     const content = document.querySelector(contentSelector);
     const label = document.querySelector(labelSelector);
+    const section = document.querySelector(sectionSelector);
     if (content) content.innerHTML = "";
     if (label) label.textContent = "—";
+    if (section) section.hidden = true;
   });
 }
 
@@ -580,12 +586,17 @@ function renderChartInsights(payload, series) {
       node.title = label;
     }
   });
-  const cycle = document.querySelector("#cycle-comparison");
-  const months = document.querySelector("#month-to-month");
-  const timeSpent = document.querySelector("#time-spent");
-  if (cycle) cycle.innerHTML = cycleComparisonSvg(points);
-  if (months) months.innerHTML = monthToMonthGrid(points);
-  if (timeSpent) timeSpent.innerHTML = timeSpentHistogram(points);
+  const insightViews = [
+    ["#cycle-comparison", "#cycle-comparison-section", cycleComparisonSvg(points, series)],
+    ["#month-to-month", "#month-to-month-section", monthToMonthGrid(points)],
+    ["#time-spent", "#time-spent-section", timeSpentHistogram(points)],
+  ];
+  insightViews.forEach(([contentSelector, sectionSelector, markup]) => {
+    const content = document.querySelector(contentSelector);
+    const section = document.querySelector(sectionSelector);
+    if (content) content.innerHTML = markup || "";
+    if (section) section.hidden = !markup;
+  });
 }
 
 function datedSeriesPoints(series) {
@@ -596,36 +607,81 @@ function datedSeriesPoints(series) {
     .sort((left, right) => left.date - right.date);
 }
 
-function cycleComparisonSvg(points) {
+function cycleComparisonSvg(points, series) {
+  // Stacked cohort charts are flow compositions, not a single cycle metric.
+  // BlockHorizon omits its cycle panel for these views.
+  if (series?.stackgroup || series?.fill === "tonexty") return null;
   const halvings = ["2012-11-28", "2016-07-09", "2020-05-11", "2024-04-20"].map((date) => new Date(`${date}T00:00:00Z`));
-  const duration = 1461 * 24 * 60 * 60 * 1000;
+  const duration = 1460 * 24 * 60 * 60 * 1000;
+  const latestDate = points.at(-1)?.date;
+  if (!latestDate) return null;
+  // BlockHorizon compares price as growth since each halving, rather than
+  // putting nominal 2012 and 2024 dollars on one axis.  Other metrics retain
+  // their native unit (for example drawdown percent or S2F error).
+  const growthMode = /(^|[-_ ])price($|[-_ ])/i.test(series?.source_key || "")
+    || /^btc price|^price \[usd\]$/i.test(series?.name || "");
+  const valueAtOrBefore = (date, toleranceDays = 10) => {
+    const target = date.getTime();
+    for (let index = points.length - 1; index >= 0; index -= 1) {
+      const point = points[index];
+      const time = point.date.getTime();
+      if (time > target) continue;
+      return target - time <= toleranceDays * 86_400_000 ? point.value : null;
+    }
+    return null;
+  };
   const cycles = halvings.map((start, index) => {
     const next = halvings[index + 1] || new Date(start.getTime() + duration);
-    return points.filter((point) => point.date >= start && point.date < next)
-      .map((point) => ({ ...point, offset: point.date.getTime() - start.getTime() }));
-  }).filter((cycle) => cycle.length > 8);
-  if (!cycles.length) return `<p class="empty-state">Cycle history is unavailable.</p>`;
+    const end = new Date(Math.min(next.getTime(), latestDate.getTime(), start.getTime() + duration));
+    const days = Math.floor((end.getTime() - start.getTime()) / 86_400_000);
+    if (days < 90) return null;
+    const baseline = growthMode ? valueAtOrBefore(start, 20) : 1;
+    if (!Number.isFinite(baseline) || baseline <= 0) return null;
+    const samples = [];
+    for (let day = 0; day <= days; day += 7) {
+      const value = valueAtOrBefore(new Date(start.getTime() + day * 86_400_000));
+      if (Number.isFinite(value)) samples.push({ offset: day * 86_400_000, value: growthMode ? value / baseline : value });
+    }
+    return samples.length > 8 ? samples : null;
+  }).filter(Boolean);
+  if (!cycles.length) return null;
   const values = cycles.flatMap((cycle) => cycle.map((point) => point.value));
   const positive = values.every((value) => value > 0);
   const scaleValues = positive ? values.map((value) => Math.log10(value)) : values;
-  const minimum = Math.min(...scaleValues);
-  const maximum = Math.max(...scaleValues);
+  // Match the source module's robust 1st–99th percentile scale: an isolated
+  // early-cycle spike should not flatten every other halving trajectory.
+  const minimum = quantile(scaleValues, 0.01);
+  const maximum = quantile(scaleValues, 0.99);
   const span = maximum - minimum || 1;
-  const projectY = (value) => 54 - (((positive ? Math.log10(value) : value) - minimum) / span) * 46;
-  const projectX = (offset) => 8 + (Math.min(duration, Math.max(0, offset)) / duration) * 184;
+  const chartWidth = 300;
+  const chartHeight = 118;
+  const left = 36;
+  const top = 8;
+  const bottom = 20;
+  const toScale = (value) => positive ? Math.log10(value) : value;
+  const projectY = (value) => {
+    const normalized = clamp((toScale(value) - minimum) / span, 0, 1);
+    return chartHeight - bottom - normalized * (chartHeight - top - bottom);
+  };
+  const projectX = (offset) => left + (Math.min(duration, Math.max(0, offset)) / duration) * (chartWidth - left - 2);
   const paths = cycles.map((cycle, index) => {
     const commands = cycle.map((point, pointIndex) => `${pointIndex ? "L" : "M"}${projectX(point.offset).toFixed(1)},${projectY(point.value).toFixed(1)}`);
     const current = index === cycles.length - 1;
     return `<path d="${commands.join(" ")}" class="cycle-line ${current ? "current" : ""}"/>`;
   }).join("");
-  const low = positive ? formatMetricValue("value", 10 ** minimum) : formatMetricValue("value", minimum);
-  const high = positive ? formatMetricValue("value", 10 ** maximum) : formatMetricValue("value", maximum);
-  return `<svg class="cycle-comparison-svg" viewBox="0 0 200 70" role="img" aria-label="Historical halving-cycle comparison">
-    <line x1="8" x2="192" y1="54" y2="54" class="insight-gridline"/>
-    <line x1="8" x2="192" y1="31" y2="31" class="insight-gridline"/>
+  const formatTick = (value) => {
+    if (growthMode) return `×${value >= 10 ? Math.round(value) : value.toFixed(1)}`;
+    return formatMetricValue("value", value);
+  };
+  const lowValue = positive ? 10 ** minimum : minimum;
+  const midValue = positive ? 10 ** (minimum + span / 2) : minimum + span / 2;
+  const highValue = positive ? 10 ** maximum : maximum;
+  const ticks = [highValue, midValue, lowValue];
+  return `<svg class="cycle-comparison-svg" viewBox="0 0 ${chartWidth} ${chartHeight}" role="img" aria-label="Historical halving-cycle comparison">
+    ${ticks.map((value) => `<line x1="${left}" x2="${chartWidth}" y1="${projectY(value).toFixed(1)}" y2="${projectY(value).toFixed(1)}" class="insight-gridline"/><text x="${left - 5}" y="${(projectY(value) + 3.5).toFixed(1)}" text-anchor="end">${escapeHtml(formatTick(value))}</text>`).join("")}
     ${paths}
-    <text x="8" y="67">halving</text><text x="95" y="67">+2y</text><text x="174" y="67">+4y</text>
-    <text x="0" y="12">${escapeHtml(high)}</text><text x="0" y="56">${escapeHtml(low)}</text>
+    <circle cx="${projectX(cycles.at(-1).at(-1).offset).toFixed(1)}" cy="${projectY(cycles.at(-1).at(-1).value).toFixed(1)}" r="3.5" class="cycle-current-dot"/>
+    <text x="${left}" y="${chartHeight - 3}">halving</text><text x="${left + (chartWidth - left) / 2}" y="${chartHeight - 3}" text-anchor="middle">+2y</text><text x="${chartWidth}" y="${chartHeight - 3}" text-anchor="end">+4y</text>
   </svg>`;
 }
 
@@ -647,7 +703,7 @@ function monthToMonthGrid(points) {
       return (lastValue - first) / Math.abs(first);
     }),
   })).filter((row) => row.values.some((value) => Number.isFinite(value))).slice(-14);
-  if (!changes.length) return `<p class="empty-state">Monthly history is unavailable.</p>`;
+  if (!changes.length) return null;
   const cells = changes.map((row) => `<span class="month-year">${String(row.year).slice(-2)}</span>${row.values.map((value) => {
     if (!Number.isFinite(value)) return `<span class="month-cell empty"></span>`;
     const intensity = Math.min(1, Math.abs(value) / 0.35).toFixed(2);
@@ -661,10 +717,10 @@ function monthToMonthGrid(points) {
 
 function timeSpentHistogram(points) {
   const values = points.map((point) => point.value).filter(Number.isFinite);
-  if (values.length < 12) return `<p class="empty-state">Distribution history is unavailable.</p>`;
+  if (values.length < 12) return null;
   const lower = quantile(values, 0.05);
   const upper = quantile(values, 0.95);
-  if (!Number.isFinite(lower) || !Number.isFinite(upper) || lower >= upper) return `<p class="empty-state">Distribution history is unavailable.</p>`;
+  if (!Number.isFinite(lower) || !Number.isFinite(upper) || lower >= upper) return null;
   const bins = Array.from({ length: 16 }, () => 0);
   values.forEach((value) => {
     const ratio = Math.max(0, Math.min(0.999999, (value - lower) / (upper - lower)));
@@ -882,6 +938,19 @@ function seriesReturn(series, days) {
     previous = values[Math.max(0, values.length - days - 1)];
   }
   if (!Number.isFinite(previous) || previous === 0) return 0;
+  return ((latest / previous) - 1) * 100;
+}
+
+function seriesReturnYtd(series) {
+  if (!Array.isArray(series?.x) || !Array.isArray(series?.y) || series.x.length !== series.y.length) return 0;
+  const latestDate = new Date(last(series.x));
+  if (!Number.isFinite(latestDate.getTime())) return 0;
+  const target = Date.UTC(latestDate.getUTCFullYear(), 0, 1);
+  const index = series.x.findIndex((date) => new Date(date).getTime() >= target);
+  const values = series.y.map(toFiniteNumber);
+  const previous = values[index >= 0 ? index : 0];
+  const latest = last(values);
+  if (!Number.isFinite(previous) || previous === 0 || !Number.isFinite(latest)) return 0;
   return ((latest / previous) - 1) * 100;
 }
 

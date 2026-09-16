@@ -178,7 +178,6 @@ REFERENCE_CHART_TITLES = (
 REFERENCE_EQUIVALENTS = {
     "Pi Cycle Top Indicator": "pi-cycle-top",
     "PlanB: Moving Averages": "200-dma-200-wma",
-    "Price Drawdown": "drawdown-recovery-map",
 }
 
 PALETTE = (
@@ -460,15 +459,23 @@ def _build_payload(chart: dict, price_chart: dict, built_at: str | None) -> dict
         (series.get("value_prefix") or "") == "$" for series in chart.get("series") or []
     )
     can_overlay_price = bool(chart.get("include_btc")) and not style_config.get("heatmap")
-    price_trace = _bitcoin_price_trace(price_chart) if can_overlay_price else None
+    # A few source charts (notably Price Drawdown) already carry their own
+    # price series.  Replacing it with a second BTC trace produced duplicate
+    # legend rows and put the source price on the metric axis.  Retain that
+    # authoritative series and only synthesize an overlay when it is absent.
+    source_price_trace = next((trace for trace in traces if trace.get("source_key") == "price"), None)
+    price_trace = source_price_trace or (_bitcoin_price_trace(price_chart) if can_overlay_price else None)
     if price_trace and chart.get("slug") != price_chart.get("slug"):
         if dollar_metric:
-            traces.insert(0, price_trace)
+            if source_price_trace is None:
+                traces.insert(0, price_trace)
         else:
             price_trace["axis"] = "y"
             for trace in traces:
-                trace["axis"] = "y2"
-            traces.insert(0, price_trace)
+                if trace is not price_trace:
+                    trace["axis"] = "y2"
+            if source_price_trace is None:
+                traces.insert(0, price_trace)
 
     default_log = bool((chart.get("toolbar_config") or {}).get("default_log_scale"))
     default_log = default_log or chart.get("slug") in SOURCE_LOG_SCALE_OVERRIDES
@@ -480,6 +487,22 @@ def _build_payload(chart: dict, price_chart: dict, built_at: str | None) -> dict
     if dollar_metric or price_trace:
         yaxis["tickprefix"] = "$"
     layout = {"yaxis": yaxis}
+    # Preserve the source's reviewed viewport.  This is especially important
+    # for model charts with forward projections and charts whose BTC overlay
+    # starts before the metric itself exists.
+    x_config = (chart.get("axis_config") or {}).get("x") or {}
+    available_dates = [
+        date
+        for trace in traces
+        for date in (trace.get("x") or [])
+        if isinstance(date, str)
+    ]
+    lower_bound = x_config.get("min") or (min(available_dates) if available_dates else None)
+    upper_bound = x_config.get("max") or (max(available_dates) if available_dates else None)
+    # Plotly requires both values for an explicit range.  A source-provided
+    # one-sided limit therefore pairs with the available data boundary.
+    if x_config.get("min") is not None or x_config.get("max") is not None:
+        layout["xaxis"] = {"range": [lower_bound, upper_bound]}
     if price_trace and not dollar_metric:
         first_series = next(iter(chart.get("series") or []), {})
         layout["yaxis2"] = {
