@@ -491,6 +491,7 @@ function renderImageChart(chart, target) {
   document.querySelector("#series-list").innerHTML = `<p class="empty-state">Generated report image</p>`;
   document.querySelector("#performance-list").innerHTML = "";
   document.querySelector("#chart-phase").innerHTML = `<span>Report</span><strong>Image view</strong>`;
+  clearChartInsights();
 }
 
 function renderChartDetails(payload) {
@@ -515,9 +516,9 @@ function renderChartDetails(payload) {
     `;
   }).join("");
 
-  const base = payload.x_value_type === "date"
-    ? payload.series.find((series) => series.type !== "heatmap" && primaryValues(series).length > 2)
-    : null;
+  const base = payload.x_value_type === "date" ? detailSeries(payload) : null;
+  const performanceLabel = document.querySelector("#performance-series-label");
+  if (performanceLabel) performanceLabel.textContent = base ? "main series" : "—";
   performanceList.innerHTML = base
     ? [[7, "1W"], [30, "1M"], [90, "3M"], [180, "6M"], [365, "1Y"]].map(([days, label]) => {
       const change = seriesReturn(base, days);
@@ -532,10 +533,156 @@ function renderChartDetails(payload) {
     }).join("")
     : `<p class="empty-state">Performance comparison is unavailable for this chart type.</p>`;
 
+  renderChartInsights(payload, base);
+
   const signal = appState.signals.find((item) => item.chartId === appState.currentChart.id);
   const phaseBox = document.querySelector("#chart-phase");
   if (signal) phaseBox.innerHTML = `<span>Cycle signal</span><strong>${Math.round(signal.score)} · ${signal.phase.label}</strong>`;
   else phaseBox.innerHTML = `<span>Data status</span><strong>${formatDate(new Date(payload.updated_at || appState.manifest.generated_at))}</strong>`;
+}
+
+function detailSeries(payload) {
+  const usable = (series) => series?.type !== "heatmap"
+    && Array.isArray(series?.x)
+    && Array.isArray(series?.y)
+    && series.x.length === series.y.length
+    && primaryValues(series).length > 8;
+  return payload.series.find((series) => series.source_key === payload.main_series_key && usable(series))
+    || payload.series.find((series) => /(^|\s)price\b/i.test(series.name || "") && usable(series))
+    || payload.series.find(usable)
+    || null;
+}
+
+function clearChartInsights() {
+  [
+    ["#cycle-comparison", "#cycle-series-label"],
+    ["#month-to-month", "#month-series-label"],
+    ["#time-spent", "#time-series-label"],
+  ].forEach(([contentSelector, labelSelector]) => {
+    const content = document.querySelector(contentSelector);
+    const label = document.querySelector(labelSelector);
+    if (content) content.innerHTML = "";
+    if (label) label.textContent = "—";
+  });
+}
+
+function renderChartInsights(payload, series) {
+  if (!series || payload.x_value_type !== "date") {
+    clearChartInsights();
+    return;
+  }
+  const points = datedSeriesPoints(series);
+  const label = series.name || "Main series";
+  ["#cycle-series-label", "#month-series-label", "#time-series-label"].forEach((selector) => {
+    const node = document.querySelector(selector);
+    if (node) {
+      node.textContent = label;
+      node.title = label;
+    }
+  });
+  const cycle = document.querySelector("#cycle-comparison");
+  const months = document.querySelector("#month-to-month");
+  const timeSpent = document.querySelector("#time-spent");
+  if (cycle) cycle.innerHTML = cycleComparisonSvg(points);
+  if (months) months.innerHTML = monthToMonthGrid(points);
+  if (timeSpent) timeSpent.innerHTML = timeSpentHistogram(points);
+}
+
+function datedSeriesPoints(series) {
+  return series.x.map((date, index) => ({
+    date: new Date(date),
+    value: toFiniteNumber(series.y[index]),
+  })).filter((point) => Number.isFinite(point.date.getTime()) && Number.isFinite(point.value))
+    .sort((left, right) => left.date - right.date);
+}
+
+function cycleComparisonSvg(points) {
+  const halvings = ["2012-11-28", "2016-07-09", "2020-05-11", "2024-04-20"].map((date) => new Date(`${date}T00:00:00Z`));
+  const duration = 1461 * 24 * 60 * 60 * 1000;
+  const cycles = halvings.map((start, index) => {
+    const next = halvings[index + 1] || new Date(start.getTime() + duration);
+    return points.filter((point) => point.date >= start && point.date < next)
+      .map((point) => ({ ...point, offset: point.date.getTime() - start.getTime() }));
+  }).filter((cycle) => cycle.length > 8);
+  if (!cycles.length) return `<p class="empty-state">Cycle history is unavailable.</p>`;
+  const values = cycles.flatMap((cycle) => cycle.map((point) => point.value));
+  const positive = values.every((value) => value > 0);
+  const scaleValues = positive ? values.map((value) => Math.log10(value)) : values;
+  const minimum = Math.min(...scaleValues);
+  const maximum = Math.max(...scaleValues);
+  const span = maximum - minimum || 1;
+  const projectY = (value) => 54 - (((positive ? Math.log10(value) : value) - minimum) / span) * 46;
+  const projectX = (offset) => 8 + (Math.min(duration, Math.max(0, offset)) / duration) * 184;
+  const paths = cycles.map((cycle, index) => {
+    const commands = cycle.map((point, pointIndex) => `${pointIndex ? "L" : "M"}${projectX(point.offset).toFixed(1)},${projectY(point.value).toFixed(1)}`);
+    const current = index === cycles.length - 1;
+    return `<path d="${commands.join(" ")}" class="cycle-line ${current ? "current" : ""}"/>`;
+  }).join("");
+  const low = positive ? formatMetricValue("value", 10 ** minimum) : formatMetricValue("value", minimum);
+  const high = positive ? formatMetricValue("value", 10 ** maximum) : formatMetricValue("value", maximum);
+  return `<svg class="cycle-comparison-svg" viewBox="0 0 200 70" role="img" aria-label="Historical halving-cycle comparison">
+    <line x1="8" x2="192" y1="54" y2="54" class="insight-gridline"/>
+    <line x1="8" x2="192" y1="31" y2="31" class="insight-gridline"/>
+    ${paths}
+    <text x="8" y="67">halving</text><text x="95" y="67">+2y</text><text x="174" y="67">+4y</text>
+    <text x="0" y="12">${escapeHtml(high)}</text><text x="0" y="56">${escapeHtml(low)}</text>
+  </svg>`;
+}
+
+function monthToMonthGrid(points) {
+  const rows = new Map();
+  points.forEach((point) => {
+    const year = point.date.getUTCFullYear();
+    const month = point.date.getUTCMonth();
+    if (!rows.has(year)) rows.set(year, Array.from({ length: 12 }, () => []));
+    rows.get(year)[month].push(point.value);
+  });
+  const changes = [...rows.entries()].map(([year, months]) => ({
+    year,
+    values: months.map((values) => {
+      if (values.length < 2) return null;
+      const first = values[0];
+      const lastValue = values.at(-1);
+      if (!Number.isFinite(first) || first === 0 || !Number.isFinite(lastValue)) return null;
+      return (lastValue - first) / Math.abs(first);
+    }),
+  })).filter((row) => row.values.some((value) => Number.isFinite(value))).slice(-14);
+  if (!changes.length) return `<p class="empty-state">Monthly history is unavailable.</p>`;
+  const cells = changes.map((row) => `<span class="month-year">${String(row.year).slice(-2)}</span>${row.values.map((value) => {
+    if (!Number.isFinite(value)) return `<span class="month-cell empty"></span>`;
+    const intensity = Math.min(1, Math.abs(value) / 0.35).toFixed(2);
+    return `<span class="month-cell ${value < 0 ? "negative" : "positive"}" style="--intensity:${intensity}" title="${row.year}: ${signed(value * 100)}"></span>`;
+  }).join("")}`).join("");
+  return `<div class="month-grid" role="img" aria-label="Month-over-month change heatmap">
+    <span></span>${["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"].map((month) => `<span class="month-name">${month}</span>`).join("")}
+    ${cells}
+  </div>`;
+}
+
+function timeSpentHistogram(points) {
+  const values = points.map((point) => point.value).filter(Number.isFinite);
+  if (values.length < 12) return `<p class="empty-state">Distribution history is unavailable.</p>`;
+  const lower = quantile(values, 0.05);
+  const upper = quantile(values, 0.95);
+  if (!Number.isFinite(lower) || !Number.isFinite(upper) || lower >= upper) return `<p class="empty-state">Distribution history is unavailable.</p>`;
+  const bins = Array.from({ length: 16 }, () => 0);
+  values.forEach((value) => {
+    const ratio = Math.max(0, Math.min(0.999999, (value - lower) / (upper - lower)));
+    bins[Math.floor(ratio * bins.length)] += 1;
+  });
+  const largest = Math.max(...bins, 1);
+  const latest = values.at(-1);
+  const marker = Math.max(0, Math.min(1, (latest - lower) / (upper - lower))) * 184 + 8;
+  const bars = bins.map((count, index) => {
+    const height = (count / largest) * 34;
+    return `<rect x="${8 + index * 11.5}" y="${50 - height}" width="8" height="${height}" class="time-bar"/>`;
+  }).join("");
+  return `<svg class="time-spent-svg" viewBox="0 0 200 64" role="img" aria-label="Distribution of time spent at metric values">
+    <line x1="8" x2="192" y1="50" y2="50" class="insight-gridline"/>
+    ${bars}<line x1="${marker.toFixed(1)}" x2="${marker.toFixed(1)}" y1="8" y2="52" class="time-marker"/>
+    <text x="${Math.max(8, Math.min(162, marker - 11)).toFixed(1)}" y="8" class="time-marker-label">today</text>
+    <text x="8" y="62">${escapeHtml(formatMetricValue("value", lower))}</text><text x="164" y="62">${escapeHtml(formatMetricValue("value", upper))}</text>
+  </svg>`;
 }
 
 function setChartSummary(text) {

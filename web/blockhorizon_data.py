@@ -202,6 +202,19 @@ GRADIENT_COLORSCALE = (
     (1.0, "#16a34a"),
 )
 
+# A small number of source charts use semantic styling that is not represented
+# in their public series metadata. Keep these overrides narrow and documented
+# rather than applying a generic palette that changes the chart's meaning.
+SOURCE_SERIES_OVERRIDES = {
+    ("pb-s2f", "s2f_price_model"): {"color": "#393732", "width": 1.8},
+    ("pb-s2f", "s2f_error"): {"color": "#858585", "mode": "markers", "size": 3.2},
+}
+
+# The source presents its S2F model in logarithmic space even though its
+# toolbar default flag is false. Linear scale compresses its price/error
+# history into the x-axis and makes the imported chart misleading.
+SOURCE_LOG_SCALE_OVERRIDES = {"pb-s2f"}
+
 
 def _fetch_bundle(timeout: int = 90) -> tuple[list[dict], str | None]:
     request = Request(
@@ -293,7 +306,8 @@ def _line_trace(chart: dict, source_series: dict, index: int) -> dict | None:
     if not dates:
         return None
     style = _series_style(chart, source_series)
-    color = style.get("color") or source_series.get("color") or PALETTE[index % len(PALETTE)]
+    override = SOURCE_SERIES_OVERRIDES.get((chart.get("slug"), source_series.get("series_key")), {})
+    color = override.get("color") or style.get("color") or source_series.get("color") or PALETTE[index % len(PALETTE)]
     series_type = style.get("type", "line")
     base = {
         "name": str(source_series.get("name") or source_series.get("series_key") or f"Series {index + 1}").strip(),
@@ -303,25 +317,39 @@ def _line_trace(chart: dict, source_series: dict, index: int) -> dict | None:
         "hovertemplate": "%{x}<br>%{y:,.4g}<extra>%{fullData.name}</extra>",
     }
     if series_type == "column":
+        marker_color = color
+        threshold = style.get("threshold")
+        negative_color = style.get("negativeColor")
+        if isinstance(threshold, (int, float)) and negative_color:
+            marker_color = [negative_color if value is not None and value < threshold else color for value in values]
         return {
             **base,
             "type": "bar",
-            "marker": {"color": color},
+            "marker": {"color": marker_color, "line": {"width": style.get("borderWidth", 0)}},
         }
 
     trace = {
         **base,
         "type": "scatter",
-        "mode": "lines",
-        "line": {"color": color, "width": style.get("lineWidth", 1.8)},
+        "mode": override.get("mode", "lines"),
+        "line": {
+            "color": color,
+            "width": override.get("width", style.get("lineWidth", 1.8)),
+            **({"dash": str(style["dashStyle"]).lower()} if style.get("dashStyle") else {}),
+        },
     }
+    if override.get("mode") == "markers":
+        trace["marker"] = {"color": color, "size": override.get("size", 3.2)}
+        trace.pop("line", None)
     if series_type == "area":
-        trace.update({
-            "stackgroup": "onchain-stack",
-            "fill": "tonexty",
+        area_style = {
+            "fill": "tonexty" if style.get("stacking") == "normal" else "tozeroy",
             "fillcolor": color,
             "line": {"color": color, "width": style.get("lineWidth", 0.5)},
-        })
+        }
+        if style.get("stacking") == "normal":
+            area_style["stackgroup"] = "onchain-stack"
+        trace.update(area_style)
     colors = _point_colors(source_series, len(values))
     if colors:
         trace["mode"] = "lines+markers"
@@ -443,6 +471,7 @@ def _build_payload(chart: dict, price_chart: dict, built_at: str | None) -> dict
             traces.insert(0, price_trace)
 
     default_log = bool((chart.get("toolbar_config") or {}).get("default_log_scale"))
+    default_log = default_log or chart.get("slug") in SOURCE_LOG_SCALE_OVERRIDES
     yaxis = {
         "title": "BTC price (USD)" if price_trace and not dollar_metric else _metric_axis_title(chart),
         "type": "log" if (price_trace or default_log) else "linear",
@@ -474,6 +503,15 @@ def _build_payload(chart: dict, price_chart: dict, built_at: str | None) -> dict
             latest_date = trace["x"][-1]
             break
     source_updated = built_at or chart.get("updated_at") or datetime.now(timezone.utc).isoformat()
+    main_series_id = chart.get("main_series_id")
+    main_series_key = next(
+        (
+            series.get("series_key")
+            for series in chart.get("series") or []
+            if series.get("id") == main_series_id
+        ),
+        None,
+    )
     return {
         "id": chart["slug"],
         "title": chart["name"].strip(),
@@ -497,6 +535,7 @@ def _build_payload(chart: dict, price_chart: dict, built_at: str | None) -> dict
         "x_value_type": "date",
         "show_range_selector": bool((chart.get("toolbar_config") or {}).get("has_date", True)),
         "show_halvings_default": bool(chart.get("show_halvings")),
+        "main_series_key": main_series_key,
         "series": traces,
         "layout": layout,
     }
