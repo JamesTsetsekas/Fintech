@@ -13,11 +13,11 @@ The browser experience includes four linked workspaces:
 - `signals/` — normalized cycle scores across 17 on-chain and 12 repo-native indicators, with historical phases and momentum.
 - `alerts/` — device-local alert rules evaluated against the latest generated signal scores.
 
-The scheduled Bitcoin library is the non-duplicating union of 46 repo-native charts and 144 charts currently adapted from BlockHorizon's chart bundle (190 total). Source provenance remains recorded in the generated chart metadata. The hourly build refreshes that bundle with the rest of the dashboard and stops before publishing if the reviewed upstream catalog is incomplete.
+The scheduled Bitcoin library is the non-duplicating union of 46 repo-native charts and 145 charts currently adapted from BlockHorizon's chart bundle (191 total). Source provenance remains recorded in the generated chart metadata. The hourly build refreshes that bundle with the rest of the dashboard and stops before publishing if the reviewed upstream catalog is incomplete.
 
 Preview the site locally from the repository root with `python3 -m http.server 8000`, then open `http://127.0.0.1:8000/`.
 
-The cron runner checks the upstream Bitcoin CSVs hourly, regenerates native reports only when those files change, builds the static dashboard data, and force-publishes a latest-only `gh-pages` branch. Conditional HTTP requests keep unchanged large CSVs off the wire. Stock reports and the experimental ML classifier are intentionally excluded from the scheduled Raspberry Pi path; their source remains available for manual runs. This keeps chart output available on GitHub Pages without committing every hourly chart refresh to `main`.
+The cron runner checks the upstream Bitcoin CSVs hourly, regenerates native reports only when those files change, and builds the static dashboard data. To keep GitHub Actions artifact storage within the free-tier allowance, it only force-publishes the latest-only `gh-pages` branch at 00:00, 06:00, 12:00, and 18:00 UTC. Conditional HTTP requests keep unchanged large CSVs off the wire. Stock reports and the experimental ML classifier are intentionally excluded from the scheduled Raspberry Pi path; their source remains available for manual runs. This keeps chart output available on GitHub Pages without committing every hourly chart refresh to `main`.
 
 ## Bitcoin Analytics
 

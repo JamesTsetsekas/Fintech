@@ -41,6 +41,14 @@ fi
 log "============================================================"
 log "Starting automated report generation"
 log "Mode: Bitcoin-only (stock and experimental ML reports disabled)"
+PUBLISH_ARGS=()
+CURRENT_HOUR="$(date -u '+%H')"
+if (( 10#$CURRENT_HOUR % 6 != 0 )); then
+    PUBLISH_ARGS=(--skip-publish)
+    log "GitHub Pages deployment deferred: hourly refresh will publish at the next six-hour UTC window."
+else
+    log "GitHub Pages deployment enabled for this six-hour UTC publish window."
+fi
 log "============================================================"
 
 # Check if venv exists
@@ -58,7 +66,7 @@ fi
 
 # Run the main script using venv Python
 log "Running report generation script..."
-if "$VENV_PYTHON" "$SCRIPT_DIR/run.py" >> "$LOG_FILE" 2>&1; then
+if "$VENV_PYTHON" "$SCRIPT_DIR/run.py" "${PUBLISH_ARGS[@]}" >> "$LOG_FILE" 2>&1; then
     log "============================================================"
     log "Report generation completed successfully"
     log "============================================================"

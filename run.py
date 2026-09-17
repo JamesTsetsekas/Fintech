@@ -983,7 +983,7 @@ def publish_static_site():
         print(f"✗ Exception publishing static site: {e}")
         return False
 
-def main():
+def main(publish: bool = True):
     """Main function to run all report runners."""
     start_time = datetime.now(EST) if EST else datetime.now()
     tz_label = " EST" if EST else ""
@@ -1063,6 +1063,10 @@ def main():
         print("="*60)
         sys.exit(1)
 
+    if not publish:
+        print("\nStatic site generation completed; GitHub Pages publishing is deferred to the scheduled publish window.")
+        sys.exit(0)
+
     # Publish the generated site without committing generated outputs to main.
     publish_success = publish_static_site()
 
@@ -1082,4 +1086,4 @@ if __name__ == '__main__':
         sys.exit(0 if publish_static_site() else 1)
     if '--push-pending-only' in sys.argv:
         sys.exit(0 if push_pending_commits() else 1)
-    main()
+    main(publish='--skip-publish' not in sys.argv)
