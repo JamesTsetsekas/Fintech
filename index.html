@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <title>Fintech Charts | Market Intelligence</title>
+    <meta name="description" content="Interactive Bitcoin charts, cycle signals, and custom market alerts.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="web/assets/site.css">
+    <script>
+      (() => {
+        const saved = localStorage.getItem("fintech-theme");
+        if (saved === "dark" || saved === "light") document.documentElement.dataset.theme = saved;
+      })();
+    </script>
+    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" defer></script>
+    <script src="web/assets/site.js" defer></script>
+  </head>
+  <body data-view="dashboard" data-manifest="web/data/bitcoin/site-manifest.json" data-asset-prefix="">
+    <header class="terminal-header">
+      <a class="terminal-brand" href="./" aria-label="Fintech Charts dashboard">
+        <span class="terminal-brand-mark" aria-hidden="true">F<span>/</span></span>
+        <span>Fintech<br>Charts</span>
+      </a>
+      <nav class="terminal-nav" aria-label="Primary navigation">
+        <a class="active" href="./">Dashboard</a>
+        <a href="charts/">Charts</a>
+        <a href="signals/">Signals</a>
+        <a href="alerts/">Alerts</a>
+      </nav>
+      <div class="header-actions">
+        <button class="icon-button theme-toggle" type="button" aria-label="Toggle color theme" title="Toggle color theme">
+          <span aria-hidden="true">◐</span>
+        </button>
+        <a class="primary-button compact" href="https://github.com/JamesTsetsekas/Fintech" target="_blank" rel="noopener noreferrer">View repo</a>
+      </div>
+    </header>
+
+    <div class="terminal-shell">
+      <aside class="library-sidebar" aria-label="Chart library">
+        <label class="sidebar-search">
+          <span aria-hidden="true">⌕</span>
+          <input id="sidebar-search" type="search" placeholder="Search charts (press /)" autocomplete="off">
+        </label>
+        <div class="sidebar-scroll">
+          <section class="sidebar-group">
+            <div class="sidebar-group-heading"><strong>Popular charts</strong><span id="popular-count">—</span></div>
+            <div id="popular-list" class="sidebar-list skeleton-list" aria-live="polite"></div>
+          </section>
+          <section class="sidebar-group">
+            <div class="sidebar-group-heading"><strong>All charts</strong><span id="all-count">—</span></div>
+            <div id="all-chart-list" class="sidebar-list skeleton-list" aria-live="polite"></div>
+          </section>
+        </div>
+      </aside>
+
+      <main class="dashboard-workspace">
+        <section class="metric-ribbon" id="metric-ribbon" aria-label="Market snapshot">
+          <article class="terminal-metric loading-block"></article>
+          <article class="terminal-metric loading-block"></article>
+          <article class="terminal-metric loading-block"></article>
+          <article class="terminal-metric loading-block"></article>
+          <article class="terminal-metric loading-block wide-only-metric"></article>
+        </section>
+
+        <div class="workspace-heading">
+          <h1 id="popular-heading">Popular charts</h1>
+          <div class="workspace-heading-actions">
+            <span id="dashboard-updated">Loading latest data</span>
+            <a class="text-action" href="charts/">Open chart terminal <span aria-hidden="true">→</span></a>
+          </div>
+        </div>
+
+        <section class="module signal-timeline-module" aria-labelledby="timeline-title">
+          <div class="module-heading">
+            <h2 id="timeline-title">Signal Timeline</h2>
+            <a class="module-note" href="signals/">All history · open signal explorer →</a>
+          </div>
+          <div id="dashboard-signal-heatmap" class="signal-heatmap loading-block" aria-live="polite"></div>
+        </section>
+
+        <section class="dashboard-chart-section" aria-labelledby="popular-heading">
+          <div id="dashboard-chart-grid" class="dashboard-chart-grid"></div>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>
