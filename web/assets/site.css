@@ -609,6 +609,37 @@ button { color: inherit; }
 .heatmap-cell.phase-bullish { background: var(--pink); }
 .heatmap-cell.phase-top { background: var(--rose); }
 
+.chart-zoom-selection {
+  position: absolute;
+  z-index: 5;
+  pointer-events: none;
+  background: rgba(67, 117, 174, 0.16);
+  border: 1px solid rgba(67, 117, 174, 0.65);
+}
+
+.chart-selecting .hoverlayer,
+.chart-selecting .chart-axis-badge { opacity: 0; }
+
+.chart-reset-zoom {
+  position: absolute;
+  z-index: 6;
+  top: 36px;
+  right: 16px;
+  padding: 5px 9px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--muted);
+  background: var(--surface-raised);
+  font: 500 10px "IBM Plex Mono", monospace;
+  cursor: pointer;
+  transition: border-color 160ms, color 160ms;
+}
+
+.chart-reset-zoom:hover,
+.chart-reset-zoom:focus-visible { color: var(--ink); border-color: var(--accent); }
+.dashboard-mini-plot .chart-reset-zoom { top: 8px; right: 10px; }
+.dashboard-mini-plot .chart-axis-badge { font-size: 9px; }
+
 .heatmap-year {
   padding-top: 5px;
   color: var(--faint);
@@ -741,6 +772,8 @@ button { color: inherit; }
   background: var(--surface-muted);
   color: var(--ink);
 }
+
+.toolbar-button[hidden] { display: none; }
 
 .chart-stage {
   display: grid;
@@ -1801,3 +1834,24 @@ button { color: inherit; }
     animation-iteration-count: 1 !important;
   }
 }
+
+.chart-series-value-badge {
+  position: absolute;
+  z-index: 15;
+  display: none;
+  padding: 3px 5px;
+  border-radius: 2px;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.62rem;
+  font-weight: 600;
+  line-height: 1;
+  pointer-events: none;
+  white-space: nowrap;
+  box-shadow: 0 0 0 1px rgba(50, 50, 45, 0.12);
+  transform: translate(-100%, -50%);
+}
+
+.chart-series-value-badge.visible { display: block; }
+.chart-series-value-badge[data-side="right"] { transform: translate(0, -50%); }
+.chart-selecting .chart-series-value-badge { display: none; }
+.dashboard-mini-plot .chart-series-value-badge { font-size: 9px; }

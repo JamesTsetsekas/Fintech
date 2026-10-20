@@ -15,6 +15,10 @@ The browser experience includes four linked workspaces:
 
 The scheduled Bitcoin library is the non-duplicating union of 46 repo-native charts and 149 charts adapted from BlockHorizon's chart bundle (195 total). The upstream catalog was reviewed on October 20, 2026, including the new weekly moving averages, loss percentages, old-versus-new coin loss comparison, and 2-/4-year realized prices. Imports use stable chart IDs so title changes preserve links and pins while refreshing data. Six charts removed upstream are retired locally; missing reviewed charts stop publication instead of silently reusing stale data. Source provenance remains recorded in each generated chart's metadata.
 
+Drag horizontally across a time-series chart to zoom into the selected dates. Dashboard and terminal charts animate the transition, refit numeric Y scales to the visible observations, and label dollar axes with readable values such as `$20K` and `$100K`. Bounded metric scales, such as NUPL and percentages, keep their meaningful limits. Double-click inside the plot or use **Reset zoom** to restore the original view. The terminal also provides zoom, fit, and reset buttons, plus independent price-axis dragging and wheel scaling. Transitions respect the device's reduced-motion preference.
+
+MVRV and NUPL use continuous lines in normal view, including NUPL's five sentiment colors. On 17 compatible imported charts, **Signal view** instead plots Bitcoin price as dots colored by the chart's metric, while retaining the original metric in hover details, the sidebar, and the data sheet. Links preserve this choice with `?chart=mvrv-z-score&signals=1`. The dashboard's MVRV Z-Score card opens in Signal view by default. Intentional PlanB price dots, scatter plots, and OHLC candles retain their chart-specific presentation.
+
 BlockHorizon's three cost-basis distribution/replay views are deferred: their price-bucket histograms and shared replay frames require a dedicated renderer rather than the time-series adapter. The hourly build refreshes the reviewed chart bundle with the rest of the dashboard.
 
 Preview the site locally from the repository root with `python3 -m http.server 8000`, then open `http://127.0.0.1:8000/`.
@@ -25,7 +29,7 @@ The cron runner checks the upstream Bitcoin CSVs hourly, regenerates native repo
 
 Run importer tests from the repository root with `python -m unittest web.test_blockhorizon_data`. Set `FINTECH_LIVE_TESTS=1` to also verify the complete reviewed catalog against the current upstream bundle; the default tests use local fixtures.
 
-The optional browser checks require Node.js 20 or later. From `web/`, run `npm ci`, `npx playwright install chromium`, then `npm test` and `npm run test:browser`. Browser checks load the same pinned Plotly CDN script as the site and verify OHLC hover movement in dashboard and terminal layouts on both price scales, plus multi-pane crosshairs and axis controls. These development dependencies are separate from the Raspberry Pi's Python refresh path.
+The optional browser checks require Node.js 20 or later. From `web/`, run `npm ci`, `npx playwright install chromium`, then `npm test` and `npm run test:browser`. The checks use local fixtures and the site's pinned Plotly CDN script. Coverage includes OHLC hover on both price scales, multi-pane crosshairs and value badges, animated zoom and visible Y-axis fitting, resets and interrupted transitions, reduced motion, and normal-versus-Signal rendering without changing source observations. After generating `web/data/`, set `FINTECH_LIVE_CHARTS=1` to run the Signal browser check against the imported observations. These development dependencies are separate from the Raspberry Pi's Python refresh path.
 
 ## Bitcoin Analytics
 
