@@ -11,6 +11,7 @@ const appState = {
     grid: true,
     table: false,
     scale: null,
+    signalView: false,
   },
 };
 
@@ -254,7 +255,7 @@ async function renderDashboardCharts() {
   grid.innerHTML = chartIds.map((id) => {
     const chart = chartById(id);
     const title = chart?.title || id;
-    const href = `charts/?chart=${encodeURIComponent(id)}`;
+    const href = `charts/?chart=${encodeURIComponent(id)}${id === "mvrv-z-score" ? "&signals=1" : ""}`;
     return `
       <article class="dashboard-chart-card">
         <div class="dashboard-card-heading">
@@ -274,6 +275,7 @@ async function renderDashboardCharts() {
     renderPlot(target, payload, {
       compact: true,
       maxPoints: 600,
+      signalView: id === "mvrv-z-score",
       layout: showHalvings ? halvingOverlayLayout(payload) : undefined,
     });
   }));
@@ -289,7 +291,7 @@ async function renderChartTerminal() {
     || appState.manifest.charts.find((chart) => chart.id === POPULAR_IDS[0])
     || firstInteractive
     || appState.manifest.charts[0];
-  if (firstChart) await selectTerminalChart(firstChart.id, { updateUrl: false });
+  if (firstChart) await selectTerminalChart(firstChart.id, { updateUrl: false, signalView: initialParams.get("signals") === "1" });
 
   document.addEventListener("fintech-theme-change", () => {
     if (appState.currentPayload && !appState.chartOptions.table) renderTerminalPlot();
@@ -323,6 +325,7 @@ async function selectTerminalChart(chartId, options = {}) {
   appState.chartOptions.halvings = false;
   appState.chartOptions.table = false;
   appState.chartOptions.scale = null;
+  appState.chartOptions.signalView = false;
   document.querySelectorAll("[data-chart-action]").forEach((button) => button.classList.remove("active"));
   document.querySelector('[data-chart-action="grid"]')?.classList.toggle("active", !appState.chartOptions.grid);
   const pinButton = document.querySelector('[data-chart-action="pin"]');
@@ -342,6 +345,7 @@ async function selectTerminalChart(chartId, options = {}) {
     const url = new URL(window.location.href);
     url.searchParams.set("chart", chart.id);
     url.searchParams.delete("market");
+    url.searchParams.delete("signals");
     history.replaceState(null, "", url);
   }
 
@@ -362,6 +366,7 @@ async function selectTerminalChart(chartId, options = {}) {
       payload.show_halvings_default || ["pi-cycle-top", "200-dma-200-wma"].includes(payload.id),
     );
     appState.chartOptions.scale = payload.default_scale || payload.layout?.yaxis?.type || "linear";
+    appState.chartOptions.signalView = Boolean(payload.signal_view && options.signalView);
     document.querySelector('[data-chart-action="halvings"]')?.classList.toggle("active", appState.chartOptions.halvings);
     updateChartControls(payload);
     target.classList.remove("loading-block");
@@ -385,6 +390,12 @@ function updateChartControls(payload) {
   const movingAverage = document.querySelector('[data-chart-action="moving-average"]');
   const halvings = document.querySelector('[data-chart-action="halvings"]');
   const rangeOptions = document.querySelector(".range-options");
+  const signalView = document.querySelector('[data-chart-action="signals"]');
+  if (signalView) {
+    signalView.hidden = !payload.signal_view;
+    signalView.classList.toggle("active", appState.chartOptions.signalView);
+    signalView.setAttribute("aria-pressed", String(appState.chartOptions.signalView));
+  }
   if (movingAverage) movingAverage.disabled = !hasNumericLine;
   if (halvings) halvings.disabled = payload.x_value_type !== "date";
   if (rangeOptions) rangeOptions.hidden = payload.show_range_selector === false || payload.x_value_type !== "date";
@@ -422,7 +433,7 @@ async function renderTerminalPlot() {
       layout[key] = { ...(layout[key] || {}), type: appState.chartOptions.scale };
     });
   }
-  await renderPlot(target, payload, { series, layout, grid: appState.chartOptions.grid, maxPoints: 2200 });
+  await renderPlot(target, payload, { series, layout, grid: appState.chartOptions.grid, maxPoints: 2200, signalView: appState.chartOptions.signalView });
 }
 
 function terminalSeries(payload) {
@@ -827,6 +838,22 @@ function renderDataSheet(payload) {
 
 async function handleChartAction(action, button) {
   if (!appState.currentChart) return;
+  if (action === "signals" && appState.currentPayload?.signal_view) {
+    appState.chartOptions.signalView = !appState.chartOptions.signalView;
+    button.classList.toggle("active", appState.chartOptions.signalView);
+    button.setAttribute("aria-pressed", String(appState.chartOptions.signalView));
+    const url = new URL(window.location.href);
+    if (appState.chartOptions.signalView) url.searchParams.set("signals", "1");
+    else url.searchParams.delete("signals");
+    history.replaceState(null, "", url);
+    if (appState.chartOptions.table) {
+      appState.chartOptions.table = false;
+      document.querySelector('[data-chart-action="table"]')?.classList.remove("active");
+      document.querySelector("#terminal-plot").hidden = false;
+      document.querySelector("#data-sheet").hidden = true;
+    }
+    await renderTerminalPlot();
+  }
   if (action === "moving-average") {
     appState.chartOptions.movingAverage = !appState.chartOptions.movingAverage;
     button.classList.toggle("active", appState.chartOptions.movingAverage);
@@ -874,6 +901,8 @@ function setChartRange(range) {
   const payload = appState.currentPayload;
   const endpoint = payload.x_value_type === "date" ? observedRangeEnd(payload) : null;
   if (endpoint === null || range === "all") {
+    const navigation = document.querySelector("#terminal-plot")?._fintechNavigation;
+    if (navigation) return navigation.reset();
     Plotly.relayout(document.querySelector("#terminal-plot"), { "xaxis.autorange": true });
     return;
   }
@@ -885,7 +914,10 @@ function setChartRange(range) {
   if (range === "1y") start.setUTCFullYear(start.getUTCFullYear() - 1);
   if (range === "4y") start.setUTCFullYear(start.getUTCFullYear() - 4);
   if (range === "ytd") start = new Date(Date.UTC(end.getUTCFullYear(), 0, 1));
-  Plotly.relayout(document.querySelector("#terminal-plot"), { "xaxis.range": [start.toISOString(), end.toISOString()] });
+  const target = document.querySelector("#terminal-plot");
+  const selectedRange = [start.toISOString(), end.toISOString()];
+  if (target?._fintechNavigation) return target._fintechNavigation.zoomTo(selectedRange);
+  Plotly.relayout(target, { "xaxis.range": selectedRange });
 }
 
 function observedRangeEnd(payload) {
@@ -1509,9 +1541,91 @@ function renderSignalHeatmap(target, signals, columns = 56, options = {}) {
   target.innerHTML = `<div class="heatmap-table" style="--heatmap-columns:${columns}">${rows}<span></span>${yearRow}</div>`;
 }
 
-function renderPlot(target, payload, options = {}) {
+// BlockHorizon's public signal palette; 512 RGB samples, interpolated in RGB.
+// Source: https://charts.blockhorizon.io/assets/index-Deq0WvUO.js (Cz / sv).
+const SIGNAL_PALETTE = "0106f5020af5030ef5030ef50412f50516f5061af5061af5081ef50a22f50c26f50c26f50e2af5102ff51233f51538f51538f5173cf51840f51a44f51d49f51d49f51f4df52152f52356f62356f6255af6275df62962f62b66f62b66f62d6af62f6ef63172f63172f63376f6367bf6387ff73a84f73a84f73c88f73e8cf74090f74090f74295f74499f8469df848a0f848a0f84ba5f84da9f84fadf850b1f950b1f952b5f954b9f957bef957bef959c2f95bc7fa5dcbfa5dcbfa5fcffa61d3fa63d8fb65dcfb65dcfb68e1fb6ae4fc6ce8fc6eecfc6eecfc70f1fc72f5fd72f5fd73f8fd74fafd75fbfd75fbfd75fbfd75fbfd75fbfd75fbfd75fbfd75fbfd75fbfd75fbfd75fbfd75fbfd75fbfd75fbfd75fbfd75fbfb75fbfb75fbf875fbf575fbf175fbf175fbed75fbea75fbe575fbe275fbe275fbde75fbda75fbd675fbd675fbd275fbce75fbca75fbc775fbc775fbc375fbbf75fbbb75fbb775fbb775fbb375fbb075fbac75fbac75fba975fba675fba175fba175fb9e75fb9b75fb9775fb9375fb9375fb9075fb8c75fb8975fb8675fb8675fb8375fb7f75fb7c75fb7c75fb7875fb7575fb7275fb7275fb7075fb6d75fb6a75fb6875fb6875fb6575fb6275fb6075fb5e75fb5e75fb5c75fb5a75fb5875fb5875fb5675fb5475fb5375fb5375fb5175fb5075fb4f75fb4e75fb4e75fb4e75fb4d75fb4d75fb4c75fb4c75fb4c75fb4c75fb4c75fb4c76fb4c76fb4c76fb4c76fb4c76fb4c76fb4c77fb4c77fb4c77fb4c77fb4c77fb4c78fb4c78fb4c78fb4c78fb4c79fb4c79fb4c79fb4c7afb4c7afb4c7bfb4c7bfb4c7bfb4c7cfb4c7cfb4c7dfb4c7dfb4c7efb4c7efb4c7ffb4c7ffb4c80fb4c80fb4c81fb4d82fb4d82fb4d82fc4d83fc4d84fc4d85fc4d85fc4d86fc4d86fc4d88fc4d88fc4d89fc4d89fc4d8afc4d8afc4d8bfc4d8cfc4d8dfc4d8efc4d8efc4d90fc4d91fc4d92fc4d93fc4d93fc4d94fc4d95fc4d97fc4d97fc4d98fc4e99fc4e9afc4e9afc4e9bfc4e9dfc4e9efc4e9ffc4e9ffc4ea1fc4ea2fc4ea3fc4ea4fc4ea4fc4ea6fc4ea8fc4ea8fc4ea8fc4eaafc4eabfc4facfc4faefc4faefc4fb0fc4fb1fd4fb2fd4fb2fd4fb4fd4fb6fd4fb7fd4fb7fd4fb9fd4fbafd4fbbfd4fbdfd50bdfd50befd50c0fd50c2fd50c3fd50c3fd50c5fd50c6fd50c8fd50c8fd50c9fd50cbfd50ccfd50ccfd50cefd51d0fd51d2fd51d3fd51d3fd51d5fe51d7fe51d9fe51dafe51dafe51dcfe52ddfe52dffe52dffe52e0fe52e2fe52e3fe52e3fe52e5fe52e7fe52e9fe53ebfe53ebfe53ecfe53effe53f0fe53f2ff53f2ff53f4ff53f5ff54f7ff54f7ff54f9ff54faff54fcff54fdff54fdff54ffff54ffff54ffff54ffff54ffff54ffff54ffff54ffff54ffff54ffff54ffff54ffff54ffff54ffff54ffff54ffff54ffff54ffff54ffff54ffff54ffff54ffff54ffff54ffff54ffff54ffff54ffff54ffff54ffff54ffff54ffff54ffff54ffff54fffe54fffe54fffe54fffc53fefa53fef852fef852fdf652fdf351fdf250fdf250fcef50fcee4ffcec4ffbea4efbea4efbe84dfbe64dfae44cfae24cfae24cfadf4bf9dd4af9db4af9db4af9da49f8d748f8d548f8d347f8d347f7d147f7d046f7ce46f7ce46f7cb45f6c944f6c744f6c543f6c543f5c242f5c142f5bf41f5bf41f5bd41f4bb40f4b940f4b73ff4b73ff4b53ff3b23ef3b13df3af3df3af3df3ad3cf2aa3cf2a83bf2a83bf2a63bf2a43af1a23af1a23af1a139f19f39f19d38f19b38f19b38f09937f09737f09536f09336f09336f09135ef8f35ef8d34ef8d34ef8b34ef8a33ef8833ef8833ef8632ee8332ee8131ee8031ee8031ee7e31ee7b30ee7930ed782fed782fed762fed742eed722eed722eed712eed6f2ded6c2ded6c2ded6b2cec692cec672cec662bec662bec642bec622bec612aec612aec5f2aec5e2aec5b29ec5a29ec5a29eb5829eb5628eb5428eb5328eb5328eb5128eb5027eb4e27eb4e27eb4d27eb4c27eb4a26eb4a26eb4926eb4826eb4626eb4426eb4426ea4325ea4225ea4125ea4025ea4025ea3f25ea3e25ea3c24ea3c24ea3b24ea3b24ea3a24ea3a24ea3924ea3824ea3724ea3724ea3724ea3624ea3624ea3524ea3524ea3524ea3423ea3423ea5149";
+
+function signalColor(ratio) {
+  const at = clamp(ratio, 0, 1) * (SIGNAL_PALETTE.length / 6 - 1);
+  const low = Math.floor(at);
+  const high = Math.ceil(at);
+  const rgb = [0, 2, 4].map((offset) => {
+    const start = parseInt(SIGNAL_PALETTE.slice(low * 6 + offset, low * 6 + offset + 2), 16);
+    const end = parseInt(SIGNAL_PALETTE.slice(high * 6 + offset, high * 6 + offset + 2), 16);
+    const value = start + (end - start) * (at - low);
+    const floor = Math.floor(value);
+    return value - floor === 0.5 ? floor + floor % 2 : Math.round(value);
+  });
+  return `#${rgb.map((channel) => channel.toString(16).padStart(2, "0")).join("")}`;
+}
+
+function chartDisplaySeries(payload, options = {}, sourceSeries = payload.series) {
+  const config = options.signalView && payload.signal_view;
+  if (!config) return sourceSeries;
+  const price = sourceSeries.find((series) => series.source_key === "price");
+  const metric = sourceSeries.find((series) => series.source_key === config.series_key);
+  if (!price || !metric || !Array.isArray(price.x) || !Array.isArray(price.y)
+      || !Array.isArray(metric.x) || !Array.isArray(metric.y)) return sourceSeries;
+  const metricByDate = new Map(metric.x.map((date, index) => [comparableX(date), toFiniteNumber(metric.y[index])]));
+  const metricValues = price.x.map((date) => {
+    const value = metricByDate.get(comparableX(date));
+    return Number.isFinite(value) ? value : null;
+  });
+  const values = price.x.map((date, index) => {
+    const metricValue = metricByDate.get(comparableX(date));
+    if (!Number.isFinite(metricValue)) return null;
+    const priceValue = toFiniteNumber(price.y[index]);
+    return config.mode === "error"
+      ? (metricValue > 0 && Number.isFinite(priceValue) ? priceValue / metricValue : null)
+      : metricValue;
+  });
+  const colors = values.map((value) => value === null ? "rgba(0,0,0,0)"
+    : signalColor((value - config.min) / (config.max - config.min)));
+  // Display mode changes only the picture. Original arrays continue to drive
+  // tables, performance modules, alerts, and sidebar metric readings.
+  const signalPrice = {
+    ...price,
+    axis: "y",
+    mode: "markers",
+    marker: { color: colors, size: 8, line: { width: 0 } },
+    signal_metric_name: metric.name,
+    signal_metric_values: metricValues,
+  };
+  return [signalPrice, ...sourceSeries.filter((series) => series !== price && series !== metric && !series.source_key)];
+}
+
+function chartDisplayLayout(payload, options = {}) {
+  const layout = deepMerge({}, payload.layout || {});
+  if (options.signalView && payload.signal_view) {
+    delete layout.yaxis2;
+    layout.yaxis = { ...layout.yaxis, title: "BTC price (USD)", tickprefix: "$" };
+  }
+  return layout;
+}
+
+function chartValueZoneShapes(payload, options = {}) {
+  if (options.signalView || !Array.isArray(payload.value_zones)) return [];
+  return payload.value_zones.flatMap((zone) => {
+    const series = payload.series.find((item) => item.source_key === zone.seriesKey);
+    const values = (series?.y || []).map(toFiniteNumber).filter(Number.isFinite);
+    if (!values.length) return [];
+    const low = Math.min(...values);
+    const high = Math.max(...values);
+    const padding = Math.max((high - low) * .06, .01);
+    const common = { type: "rect", xref: "paper", x0: 0, x1: 1, yref: series.axis || series.yaxis || "y", line: { width: 0 }, layer: "below" };
+    const bands = [];
+    if (Number.isFinite(zone.greenBelow)) bands.push({ ...common, y0: Math.min(low - padding, zone.greenBelow), y1: zone.greenBelow, fillcolor: "rgba(74,222,128,0.08)" });
+    if (Number.isFinite(zone.redAbove)) bands.push({ ...common, y0: zone.redAbove, y1: Math.max(high + padding, zone.redAbove), fillcolor: "rgba(248,113,113,0.08)" });
+    return bands;
+  });
+}
+
+async function renderPlot(target, payload, options = {}) {
   if (!window.Plotly || !target) return;
-  cleanupChartInteractions(target);
+  const renderId = (target._fintechRenderId || 0) + 1;
+  target._fintechRenderId = renderId;
+  await cleanupChartInteractions(target);
+  if (target._fintechRenderId !== renderId) return;
   const dark = document.documentElement.dataset.theme === "dark";
   const colorMap = {
     "#f5c84b": "#c85f3c",
@@ -1540,14 +1654,15 @@ function renderPlot(target, payload, options = {}) {
     [1, "#167247"],
   ];
   const mapColor = (color) => typeof color === "string" ? (colorMap[color.toLowerCase()] || color) : color;
-  const sourceSeries = options.series || payload.series;
+  const sourceSeries = chartDisplaySeries(payload, options, options.series || payload.series);
   const displaySeries = sourceSeries
     .slice(0, options.compact ? 4 : sourceSeries.length)
     .flatMap(expandGradientLine);
   const traces = displaySeries.map((series) => {
     const { axis, ...trace } = series;
     const next = { ...trace, yaxis: axis || trace.yaxis || "y" };
-    if (options.maxPoints && Array.isArray(trace.x) && !trace.x.includes(null)) {
+    if (options.maxPoints && !trace.signal_metric_values && !trace.meta?.fintechHelper
+        && Array.isArray(trace.x) && !trace.x.includes(null)) {
       const step = Math.max(1, Math.ceil(trace.x.length / options.maxPoints));
       const sourceLength = trace.x.length;
       ["x", "y", "open", "high", "low", "close", "text"].forEach((key) => {
@@ -1619,8 +1734,10 @@ function renderPlot(target, payload, options = {}) {
     xaxis: { gridcolor: dark ? "#34332e" : "#e8e6df", zerolinecolor: dark ? "#4b4941" : "#c9c6be", rangeslider: { visible: false } },
     yaxis: { gridcolor: dark ? "#34332e" : "#e8e6df", zerolinecolor: dark ? "#4b4941" : "#c9c6be", automargin: true },
   };
-  let layout = deepMerge(baseLayout, payload.layout || {});
+  let layout = deepMerge(baseLayout, chartDisplayLayout(payload, options));
   if (options.layout) Object.assign(layout, deepMerge(layout, options.layout));
+  const valueZones = chartValueZoneShapes(payload, options);
+  if (valueZones.length) layout.shapes = [...(layout.shapes || []), ...valueZones];
   const remapLayoutColors = (value) => {
     if (Array.isArray(value)) return value.map(remapLayoutColors);
     if (value && typeof value === "object") {
@@ -1641,7 +1758,7 @@ function renderPlot(target, payload, options = {}) {
   const spikeColor = dark ? "rgba(238,243,248,0.58)" : "rgba(47,46,42,0.58)";
   Object.keys(layout).filter((key) => /^xaxis\d*$/.test(key) || /^yaxis\d*$/.test(key)).forEach((key) => {
     const axis = layout[key];
-    if (!axis || axis.type === "category" || options.compact) return;
+    if (!axis || axis.type === "category") return;
     const primaryAxis = key === "xaxis" || key === "yaxis";
     Object.assign(axis, {
       showspikes: primaryAxis,
@@ -1661,29 +1778,47 @@ function renderPlot(target, payload, options = {}) {
       layout[key].gridcolor = "rgba(0,0,0,0)";
     });
   }
+  const animatedControls = !categoricalY && ["date", "number"].includes(payload.x_value_type) && Boolean(Plotly.Icons);
   return Plotly.newPlot(target, traces, layout, {
     responsive: true,
     displaylogo: false,
     displayModeBar: !options.compact,
-    scrollZoom: !options.compact,
+    scrollZoom: !options.compact && categoricalY,
     doubleClick: "reset+autosize",
     showAxisDragHandles: false,
     showAxisRangeEntryBoxes: false,
-    modeBarButtonsToRemove: ["lasso2d", "select2d"],
-  }).then((plot) => {
+    modeBarButtonsToRemove: ["lasso2d", "select2d", ...(animatedControls ? ["zoomIn2d", "zoomOut2d", "resetScale2d", "autoScale2d"] : [])],
+    modeBarButtonsToAdd: animatedControls ? [
+      {name: "Zoom in", icon: Plotly.Icons.zoom_plus, click: plot => plot._fintechNavigation?.zoomBy(0.5)},
+      {name: "Zoom out", icon: Plotly.Icons.zoom_minus, click: plot => plot._fintechNavigation?.zoomBy(2)},
+      {name: "Fit visible data", icon: Plotly.Icons.autoscale, click: plot => plot._fintechNavigation?.fit()},
+      {name: "Reset axes", icon: Plotly.Icons.home, click: plot => plot._fintechNavigation?.reset()},
+    ] : [],
+  }).then(async (plot) => {
+    if (target._fintechRenderId !== renderId) return plot;
+    const priceTicks = priceAxisTickUpdates(target);
+    if (Object.keys(priceTicks).length) await Plotly.relayout(target, priceTicks);
+    if (target._fintechRenderId !== renderId) return plot;
     if (!options.compact) {
-      cleanupChartInteractions(target);
       installPriceScaleControls(target);
-      installAxisBadges(target);
       bindChartHoverDetails(target, payload);
     }
+    installAxisBadges(target);
+    installSeriesValueBadges(target);
+    installChartNavigation(target, options);
     return plot;
   });
 }
 
 function cleanupChartInteractions(target) {
-  if (typeof target?._fintechChartCleanup === "function") target._fintechChartCleanup();
-  if (target) target._fintechChartCleanup = null;
+  const cleanup = target?._fintechChartCleanup;
+  if (!cleanup) return target?._fintechCleanupPromise;
+  target._fintechChartCleanup = null;
+  const pending = Promise.resolve(cleanup()).finally(() => {
+    if (target._fintechCleanupPromise === pending) target._fintechCleanupPromise = null;
+  });
+  target._fintechCleanupPromise = pending;
+  return pending;
 }
 
 function withFinancialHover(trace, index) {
@@ -1712,6 +1847,216 @@ function withFinancialHover(trace, index) {
     hovertemplate: "Open: %{customdata[0]}<br>High: %{customdata[1]}<br>Low: %{customdata[2]}<br>Close: %{customdata[3]}<extra>%{fullData.name}</extra>",
   };
   return [candle, hover];
+}
+
+function installChartNavigation(target, options = {}) {
+  const layout = target?._fullLayout;
+  if (!layout?.xaxis || !target.addEventListener || !["date", "linear", "log"].includes(layout.xaxis.type)) return;
+  // Category comparisons keep Plotly's native interaction. Time-series charts
+  // select dates horizontally and fit each numeric pane to the visible data.
+  if (layout.yaxis?.type === "category" || layout.xaxis.fixedrange) return;
+  const initial = {};
+  Object.keys(layout).filter(key => /^[xy]axis\d*$/.test(key)).forEach(key => {
+    if (Array.isArray(layout[key].range)) initial[key] = layout[key].range.slice();
+  });
+  let closed = false;
+  let ownUpdate = false;
+  let animationId = 0;
+  let settleAnimation = null;
+  let gesture = null;
+  const selection = document.createElement("div");
+  selection.className = "chart-zoom-selection";
+  selection.hidden = true;
+  selection.setAttribute("aria-hidden", "true");
+  const resetButton = document.createElement("button");
+  resetButton.type = "button";
+  resetButton.className = "chart-reset-zoom";
+  resetButton.textContent = "Reset zoom";
+  resetButton.hidden = true;
+  target.append(selection, resetButton);
+  target.tabIndex = 0;
+  const axisNumber = value => target._fullLayout.xaxis.type === "date" ? new Date(value).getTime() : Number(value);
+  const axisValue = value => target._fullLayout.xaxis.type === "date" ? new Date(value).toISOString() : value;
+  const rangeChanged = range => {
+    const tolerance = target._fullLayout.xaxis.type === "date" ? 1 : Math.abs(Number(initial.xaxis[1]) - Number(initial.xaxis[0])) * 1e-9;
+    return range?.some((value, index) => Math.abs(axisNumber(value) - axisNumber(initial.xaxis[index])) > tolerance);
+  };
+  const animate = (ranges) => {
+    if (closed) return Promise.resolve();
+    const id = ++animationId;
+    if (settleAnimation) settleAnimation();
+    const superseded = new Promise(resolve => {settleAnimation = resolve;});
+    const duration = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ? 0 : 350;
+    const nextLayout = Object.fromEntries(Object.entries(ranges).map(([key, range]) => [key, {
+      range,
+      autorange: false,
+      ...(key.startsWith("yaxis") ? priceAxisTickOptions(target._fullLayout[key], range) : {}),
+    }]));
+    ownUpdate = true;
+    resetButton.hidden = !rangeChanged(ranges.xaxis || target._fullLayout.xaxis.range);
+    const update = duration
+      ? Plotly.animate(target, {layout: nextLayout}, {transition: {duration, easing: "cubic-out"}, frame: {duration, redraw: false}, mode: "immediate"})
+      : Plotly.relayout(target, Object.fromEntries(Object.entries(nextLayout).flatMap(([key, attributes]) =>
+        Object.entries(attributes).map(([attribute, value]) => [`${key}.${attribute}`, value]))));
+    return Promise.race([Promise.resolve(update), superseded]).catch(error => {
+      if (!closed && id === animationId && error) throw error;
+    }).finally(() => {
+      if (id === animationId) {
+        ownUpdate = false;
+        settleAnimation = null;
+      }
+    });
+  };
+  const zoomTo = range => {
+    const limits = initial.xaxis.map(axisNumber);
+    let [start, end] = range.map(axisNumber).sort((left, right) => left - right);
+    const minimum = target._fullLayout.xaxis.type === "date" ? 86400000 : Math.abs(limits[1] - limits[0]) / 100000;
+    if (end - start < minimum) {
+      const center = (start + end) / 2;
+      start = center - minimum / 2;
+      end = center + minimum / 2;
+    }
+    const span = Math.min(end - start, Math.abs(limits[1] - limits[0]));
+    start = clamp(start, Math.min(...limits), Math.max(...limits) - span);
+    const selected = [axisValue(start), axisValue(start + span)];
+    if (limits[0] > limits[1]) selected.reverse();
+    return animate({xaxis: selected, ...visibleChartYRanges(target, selected)});
+  };
+  const reset = () => animate(initial);
+  const zoomBy = (factor, fraction = 0.5) => {
+    const range = target._fullLayout.xaxis.range.map(axisNumber);
+    const anchor = range[0] + (range[1] - range[0]) * fraction;
+    return zoomTo(range.map(value => axisValue(anchor + (value - anchor) * factor)));
+  };
+  const fit = () => animate(visibleChartYRanges(target, target._fullLayout.xaxis.range));
+  target._fintechNavigation = {zoomTo, reset, zoomBy, fit};
+  const clearSelection = () => {
+    if (gesture && target.hasPointerCapture?.(gesture.id)) target.releasePointerCapture(gesture.id);
+    gesture = null;
+    selection.hidden = true;
+    target.classList.remove("chart-selecting");
+  };
+  const plotPoint = event => {
+    const bounds = target.getBoundingClientRect();
+    const axis = target._fullLayout.xaxis;
+    const size = target._fullLayout._size;
+    return {x: event.clientX - bounds.left - axis._offset, y: event.clientY - bounds.top - size.t, axis, size};
+  };
+  const onDown = event => {
+    if (event.button !== 0 || event.shiftKey || event.ctrlKey || event.metaKey || event.pointerType === "touch"
+        || target._fullLayout.dragmode !== "zoom" || !event.target.closest?.(".nsewdrag")) return;
+    const point = plotPoint(event);
+    event.preventDefault();
+    event.stopPropagation();
+    target.focus({preventScroll: true});
+    gesture = {id: event.pointerId, start: clamp(point.x, 0, point.axis._length), end: point.x};
+    target.setPointerCapture(event.pointerId);
+  };
+  const onMove = event => {
+    if (!gesture || event.pointerId !== gesture.id) return;
+    const {axis, size, x} = plotPoint(event);
+    gesture.end = clamp(x, 0, axis._length);
+    const width = Math.abs(gesture.end - gesture.start);
+    if (width < 3) return;
+    target.classList.add("chart-selecting");
+    selection.hidden = false;
+    selection.style.left = `${axis._offset + Math.min(gesture.start, gesture.end)}px`;
+    selection.style.top = `${size.t}px`;
+    selection.style.width = `${width}px`;
+    selection.style.height = `${size.h}px`;
+  };
+  const onUp = event => {
+    if (!gesture || event.pointerId !== gesture.id) return;
+    const {axis} = plotPoint(event);
+    const pixels = [gesture.start, gesture.end].sort((left, right) => left - right);
+    clearSelection();
+    if (pixels[1] - pixels[0] >= 8) {
+      const range = pixels.map(pixel => axis.p2r(pixel));
+      zoomTo(range).catch(() => {});
+    }
+  };
+  const onDoubleClick = event => {
+    const {x, y, axis, size} = plotPoint(event);
+    if (x < 0 || x > axis._length || y < 0 || y > size.h || event.target.closest?.(".modebar, .legend, button")) return;
+    event.preventDefault();
+    event.stopPropagation();
+    reset().catch(() => {});
+  };
+  const onKey = event => {
+    if (event.target !== target) return;
+    if (event.key === "Escape") {
+      if (gesture) clearSelection();
+      else reset().catch(() => {});
+    } else if (["+", "="].includes(event.key)) zoomBy(0.65).catch(() => {});
+    else if (event.key === "-") zoomBy(1.5).catch(() => {});
+    else if (event.key === "0") reset().catch(() => {});
+    else return;
+    event.preventDefault();
+  };
+  const onRelayout = update => {
+    if (closed || ownUpdate) return;
+    const xChanged = Object.keys(update || {}).some(key => key.startsWith("xaxis.range") || key === "xaxis.autorange");
+    if (!xChanged) {
+      if (Object.keys(update || {}).some(key => /^yaxis\d*\.range/.test(key))) {
+        const ticks = priceAxisTickUpdates(target);
+        if (Object.keys(ticks).length) {
+          ownUpdate = true;
+          Plotly.relayout(target, ticks).finally(() => {ownUpdate = false;});
+        }
+      }
+      return;
+    }
+    const range = target._fullLayout.xaxis.range.slice();
+    const fitted = visibleChartYRanges(target, range);
+    resetButton.hidden = !rangeChanged(range);
+    ownUpdate = true;
+    Plotly.relayout(target, {
+      ...Object.fromEntries(Object.entries(fitted).map(([key, values]) => [`${key}.range`, values])),
+      ...priceAxisTickUpdates(target, fitted),
+    })
+      .finally(() => {ownUpdate = false;});
+  };
+  const onReset = () => reset().catch(() => {});
+  target.addEventListener("pointerdown", onDown, true);
+  target.addEventListener("pointermove", onMove, true);
+  target.addEventListener("pointerup", onUp, true);
+  target.addEventListener("pointercancel", clearSelection);
+  target.addEventListener("dblclick", onDoubleClick, true);
+  target.addEventListener("keydown", onKey);
+  resetButton.addEventListener("click", onReset);
+  target.on?.("plotly_relayout", onRelayout);
+  const priorCleanup = target._fintechChartCleanup;
+  target._fintechChartCleanup = () => {
+    closed = true;
+    clearSelection();
+    const frozenAxes = Object.fromEntries(Object.keys(initial).map(key => [key, {range: target._fullLayout[key].range.slice()}]));
+    const stopping = ownUpdate
+      ? Plotly.animate(target, {layout: frozenAxes}, {mode: "immediate", transition: {duration: 0}, frame: {duration: 0, redraw: false}}).catch(() => {})
+      : Promise.resolve();
+    if (settleAnimation) settleAnimation();
+    target.removeEventListener("pointerdown", onDown, true);
+    target.removeEventListener("pointermove", onMove, true);
+    target.removeEventListener("pointerup", onUp, true);
+    target.removeEventListener("pointercancel", clearSelection);
+    target.removeEventListener("dblclick", onDoubleClick, true);
+    target.removeEventListener("keydown", onKey);
+    target.removeListener?.("plotly_relayout", onRelayout);
+    selection.remove();
+    resetButton.remove();
+    target._fintechNavigation = null;
+    const prior = typeof priorCleanup === "function" ? priorCleanup() : null;
+    return Promise.all([stopping, prior]);
+  };
+}
+
+function priceAxisTickUpdates(target, ranges = {}) {
+  const updates = {};
+  Object.entries(target?._fullLayout || {}).forEach(([key, axis]) => {
+    if (!/^yaxis\d*$/.test(key)) return;
+    const options = priceAxisTickOptions(axis, ranges[key] || axis.range);
+    Object.entries(options).forEach(([property, value]) => {updates[`${key}.${property}`] = value;});
+  });
+  return updates;
 }
 
 function installPriceScaleControls(target) {
@@ -1915,7 +2260,7 @@ function formatCrosshairDate(value) {
 function formatCrosshairValue(value, axis) {
   const number = Number(value);
   if (!Number.isFinite(number)) return "—";
-  return `${formatReadableNumber(number)}${axis?.ticksuffix || ""}`;
+  return `${axis?.tickprefix || ""}${formatReadableNumber(number)}${axis?.ticksuffix || ""}`;
 }
 
 function bindChartHoverDetails(target, payload) {
@@ -1955,7 +2300,12 @@ function applyReadableHover(series) {
   if (!["scatter", "scattergl", "bar"].includes(series.type)) return;
   const values = series.orientation === "h" ? series.x : series.y;
   if (!Array.isArray(values)) return;
-  series.hovertext = values.map((value) => formatHoverMetricValue(series.name, value, sourceTemplate));
+  series.hovertext = values.map((value, index) => {
+    const reading = formatHoverMetricValue(series.name, value, sourceTemplate);
+    if (!series.signal_metric_name) return reading;
+    const metricValue = series.signal_metric_values?.[index];
+    return `${reading}<br>${escapeHtml(series.signal_metric_name)}: ${formatHoverMetricValue(series.signal_metric_name, metricValue)}`;
+  });
   series.hovertemplate = "%{hovertext}<extra>%{fullData.name}</extra>";
 }
 
@@ -2013,46 +2363,59 @@ function seriesValueArray(series) {
 function expandGradientLine(series) {
   const values = series.marker?.color;
   const scale = series.marker?.colorscale;
-  if (!Array.isArray(values) || !Array.isArray(scale) || !Array.isArray(series.x) || !Array.isArray(series.y)) {
+  const pointColors = series.value_colored_line && Array.isArray(values)
+    && values.every((value) => typeof value === "string");
+  if (!Array.isArray(values) || (!pointColors && !Array.isArray(scale))
+      || !Array.isArray(series.x) || !Array.isArray(series.y)) {
     return [series];
   }
   if (values.length !== series.y.length || series.x.length !== series.y.length) return [series];
-  if (Number(series.marker.size) > 4) return [series];
+  if (series.mode === "markers" || (!pointColors && values.some((value) => value !== null && typeof value !== "number"))) return [series];
 
   const lower = Number(series.marker.cmin);
   const upper = Number(series.marker.cmax);
-  if (!Number.isFinite(lower) || !Number.isFinite(upper) || lower >= upper) return [series];
+  if (!pointColors && (!Number.isFinite(lower) || !Number.isFinite(upper) || lower >= upper)) return [series];
 
-  const bucketCount = 12;
-  const buckets = Array.from({ length: bucketCount }, (_, index) => ({
-    color: gradientColor(scale, (index + 0.5) / bucketCount),
-    x: [],
-    y: [],
-  }));
+  const bucketCount = 24;
+  const buckets = (pointColors ? [...new Set(values)] : Array.from({ length: bucketCount }, (_, index) => gradientColor(scale, (index + 0.5) / bucketCount)))
+    .map((color) => ({ color, x: [], y: [] }));
+  const byColor = new Map(buckets.map((bucket) => [bucket.color, bucket]));
   for (let index = 0; index < series.y.length - 1; index += 1) {
-    const start = Number(series.y[index]);
-    const end = Number(series.y[index + 1]);
-    if (!Number.isFinite(start) || !Number.isFinite(end)) continue;
-    const midpoint = (start + end) / 2;
-    const ratio = Math.max(0, Math.min(1, (midpoint - lower) / (upper - lower)));
-    const bucket = buckets[Math.min(bucketCount - 1, Math.floor(ratio * bucketCount))];
+    const start = toFiniteNumber(series.y[index]);
+    const end = toFiniteNumber(series.y[index + 1]);
+    if (![start, end].every(Number.isFinite)) continue;
+    if (series.x[index] === null || series.x[index + 1] === null) continue;
+    let bucket;
+    if (pointColors) bucket = byColor.get(values[index]);
+    else {
+      const colorStart = toFiniteNumber(values[index]);
+      const colorEnd = toFiniteNumber(values[index + 1]);
+      if (![colorStart, colorEnd].every(Number.isFinite)) continue;
+      const ratio = clamp(((colorStart + colorEnd) / 2 - lower) / (upper - lower), 0, 1);
+      bucket = buckets[Math.min(bucketCount - 1, Math.floor(ratio * bucketCount))];
+    }
     bucket.x.push(series.x[index], series.x[index + 1], null);
     bucket.y.push(start, end, null);
   }
 
   const visibleBuckets = buckets.filter((bucket) => bucket.x.length);
   const { marker: _marker, ...lineSeries } = series;
+  const legendgroup = series.legendgroup || `value-line-${series.source_key || series.name}`;
   const coloredSegments = visibleBuckets.map((bucket, index) => ({
     ...lineSeries,
+    legendgroup,
     x: bucket.x,
     y: bucket.y,
     mode: "lines",
-    line: { color: bucket.color, width: 1.8 },
+    line: { ...series.line, color: bucket.color, width: Math.max(1.5, series.line?.width || 1.8) },
     hoverinfo: "skip",
-    showlegend: index === 0,
+    showlegend: index === 0 && series.showlegend !== false,
   }));
   const hoverCarrier = {
     ...lineSeries,
+    legendgroup,
+    meta: { ...series.meta, fintechHelper: true },
+    marker: series.marker,
     x: series.x,
     y: series.y,
     mode: "lines",
@@ -2070,8 +2433,8 @@ function gradientColor(scale, ratio) {
     .sort((left, right) => left[0] - right[0]);
   if (!stops.length) return "#c85f3c";
   const upperIndex = stops.findIndex(([position]) => position >= ratio);
-  if (upperIndex <= 0) return stops[0][1];
   if (upperIndex < 0) return stops.at(-1)[1];
+  if (upperIndex === 0) return stops[0][1];
   const [startAt, startColor] = stops[upperIndex - 1];
   const [endAt, endColor] = stops[upperIndex];
   const mix = endAt === startAt ? 1 : (ratio - startAt) / (endAt - startAt);
@@ -2268,4 +2631,321 @@ function renderFatalError(error) {
   console.error(error);
   const workspace = document.querySelector("main") || document.body;
   workspace.innerHTML = `<div class="error-state"><strong>Dashboard data unavailable.</strong><br>${escapeHtml(error.message)}</div>`;
+}
+
+function visibleChartYRanges(target, xRange) {
+  const layout = target?._fullLayout || target?.layout || {};
+  const xAxis = layout.xaxis || {};
+  if (!Array.isArray(xRange) || xRange.length !== 2 || ["category", "multicategory"].includes(xAxis.type)) return {};
+  const bounds = xRange.map((value) => visibleChartAxisNumber(value, xAxis, true));
+  if (!bounds.every(Number.isFinite)) return {};
+  const start = Math.min(...bounds);
+  const end = Math.max(...bounds);
+  const extents = new Map();
+  const preserved = new Set();
+  const result = {};
+  const barmode = layout.barmode || target?.layout?.barmode;
+
+  for (const trace of target?.data || []) {
+    if (!trace || trace.visible === false || trace.visible === "legendonly" || trace.opacity === 0
+      || trace.meta?.fintechHelper === true || (trace.xaxis && trace.xaxis !== "x")) continue;
+    const type = trace.type || "scatter";
+    if (!["scatter", "scattergl", "candlestick", "ohlc", "bar"].includes(type) || trace.orientation === "h") continue;
+    const mode = trace.mode || "lines";
+    if (mode === "none" && !trace.fill) continue;
+    // Financial hit-test proxies have no painted geometry. Their closing price
+    // must not replace a candle's actual high and low when fitting the scale.
+    if (["scatter", "scattergl"].includes(type) && !mode.includes("lines")
+      && (trace.marker?.opacity === 0 || trace.marker?.size === 0)) continue;
+    const axisName = trace.yaxis && trace.yaxis !== "y" ? `yaxis${trace.yaxis.slice(1)}` : "yaxis";
+    const axis = { ...(target?.layout?.[axisName] || {}), ...(layout[axisName] || {}) };
+    if (axis.fixedrange || ![undefined, "linear", "log"].includes(axis.type) || !Array.isArray(trace.x)) continue;
+    const configured = target?.layout?.[axisName] || {};
+    const configuredRange = configured.range;
+    const hasConfiguredRange = Array.isArray(configuredRange) && configuredRange.length === 2 && configuredRange.every(Number.isFinite);
+    const fixedTicks = [undefined, "array"].includes(configured.tickmode)
+      && Array.isArray(configured.tickvals) && configured.tickvals.length > 1 && configured.tickvals.every(Number.isFinite);
+    const title = typeof axis.title === "object" ? axis.title?.text : axis.title;
+    const completePercentage = /%|\bpercent\b/i.test(`${axis.ticksuffix || ""} ${title || ""}`)
+      && hasConfiguredRange && Math.min(...configuredRange) === 0 && Math.max(...configuredRange) === 100;
+    // Fixed sentiment ticks and complete percentage scales carry meaning beyond
+    // their visible observations. Dollar ticks are generated for each viewport
+    // and must never prevent the price scale from fitting the selected dates.
+    if (axis.tickprefix !== "$" && hasConfiguredRange && (fixedTicks || completePercentage)) {
+      preserved.add(axisName);
+      continue;
+    }
+    if (trace.stackgroup || trace.fill === "toself"
+      || (type === "bar" && ["stack", "relative"].includes(barmode))) {
+      // Per-series extrema underestimate compositions. Keep their complete
+      // rendered bounds until a stack-aware fit can account for every cohort.
+      preserved.add(axisName);
+      continue;
+    }
+    const extent = extents.get(axisName) || { min: Infinity, max: -Infinity, axis };
+    const add = (value) => {
+      if (Number.isFinite(value)) {
+        extent.min = Math.min(extent.min, value);
+        extent.max = Math.max(extent.max, value);
+      }
+    };
+    const isFinancial = type === "candlestick" || type === "ohlc";
+    const hasLines = ["scatter", "scattergl"].includes(type)
+      && (mode.includes("lines") || trace.fill && trace.fill !== "none");
+    let previous = null;
+    for (let index = 0; index < trace.x.length; index += 1) {
+      const x = visibleChartAxisNumber(trace.x[index], xAxis);
+      if (isFinancial) {
+        if (Number.isFinite(x) && x >= start && x <= end) {
+          for (const key of ["low", "high", "open", "close"]) add(visibleChartAxisNumber(trace[key]?.[index], axis));
+        }
+        continue;
+      }
+      const rawY = visibleChartFiniteNumber(trace.y?.[index]);
+      const y = visibleChartAxisNumber(rawY, axis);
+      if (!Number.isFinite(x) || (type === "bar" ? !Number.isFinite(rawY) : !Number.isFinite(y))) {
+        if (!trace.connectgaps) previous = null;
+        continue;
+      }
+      if (x >= start && x <= end) {
+        if (type === "bar") {
+          const baseValue = Array.isArray(trace.base) ? trace.base[index] : trace.base;
+          const base = baseValue === undefined ? 0 : visibleChartFiniteNumber(baseValue);
+          add(visibleChartAxisNumber(base, axis));
+          add(visibleChartAxisNumber(base + rawY, axis));
+        } else add(y);
+      }
+      // A zoom can fall wholly between sparse observations. Include the line
+      // where it crosses each edge, interpolating in the rendered axis space.
+      if (hasLines && previous && previous.x !== x) {
+        const left = Math.min(previous.x, x);
+        const right = Math.max(previous.x, x);
+        for (const edge of [start, end]) {
+          if (edge >= left && edge <= right) {
+            add(previous.y + (y - previous.y) * (edge - previous.x) / (x - previous.x));
+          }
+        }
+      }
+      previous = { x, y };
+    }
+    if (Number.isFinite(extent.min) && trace.fill === "tozeroy") add(visibleChartAxisNumber(0, axis));
+    extents.set(axisName, extent);
+  }
+
+  for (const [name, extent] of extents) {
+    if (preserved.has(name) || !Number.isFinite(extent.min) || !Number.isFinite(extent.max)) continue;
+    const span = extent.max - extent.min;
+    const padding = (span || (extent.axis.type === "log" ? 1 : Math.max(Math.abs(extent.min), 1))) * 0.06;
+    const range = [extent.min - padding, extent.max + padding];
+    const previousRange = extent.axis.range;
+    const reversed = Array.isArray(previousRange) && previousRange[0] > previousRange[1]
+      || String(extent.axis.autorange).includes("reversed");
+    result[name] = reversed ? range.reverse() : range;
+  }
+  for (const name of preserved) {
+    const range = layout[name]?.range || target?.layout?.[name]?.range;
+    if (Array.isArray(range) && range.length === 2 && range.every(Number.isFinite)) result[name] = range.slice();
+  }
+  return result;
+}
+
+function visibleChartFiniteNumber(value) {
+  if (value === null || value === undefined || typeof value === "boolean" || (typeof value === "string" && !value.trim())) return NaN;
+  return Number(value);
+}
+
+function visibleChartAxisNumber(value, axis, isRange = false) {
+  if (value === null || value === undefined || typeof value === "boolean" || value === "") return NaN;
+  if (axis.type === "date") {
+    if (typeof value === "number") return value;
+    // Plotly's timezone-free date strings represent UTC calendar values.
+    const date = typeof value === "string" && /^\d{4}-\d\d-\d\d[ T]\d\d:\d\d/.test(value)
+      && !/(Z|[+-]\d\d:?\d\d)$/i.test(value) ? `${value.replace(" ", "T")}Z` : value;
+    return new Date(date).getTime();
+  }
+  const number = visibleChartFiniteNumber(value);
+  return axis.type === "log" && !isRange ? (number > 0 ? Math.log10(number) : NaN) : number;
+}
+
+function priceAxisTickOptions(axis, range = axis?.range) {
+  if (axis?.tickprefix !== "$" || !["linear", "log"].includes(axis.type)
+    || !Array.isArray(range) || range.length !== 2 || !range.every(value => typeof value === "number" && Number.isFinite(value))) return {};
+  const [lower, upper] = range.slice().sort((left, right) => left - right);
+  const minimum = axis.type === "log" ? 10 ** lower : lower;
+  const maximum = axis.type === "log" ? 10 ** upper : upper;
+  if (!Number.isFinite(minimum) || !Number.isFinite(maximum) || axis.type === "log" && minimum <= 0) return {};
+  const count = Math.max(3, Math.min(9, Math.round((axis._length || 300) / 45)));
+  const clean = value => value === 0 ? 0 : Number(value.toPrecision(14));
+  let values = [];
+  if (minimum === maximum) values = [clean(minimum)];
+  else if (axis.type === "log" && upper - lower >= 0.75) {
+    const candidates = [];
+    if (upper - lower <= 2) {
+      for (const multiples of [[1, 2, 5], [1, 2], [1, 5], [1]]) {
+        const ticks = [];
+        for (let exponent = Math.floor(lower); exponent <= Math.ceil(upper); exponent += 1) {
+          for (const multiple of multiples) {
+            const value = clean(multiple * 10 ** exponent);
+            if (value >= minimum * (1 - 1e-12) && value <= maximum * (1 + 1e-12)) ticks.push(value);
+          }
+        }
+        candidates.push(ticks);
+      }
+    } else {
+      for (let stride = 1; stride <= Math.ceil(upper - lower); stride += 1) {
+        const ticks = [];
+        for (let exponent = Math.ceil(lower / stride) * stride; exponent <= upper + 1e-12; exponent += stride) {
+          ticks.push(clean(10 ** exponent));
+        }
+        candidates.push(ticks);
+      }
+    }
+    values = priceAxisBestTicks(candidates, count);
+  } else {
+    const span = maximum - minimum;
+    if (!Number.isFinite(span) || span <= 0) return {};
+    const exponent = Math.floor(Math.log10(span / (count - 1)));
+    const candidates = [];
+    for (let power = exponent - 1; power <= exponent + 1; power += 1) {
+      for (const multiple of [1, 2, 2.5, 5]) {
+        const step = multiple * 10 ** power;
+        if (!Number.isFinite(step) || step <= 0) continue;
+        const first = Math.ceil(minimum / step - 1e-10);
+        const last = Math.floor(maximum / step + 1e-10);
+        if (last - first > 8 || last < first) continue;
+        candidates.push(Array.from({ length: last - first + 1 }, (_, index) => clean((first + index) * step)));
+      }
+    }
+    values = priceAxisBestTicks(candidates, count);
+  }
+  values = [...new Set(values)].filter(Number.isFinite).sort((left, right) => left - right);
+  if (!values.length) return {};
+  const spacing = values.length > 1 ? Math.min(...values.slice(1).map((value, index) => value - values[index])) : Math.abs(values[0]) || 1;
+  return { tickmode: "array", tickvals: values, ticktext: values.map(value => priceAxisTickLabel(value, spacing)) };
+}
+
+function priceAxisBestTicks(candidates, count) {
+  // Prefer the intended density, retaining at least three labels where the
+  // available nice increments allow it. Every label is a complete dollar value.
+  return candidates.filter(values => values.length && values.length <= 9)
+    .sort((left, right) => {
+      const score = values => Math.abs(values.length - count) + (values.length < 3 ? 10 : 0);
+      return score(left) - score(right);
+    })[0] || [];
+}
+
+function priceAxisTickLabel(value, spacing) {
+  const absolute = Math.abs(value);
+  const units = [[1e12, "T"], [1e9, "B"], [1e6, "M"], [1e3, "K"]];
+  const [divisor, suffix] = units.find(([threshold]) => absolute >= threshold) || [1, ""];
+  const precision = Math.min(20, Math.max(0, Math.ceil(-Math.log10(spacing / divisor)) + 1));
+  const number = (absolute / divisor).toLocaleString("en-US", { maximumFractionDigits: precision, useGrouping: true });
+  return `${value < 0 ? "-" : ""}$${number}${suffix}`;
+}
+
+// Series values follow the nearest hovered observation; the existing black
+// crosshair badges continue to show the pointer's independent coordinates.
+function installSeriesValueBadges(target) {
+  if (!target?._fullLayout?._size || typeof target.on !== "function") return;
+  const badges = new Map();
+  const hide = () => badges.forEach(badge => badge.classList.remove("visible"));
+  const onHover = event => {
+    hide();
+    if (target.classList.contains("chart-selecting")) return;
+    const layout = target._fullLayout;
+    const usedAxes = new Set();
+    for (const point of event?.points || []) {
+      const trace = point.data || point.fullData || {};
+      const fullTrace = point.fullData || trace;
+      if ([false, "legendonly"].includes(fullTrace.visible) || [false, "legendonly"].includes(trace.visible)
+          || !["scatter", "scattergl", "bar", "candlestick", "ohlc"].includes(trace.type || fullTrace.type)) continue;
+      const reference = trace.yaxis || fullTrace.yaxis || point.yaxis?._id || "y";
+      const axisName = reference === "y" ? "yaxis" : `yaxis${reference.slice(1)}`;
+      const axis = layout[axisName];
+      const value = visibleChartFiniteNumber(point.y ?? point.close);
+      if (!axis || axis.visible === false || axis.showticklabels === false
+          || !["linear", "log"].includes(axis.type) || usedAxes.has(axisName)
+          || !Number.isFinite(value) || axis.type === "log" && value <= 0) continue;
+      const pixel = axis.d2p?.(value);
+      if (!Number.isFinite(pixel) || pixel < 0 || pixel > axis._length) continue;
+      const xaxis = point.xaxis || layout.xaxis;
+      if (!xaxis || !Number.isFinite(axis._offset)) continue;
+      const side = axis.side === "right" ? "right" : "left";
+      let badge = badges.get(axisName);
+      if (!badge) {
+        badge = document.createElement("span");
+        badge.className = "chart-series-value-badge";
+        badge.setAttribute("aria-hidden", "true");
+        badge.dataset.axis = axisName;
+        badges.set(axisName, badge);
+        target.appendChild(badge);
+      }
+      const price = trace.source_key === "price" || /^(?:BTC (?:price|OHLC)|Price(?: USD)?)$/i.test(trace.name || "");
+      badge.textContent = formatCrosshairValue(value, {
+        tickprefix: axis.tickprefix || trace.value_prefix || (price ? "$" : ""),
+        ticksuffix: axis.ticksuffix || trace.value_suffix || "",
+      });
+      const color = seriesValueBadgeColor(point);
+      badge.style.backgroundColor = color;
+      badge.style.color = seriesValueBadgeTextColor(color);
+      badge.dataset.side = side;
+      badge.style.left = `${axis.anchor === "free" && Number.isFinite(axis.position)
+        ? layout._size.l + axis.position * layout._size.w
+        : xaxis._offset + (side === "right" ? xaxis._length : 0)}px`;
+      badge.style.top = `${axis._offset + pixel}px`;
+      badge.classList.add("visible");
+      usedAxes.add(axisName);
+    }
+  };
+  const events = { plotly_hover: onHover, plotly_unhover: hide, plotly_selecting: hide, plotly_relayout: hide };
+  Object.entries(events).forEach(([name, listener]) => target.on(name, listener));
+  target.addEventListener("pointerleave", hide);
+  const priorCleanup = target._fintechChartCleanup;
+  target._fintechChartCleanup = () => {
+    Object.entries(events).forEach(([name, listener]) => target.removeListener?.(name, listener));
+    target.removeEventListener("pointerleave", hide);
+    badges.forEach(badge => badge.remove());
+    badges.clear();
+    if (typeof priorCleanup === "function") priorCleanup();
+  };
+}
+
+function seriesValueBadgeColor(point) {
+  const trace = point.data || point.fullData || {};
+  const fullTrace = point.fullData || trace;
+  const marker = { ...fullTrace.marker, ...trace.marker };
+  const index = Number.isInteger(point.pointNumber) ? point.pointNumber : point.pointIndex;
+  const markerValue = Array.isArray(marker.color) ? marker.color[index] : marker.color;
+  if (typeof markerValue === "number" && Array.isArray(marker.colorscale)) {
+    const min = Number(marker.cmin);
+    const max = Number(marker.cmax);
+    if (Number.isFinite(min) && Number.isFinite(max) && min < max) {
+      return gradientColor(marker.colorscale, clamp((markerValue - min) / (max - min), 0, 1));
+    }
+  }
+  const candidates = [point.color, trace.marker?.color !== undefined || String(trace.mode).includes("markers") ? markerValue : null,
+    trace.line?.color, fullTrace.line?.color];
+  return candidates.find(color => seriesValueBadgeRgb(color)) || "#c96442";
+}
+
+function seriesValueBadgeRgb(color) {
+  if (typeof color !== "string") return null;
+  const hex = color.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+  if (hex) {
+    const value = hex[1].length === 3 ? hex[1].split("").map(channel => channel + channel).join("") : hex[1];
+    return value.match(/../g).map(channel => parseInt(channel, 16));
+  }
+  const rgb = color.match(/^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)(?:\s*,\s*([\d.]+))?\s*\)$/i);
+  if (!rgb || rgb[4] !== undefined && Number(rgb[4]) < 0.35) return null;
+  return rgb.slice(1, 4).map(channel => clamp(Number(channel), 0, 255));
+}
+
+function seriesValueBadgeTextColor(color) {
+  const rgb = seriesValueBadgeRgb(color) || [201, 100, 66];
+  const linear = rgb.map(channel => {
+    const value = channel / 255;
+    return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+  });
+  const luminance = linear[0] * 0.2126 + linear[1] * 0.7152 + linear[2] * 0.0722;
+  return luminance > 0.179 ? "#1f211f" : "#ffffff";
 }

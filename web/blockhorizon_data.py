@@ -8,6 +8,7 @@ refresh the imported charts alongside the repository's native charts.
 from __future__ import annotations
 
 import json
+import math
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.request import Request, urlopen
@@ -215,14 +216,6 @@ PALETTE = (
     "#a24d68",
 )
 
-GRADIENT_COLORSCALE = (
-    (0.0, "#ef4444"),
-    (0.22, "#f97316"),
-    (0.46, "#facc15"),
-    (0.72, "#84cc16"),
-    (1.0, "#16a34a"),
-)
-
 # A small number of source charts use semantic styling that is not represented
 # in their public series metadata. Keep these overrides narrow and documented
 # rather than applying a generic palette that changes the chart's meaning.
@@ -282,43 +275,19 @@ def _point_colors(source_series: dict, length: int) -> list[str] | None:
     return [overrides.get(str(index), {}).get("color", fallback) for index in range(length)]
 
 
-def _gradient_marker(chart: dict, source_series: dict, values: list[float | None]) -> dict | None:
-    config = chart.get("gradient_config") or {}
-    if config.get("default_mode") != "absolute":
+def _value_line_marker(source_series: dict, values: list[float | None]) -> dict | None:
+    # The source's normal NUPL view uses five discrete sentiment colors.
+    # Its optional Signal view instead colors BTC with a continuous rainbow.
+    if source_series.get("series_key") != "nupl":
         return None
-    if config.get("default_series_key") != source_series.get("series_key"):
-        return None
-    bounds = config.get("absolute") or {}
-    lower = bounds.get("default_min")
-    upper = bounds.get("default_max")
-    if not isinstance(lower, (int, float)) or not isinstance(upper, (int, float)) or lower >= upper:
-        return None
-
-    colorscale = list(GRADIENT_COLORSCALE)
-    zones = (chart.get("style_config") or {}).get("valueZones") or []
-    zone = next(
-        (item for item in zones if item.get("seriesKey") == source_series.get("series_key")),
-        None,
-    )
-    if zone:
-        green_at = max(0.0, min(1.0, (float(zone.get("greenBelow", lower)) - lower) / (upper - lower)))
-        red_at = max(green_at, min(1.0, (float(zone.get("redAbove", upper)) - lower) / (upper - lower)))
-        colorscale = [
-            (0.0, "#16a34a"),
-            (green_at, "#16a34a"),
-            (min(1.0, green_at + 0.002), "#facc15"),
-            (max(0.0, red_at - 0.002), "#facc15"),
-            (red_at, "#ef4444"),
-            (1.0, "#ef4444"),
-        ]
-
+    thresholds = ((0, "#e54242"), (.25, "#ef7f11"), (.5, "#ebd249"), (.75, "#24c813"))
     return {
-        "color": values,
-        "colorscale": colorscale,
-        "cmin": lower,
-        "cmax": upper,
-        "size": 6 if zone else 3.2,
-        "showscale": False,
+        "color": [
+            next((color for threshold, color in thresholds if value < threshold), "#4467eb")
+            if isinstance(value, (int, float)) else "rgba(0,0,0,0)"
+            for value in values
+        ],
+        "size": 0,
     }
 
 
@@ -329,6 +298,8 @@ def _line_trace(chart: dict, source_series: dict, index: int) -> dict | None:
     style = _series_style(chart, source_series)
     override = SOURCE_SERIES_OVERRIDES.get((chart.get("slug"), source_series.get("series_key")), {})
     color = override.get("color") or style.get("color") or source_series.get("color") or PALETTE[index % len(PALETTE)]
+    if (chart.get("gradient_config") or {}).get("default_series_key") == source_series.get("series_key"):
+        color = override.get("color") or style.get("color") or source_series.get("color") or "#c96442"
     series_type = style.get("type", "line")
     base = {
         "name": str(source_series.get("name") or source_series.get("series_key") or f"Series {index + 1}").strip(),
@@ -379,13 +350,32 @@ def _line_trace(chart: dict, source_series: dict, index: int) -> dict | None:
     if colors:
         trace["mode"] = "lines+markers"
         trace["marker"] = {"color": colors, "size": 6}
-    elif gradient_marker := _gradient_marker(chart, source_series, values):
-        # Dense value-colored points read as a continuous line while retaining
-        # the complete source series for signals, hover, and table views.
-        trace["mode"] = "lines+markers"
-        trace["line"] = {"color": "rgba(0,0,0,0)", "width": 0.5}
+    elif gradient_marker := _value_line_marker(source_series, values):
+        # Normal mode plots the metric as a continuous value-colored line.
+        # Signal mode colors BTC price instead; its metadata is kept separate
+        # so this authoritative metric remains available to tables and signals.
+        trace["mode"] = "lines"
+        trace["line"] = {"color": "rgba(0,0,0,0)", "width": 2}
         trace["marker"] = gradient_marker
+        trace["value_colored_line"] = True
     return trace
+
+
+def _signal_view_config(chart: dict) -> dict | None:
+    """Describe the source's optional price-colored-by-metric view."""
+    config = chart.get("gradient_config") or {}
+    mode = config.get("default_mode")
+    if not chart.get("include_btc") or mode not in {"absolute", "error"}:
+        return None
+    bounds = config.get(mode) or {}
+    lower, upper = bounds.get("default_min"), bounds.get("default_max")
+    if (not isinstance(lower, (int, float)) or not isinstance(upper, (int, float))
+            or not math.isfinite(lower) or not math.isfinite(upper) or lower >= upper):
+        return None
+    key = config.get("default_series_key")
+    if not any(series.get("series_key") == key for series in chart.get("series") or []):
+        return None
+    return {"mode": mode, "series_key": key, "min": lower, "max": upper}
 
 
 def _ohlc_trace(chart: dict) -> list[dict]:
@@ -615,6 +605,8 @@ def _build_payload(chart: dict, price_chart: dict, built_at: str | None) -> dict
         "show_range_selector": bool((chart.get("toolbar_config") or {}).get("has_date", True)),
         "show_halvings_default": bool(chart.get("show_halvings")),
         "main_series_key": main_series_key,
+        "signal_view": _signal_view_config(chart),
+        "value_zones": style_config.get("valueZones") or [],
         "series": traces,
         "layout": layout,
     }

@@ -24,6 +24,57 @@ def chart(slug, name, value=2):
 
 
 class CatalogImportTests(unittest.TestCase):
+    def test_nupl_normal_view_keeps_discrete_source_colors_and_real_gaps(self):
+        metric = chart("nupl", "NUPL")
+        series = metric["series"][0]
+        series["series_key"] = "nupl"
+        observations = [-.1, 0, .25, .5, .75, None]
+        series["pd"].update({"d": [0, 1, 1, 1, 1, 1], "v": observations})
+        trace = data._line_trace(metric, series, 0)
+        self.assertEqual(trace["mode"], "lines")
+        self.assertTrue(trace["value_colored_line"])
+        self.assertEqual(trace["marker"]["size"], 0)
+        self.assertEqual(trace["marker"]["color"], ["#e54242", "#ef7f11", "#ebd249", "#24c813", "#4467eb", "rgba(0,0,0,0)"])
+        self.assertEqual(trace["y"], observations)
+
+    def test_signal_metadata_is_separate_from_the_metric_observations(self):
+        metric = chart("mvrv-z-score", "MVRV Z-Score")
+        metric["include_btc"] = True
+        metric["series"][0]["series_key"] = "mvrv_z_score"
+        metric["gradient_config"] = {
+            "default_mode": "absolute", "default_series_key": "mvrv_z_score",
+            "absolute": {"default_min": 0, "default_max": 5},
+        }
+        metric["style_config"] = {"valueZones": [{"seriesKey": "mvrv_z_score", "greenBelow": .85, "redAbove": 1.75}]}
+        payload = data._build_payload(metric, chart("price", "Price", 70000), None)
+        self.assertEqual(payload["signal_view"], {"mode": "absolute", "series_key": "mvrv_z_score", "min": 0, "max": 5})
+        source = next(series for series in payload["series"] if series["source_key"] == "mvrv_z_score")
+        self.assertEqual(source["y"], [2, 3])
+        self.assertEqual(source["mode"], "lines")
+        self.assertNotIn("marker", source, "normal MVRV uses a continuous brand-colored metric line")
+
+    def test_price_ratio_signal_mode_keeps_its_reviewed_domain(self):
+        metric = chart("realized-price", "Realized Price")
+        metric["include_btc"] = True
+        metric["gradient_config"] = {
+            "default_mode": "error", "default_series_key": "metric",
+            "error": {"default_min": .6, "default_max": 3.5},
+        }
+        payload = data._build_payload(metric, chart("price", "Price"), None)
+        self.assertEqual(payload["signal_view"], {"mode": "error", "series_key": "metric", "min": .6, "max": 3.5})
+
+    def test_signal_metadata_requires_a_supported_metric_and_finite_domain(self):
+        metric = chart("fixture", "Metric")
+        metric["include_btc"] = True
+        metric["gradient_config"] = {
+            "default_mode": "absolute", "default_series_key": "missing",
+            "absolute": {"default_min": 0, "default_max": 5},
+        }
+        self.assertIsNone(data._signal_view_config(metric))
+        metric["gradient_config"]["default_series_key"] = "metric"
+        metric["gradient_config"]["absolute"]["default_max"] = 0
+        self.assertIsNone(data._signal_view_config(metric))
+
     def import_fixture(self, directory, bundle):
         with (
             patch.object(data, "REFERENCE_CHARTS", {"fees-total": "Fees Total (Daily)"}, create=True),

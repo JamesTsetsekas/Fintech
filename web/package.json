@@ -3,7 +3,7 @@
   "private": true,
   "scripts": {
     "test": "node --test tests/*.test.cjs",
-    "test:browser": "node tests/ohlc-hover.browser.cjs && node tests/site-axes.browser.cjs"
+    "test:browser": "node tests/ohlc-hover.browser.cjs && node tests/site-axes.browser.cjs && node tests/site-zoom.browser.cjs && node tests/site-navigation.browser.cjs && node tests/site-series-badges.browser.cjs && node tests/site-signal-view.browser.cjs"
   },
   "devDependencies": {
     "playwright": "1.62.1"
