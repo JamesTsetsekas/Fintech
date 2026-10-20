@@ -8,16 +8,24 @@ The repo includes a static, GitHub Pages-friendly dashboard at `index.html`. The
 
 The browser experience includes four linked workspaces:
 
-- `index.html` — dense market overview with live metrics, an 18-row cycle timeline, and eight featured charts.
+- `index.html` — dense market overview with live metrics, a 17-row cycle timeline, and eight featured charts.
 - `charts/` — full interactive Bitcoin chart terminal with ranges, overlays, sheet view, pinning, and PNG export.
-- `signals/` — normalized cycle scores across 17 on-chain and 12 repo-native indicators, with historical phases and momentum.
+- `signals/` — normalized cycle scores across 16 on-chain and 12 repo-native indicators, with historical phases and momentum.
 - `alerts/` — device-local alert rules evaluated against the latest generated signal scores.
 
-The scheduled Bitcoin library is the non-duplicating union of 46 repo-native charts and 145 charts currently adapted from BlockHorizon's chart bundle (191 total). Source provenance remains recorded in the generated chart metadata. The hourly build refreshes that bundle with the rest of the dashboard and stops before publishing if the reviewed upstream catalog is incomplete.
+The scheduled Bitcoin library is the non-duplicating union of 46 repo-native charts and 149 charts adapted from BlockHorizon's chart bundle (195 total). The upstream catalog was reviewed on October 20, 2026, including the new weekly moving averages, loss percentages, old-versus-new coin loss comparison, and 2-/4-year realized prices. Imports use stable chart IDs so title changes preserve links and pins while refreshing data. Six charts removed upstream are retired locally; missing reviewed charts stop publication instead of silently reusing stale data. Source provenance remains recorded in each generated chart's metadata.
+
+BlockHorizon's three cost-basis distribution/replay views are deferred: their price-bucket histograms and shared replay frames require a dedicated renderer rather than the time-series adapter. The hourly build refreshes the reviewed chart bundle with the rest of the dashboard.
 
 Preview the site locally from the repository root with `python3 -m http.server 8000`, then open `http://127.0.0.1:8000/`.
 
 The cron runner checks the upstream Bitcoin CSVs hourly, regenerates native reports only when those files change, and builds the static dashboard data. To keep GitHub Actions artifact storage within the free-tier allowance, it only force-publishes the latest-only `gh-pages` branch at 00:00, 06:00, 12:00, and 18:00 UTC. Conditional HTTP requests keep unchanged large CSVs off the wire. Stock reports and the experimental ML classifier are intentionally excluded from the scheduled Raspberry Pi path; their source remains available for manual runs. This keeps chart output available on GitHub Pages without committing every hourly chart refresh to `main`.
+
+### Dashboard regression checks
+
+Run importer tests from the repository root with `python -m unittest web.test_blockhorizon_data`. Set `FINTECH_LIVE_TESTS=1` to also verify the complete reviewed catalog against the current upstream bundle; the default tests use local fixtures.
+
+The optional browser checks require Node.js 20 or later. From `web/`, run `npm ci`, `npx playwright install chromium`, then `npm test` and `npm run test:browser`. Browser checks load the same pinned Plotly CDN script as the site and verify OHLC hover movement in dashboard and terminal layouts on both price scales, plus multi-pane crosshairs and axis controls. These development dependencies are separate from the Raspberry Pi's Python refresh path.
 
 ## Bitcoin Analytics
 

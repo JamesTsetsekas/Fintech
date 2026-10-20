@@ -1,0 +1,11 @@
+{
+  "name": "fintech-browser-checks",
+  "private": true,
+  "scripts": {
+    "test": "node --test tests/*.test.cjs",
+    "test:browser": "node tests/ohlc-hover.browser.cjs && node tests/site-axes.browser.cjs"
+  },
+  "devDependencies": {
+    "playwright": "1.62.1"
+  }
+}

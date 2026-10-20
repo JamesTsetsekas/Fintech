@@ -29,6 +29,9 @@ Bitcoin/data/bitcoin_csv_data/.download_metadata.json
 # Local site publish staging
 .site-publish/
 
+# Optional browser regression-test dependencies
+node_modules/
+
 # IDE
 .vscode/
 .idea/

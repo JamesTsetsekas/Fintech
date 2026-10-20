@@ -19,165 +19,187 @@ SOURCE_BUNDLE_URL = (
     "bundle_handler/serve?resolution=downsampled_v2"
 )
 
-# This is the public chart library displayed in the BlockHorizon dashboard on
-# 2026-09-09.  The explicit allow-list prevents unpublished/experimental bundle
-# entries from appearing in this site without review.
-REFERENCE_CHART_TITLES = (
-    "Addresses Accumulation",
-    "Addresses Active",
-    "Addresses in Loss",
-    "Addresses in Profit",
-    "Addresses in Profit (%)",
-    "Addresses New",
-    "Addresses Receiving",
-    "Addresses Sending",
-    "Addresses Total",
-    "Addresses with Non-Zero Balance",
-    "ASOL: Average Spent Output Lifespan",
-    "Balanced Price",
-    "Block Height",
-    "Blocks Mined",
-    "CDD (Coin Days Destroyed)",
-    "CDD 90-Day",
-    "CDD Long Term Supply",
-    "CDD Short Term Supply",
-    "Coin Blocks Created (CBC)",
-    "Coin Blocks Destroyed (CBD)",
-    "Coin Vintages",
-    "Cost-Basis Heatmap",
-    "Cushion Depth Fan",
-    "Days Until Halving",
-    "Delta Cap",
-    "Delta Price",
-    "Difficulty",
-    "Difficulty Ribbon",
-    "Fee Ratio Multiple (FRM)",
-    "Fees Mean",
-    "Fees Total",
-    "HODL Waves",
-    "Issuance",
-    "Market Cap",
-    "Market Cap To Thermocap Ratio",
-    "Miner Revenue: Block Rewards",
-    "Miner Revenue: Fees (%)",
-    "Miner Revenue: Total",
-    "MVRV (Market Value to Realized Value Ratio)",
-    "MVRV Adjusted Ratio",
-    "MVRV Long Term Supply",
-    "MVRV Momentum Oscillator",
-    "MVRV Short Term Supply",
-    "MVRV Z-Score",
-    "NUPL (Net Unrealized Profit Loss)",
-    "NUPL Long Term Supply (LTS)",
-    "NUPL Short Term Supply (STS)",
-    "Outputs Spent <1h",
-    "Outputs Spent 1d-1w",
-    "Outputs Spent 1h-24h",
-    "Outputs Spent 1m-3m",
-    "Outputs Spent 1w-1m",
-    "Outputs Spent 1y-2y",
-    "Outputs Spent 2y-3y",
-    "Outputs Spent 3m-6m",
-    "Outputs Spent 3y-5y",
-    "Outputs Spent 5y-7y",
-    "Outputs Spent 6m-12m",
-    "Outputs Spent 7y-10y",
-    "Outputs Spent 10y+",
-    "Pi Cycle Top Indicator",
-    "PlanB: Moving Averages",
-    "PlanB: Realized Prices",
-    "PlanB: RSI",
-    "PlanB: Stock to Flow (S2F)",
-    "PlanB: Stock to Flow + RSI + MA + Realized",
-    "Price",
-    "Price Drawdown",
-    "Price OHLC",
-    "Realized Cap",
-    "Realized Cap HODL Waves",
-    "Realized Price",
-    "Realized Price - Long Term Supply (LTS)",
-    "Realized Price - Short Term Supply (STS)",
-    "SOPR (Spent Output Profit Ratio)",
-    "SOPR Adjusted (aSOPR)",
-    "SOPR Long Term Supply (LTS)",
-    "SOPR Short Term Supply (STS)",
-    "Spent Volume <1h",
-    "Spent Volume 1d-1w",
-    "Spent Volume 1h-24h",
-    "Spent Volume 1m-3m",
-    "Spent Volume 1w-1m",
-    "Spent Volume 1y-2y",
-    "Spent Volume 2y-3y",
-    "Spent Volume 3m-6m",
-    "Spent Volume 3y-5y",
-    "Spent Volume 5y-7y",
-    "Spent Volume 6m-12m",
-    "Spent Volume 7y-10y",
-    "Spent Volume 10y+",
-    "Supply Adjusted",
-    "Supply Circulating",
-    "Supply in Loss",
-    "Supply in Profit",
-    "Supply in Profit (%)",
-    "Supply Last Active < 24 Hours",
-    "Supply Last Active 1+ Years Ago (%)",
-    "Supply Last Active 1d-1w",
-    "Supply Last Active 1m-3m",
-    "Supply Last Active 1w-1m",
-    "Supply Last Active 1y-2y",
-    "Supply Last Active 2+ Years Ago (%)",
-    "Supply Last Active 2y-3y",
-    "Supply Last Active 3+ Years Ago (%)",
-    "Supply Last Active 3m-6m",
-    "Supply Last Active 3y-5y",
-    "Supply Last Active 5+ Years Ago (%)",
-    "Supply Last Active 5y-7y",
-    "Supply Last Active 6m-12m",
-    "Supply Last Active 7y-10y",
-    "Supply Last Active 10y+",
-    "Supply Long Term (LTS)",
-    "Supply Long Term (LTS) in Loss",
-    "Supply Long Term (LTS) in Profit",
-    "Supply Long Term (LTS) Position Change",
-    "Supply Probably Lost",
-    "Supply Revived 1+ Years",
-    "Supply Revived 2+ Years",
-    "Supply Revived 3+ Years",
-    "Supply Revived 5+ Years",
-    "Supply Short Term (STS)",
-    "Supply Short Term (STS) in Loss",
-    "Supply Short Term (STS) in Profit",
-    "Supply Short Term (STS) Position Change",
-    "Terminal Price",
-    "Thermocap",
-    "Top Cap",
-    "Top Price",
-    "Total Transactions",
-    "Transaction Count",
-    "Transaction Rate",
-    "Transfer Volume in Loss",
-    "Transfer Volume in Profit",
-    "Transfer Volume in Profit (%)",
-    "Transfer Volume Mean",
-    "Transfer Volume Total",
-    "UTXO Count Total",
-    "UTXO Value Created Mean",
-    "UTXO Value Created Total",
-    "UTXO Value Spent Mean",
-    "UTXO Value Spent Total",
-    "UTXOs Created",
-    "UTXOs in Loss",
-    "UTXOs in Profit",
-    "UTXOs in Profit (%)",
-    "UTXOs Spent",
-)
+# Reviewed against the 154-chart public dashboard on 2026-10-20. Stable slugs
+# identify charts; upstream display-title edits must never select stale cache.
+# The three replay/distribution views below require a different renderer and
+# are deliberately excluded. Bundle-only index charts are not library entries.
+REFERENCE_CHARTS = {
+    'accumulation-addresses': 'Addresses Accumulation',
+    'active-addresses': 'Addresses Active',
+    'addresses-in-loss': 'Addresses in Loss',
+    'percent-addresses-in-loss': 'Addresses in Loss (%)',
+    'addresses-in-profit': 'Addresses in Profit',
+    'percent-addresses-in-profit': 'Addresses in Profit (%)',
+    'new-addresses': 'Addresses New',
+    'receiving-addresses': 'Addresses Receiving',
+    'sending-addresses': 'Addresses Sending',
+    'total-addresses': 'Addresses Total (Cumulative)',
+    'non-zero-addresses': 'Addresses with Non-Zero Balance',
+    'asol': 'ASOL: Average Spent Output Lifespan',
+    'balanced-price': 'Balanced Price',
+    'block-height': 'Block Height',
+    'blocks-mined': 'Blocks Mined',
+    'cdd': 'CDD (Coin Days Destroyed)',
+    '90d-cdd': 'CDD 90-Day',
+    'long-term-supply-cdd': 'CDD Long Term Supply (LTS)',
+    'short-term-supply-cdd': 'CDD Short Term Supply (STS)',
+    'coin-blocks-created': 'Coin Blocks Created (CBC)',
+    'coin-blocks-destroyed': 'Coin Blocks Destroyed (CBD)',
+    'issuance': 'Coin issuance',
+    'cost-basis-heatmap': 'Cost basis Heatmap',
+    'cushion-depth-fan': 'Cushion Depth Fan',
+    'days-until-halving': 'Days Until Halving',
+    'delta-cap': 'Delta Cap',
+    'delta-price': 'Delta Price',
+    'difficulty': 'Difficulty',
+    'difficulty-ribbon': 'Difficulty Ribbon',
+    'frm': 'Fee Ratio Multiple (FRM)',
+    'fees-avg': 'Fees Mean (per Transaction)',
+    'fees-total': 'Fees Total (Daily)',
+    'hodl-waves': 'HODL Waves',
+    'market-cap': 'Market Cap',
+    'market-cap-to-thermocap-ratio': 'Market Cap to Thermocap Ratio',
+    'miner-revenue-block-rewards': 'Miner Revenue: Block Rewards',
+    'miner-revenue-fees': 'Miner Revenue: Fees (%)',
+    'miner-revenue-total': 'Miner Revenue: Total (Daily)',
+    'mvrv': 'MVRV (Market Value to Realized Value Ratio)',
+    'lth-mvrv': 'MVRV Long Term Supply (LTS)',
+    'mvrv-momentum': 'MVRV Momentum Oscillator',
+    'sth-mvrv': 'MVRV Short Term Supply (STS)',
+    'mvrv-z-score': 'MVRV Z-Score',
+    'nupl': 'NUPL (Net Unrealized Profit Loss)',
+    'lts-nupl': 'NUPL Long Term Supply (LTS)',
+    'sts-nupl': 'NUPL Short Term Supply (STS)',
+    'pi-cycle': 'Pi Cycle Top Indicator',
+    'pb-200wma': 'PlanB: Moving Averages',
+    'pb-realized-prices': 'PlanB: Realized Prices',
+    'pb-rsi': 'PlanB: RSI',
+    'pb-s2f': 'PlanB: Stock to Flow (S2F)',
+    'pb-various': 'PlanB: Stock to Flow + RSI + MA + Realized',
+    'price': 'Price',
+    'price-drawdown': 'Price Drawdown',
+    'ohlc': 'Price OHLC',
+    '100wma': 'Price: 100 Week Moving Average (100WMA)',
+    '200wma': 'Price: 200 Week Moving Average (200WMA)',
+    '50wma': 'Price: 50 Week Moving Average (50WMA)',
+    'realized-cap': 'Realized Cap',
+    'realized-cap-hodl-waves': 'Realized Cap HODL Waves',
+    'realized-price': 'Realized Price',
+    'realized-price-lts': 'Realized Price - Long Term Supply (LTS)',
+    'realized-price-sts': 'Realized Price - Short Term Supply (STS)',
+    'realized-price-2y': 'Realized Price: 2 Year',
+    'realized-price-4y': 'Realized Price: 4 Year',
+    'sopr': 'SOPR (Spent Output Profit Ratio)',
+    'asopr': 'SOPR Adjusted (aSOPR)',
+    'lts-sopr': 'SOPR Long Term Supply (LTS)',
+    'sts-sopr': 'SOPR Short Term Supply (STS)',
+    'spent-outputs-10y': 'Spent Outputs 10y+',
+    'spent-outputs-1d-1w': 'Spent Outputs 1d–1w',
+    'spent-outputs-1h-24h': 'Spent Outputs 1h–1d',
+    'spent-outputs-1m-3m': 'Spent Outputs 1m–3m',
+    'spent-outputs-1w-1m': 'Spent Outputs 1w–1m',
+    'spent-outputs-1y-2y': 'Spent Outputs 1y–2y',
+    'spent-outputs-2y-3y': 'Spent Outputs 2y–3y',
+    'spent-outputs-3m-6m': 'Spent Outputs 3m–6m',
+    'spent-outputs-3y-5y': 'Spent Outputs 3y–5y',
+    'spent-outputs-5y-7y': 'Spent Outputs 5y–7y',
+    'spent-outputs-6m-12m': 'Spent Outputs 6m–12m',
+    'spent-outputs-7y-10y': 'Spent Outputs 7y–10y',
+    'spent-outputs-1h': 'Spent Outputs <1h',
+    'adjusted-supply': 'Supply Adjusted',
+    'circulating-supply': 'Supply Circulating',
+    'supply-in-loss': 'Supply in Loss',
+    'percent-supply-in-loss': 'Supply in Loss (%)',
+    'old-vs-new-loss': 'Supply in Loss (%): Old vs New Coins',
+    'supply-in-profit': 'Supply in Profit',
+    'percent-supply-in-profit': 'Supply in Profit (%)',
+    'supply-last-active-10y': 'Supply Last Active 10y+',
+    'supply-last-active-1d-1w': 'Supply Last Active 1d–1w',
+    'supply-last-active-1m-3m': 'Supply Last Active 1m–3m',
+    'supply-last-active-1w-1m': 'Supply Last Active 1w–1m',
+    'supply-last-active-1-year-ago': 'Supply Last Active 1y+ Ago (%)',
+    'supply-last-active-1y-2y': 'Supply Last Active 1y–2y',
+    'supply-last-active-2-year-ago': 'Supply Last Active 2y+ Ago (%)',
+    'supply-last-active-2y-3y': 'Supply Last Active 2y–3y',
+    'supply-last-active-3m-6m': 'Supply Last Active 3m–6m',
+    'supply-last-active-3-year-ago': 'Supply Last Active 3y+ Ago (%)',
+    'supply-last-active-3y-5y': 'Supply Last Active 3y–5y',
+    'supply-last-active-5-year-ago': 'Supply Last Active 5y+ Ago (%)',
+    'supply-last-active-5y-7y': 'Supply Last Active 5y–7y',
+    'supply-last-active-6m-12m': 'Supply Last Active 6m–12m',
+    'supply-last-active-7y-10y': 'Supply Last Active 7y–10y',
+    'supply-last-active-24h': 'Supply Last Active <1d',
+    'long-term-supply': 'Supply Long Term (LTS)',
+    'long-term-supply-in-loss': 'Supply Long Term (LTS) in Loss',
+    'long-term-supply-in-profit': 'Supply Long Term (LTS) in Profit',
+    'long-term-supply-position-change': 'Supply Long Term (LTS) Position Change',
+    'probably-lost-supply': 'Supply Probably Lost',
+    'revived-supply-1-year': 'Supply Revived 1y+',
+    'revived-supply-2-year': 'Supply Revived 2y+',
+    'revived-supply-3-year': 'Supply Revived 3y+',
+    'revived-supply-5-year': 'Supply Revived 5y+',
+    'short-term-supply': 'Supply Short Term (STS)',
+    'short-term-supply-in-loss': 'Supply Short Term (STS) in Loss',
+    'short-term-supply-in-profit': 'Supply Short Term (STS) in Profit',
+    'short-term-supply-position-change': 'Supply Short Term (STS) Position Change',
+    'terminal-price': 'Terminal Price',
+    'thermocap': 'Thermocap',
+    'top-cap': 'Top Cap',
+    'top-price': 'Top Price',
+    'total-transactions': 'Total Transactions (Cumulative)',
+    'transaction-count-per-day': 'Transaction Count (Daily)',
+    'transaction-rate': 'Transaction Rate',
+    'spent-volume-10y': 'Transfer Volume 10y+',
+    'spent-volume-1d-1w': 'Transfer Volume 1d–1w',
+    'spent-volume-1h-24h': 'Transfer Volume 1h–1d',
+    'spent-volume-1m-3m': 'Transfer Volume 1m–3m',
+    'spent-volume-1w-1m': 'Transfer Volume 1w–1m',
+    'spent-volume-1y-2y': 'Transfer Volume 1y–2y',
+    'spent-volume-2y-3y': 'Transfer Volume 2y–3y',
+    'spent-volume-3m-6m': 'Transfer Volume 3m–6m',
+    'spent-volume-3y-5y': 'Transfer Volume 3y–5y',
+    'spent-volume-5y-7y': 'Transfer Volume 5y–7y',
+    'spent-volume-6m-12m': 'Transfer Volume 6m–12m',
+    'spent-volume-7y-10y': 'Transfer Volume 7y–10y',
+    'spent-volume-1h': 'Transfer Volume <1h',
+    'percent-volume-in-loss': 'Transfer Volume in Loss (%)',
+    'transfer-volume-avg': 'Transfer Volume Mean (per Transaction)',
+    'transfer-volume-total': 'Transfer Volume Total (Daily)',
+    'utxo-total': 'UTXO Count',
+    'utxo-value-created-avg': 'UTXO Value Created Mean (per Output)',
+    'utxo-value-created-total': 'UTXO Value Created Total (Daily)',
+    'utxo-value-spent-avg': 'UTXO Value Spent Mean (per Output)',
+    'utxo-created': 'UTXOs Created',
+    'utxos-in-loss': 'UTXOs in Loss',
+    'percent-utxos-in-loss': 'UTXOs in Loss (%)',
+    'utxos-in-profit': 'UTXOs in Profit',
+    'percent-utxos-in-profit': 'UTXOs in Profit (%)',
+    'utxo-spent': 'UTXOs Spent',
+}
 
-# These source charts are already represented by a native Fintech chart.  The
-# local implementation remains authoritative and the imported duplicate is
-# omitted from the union.
+REFERENCE_CHART_TITLES = tuple(REFERENCE_CHARTS.values())
+
+# These formerly reviewed series are no longer in the upstream public bundle.
+# Do not keep their old generated data active in the manifest or signals.
+RETIRED_CHARTS = {
+    'coin-vintages': 'Coin Vintages',
+    'adjusted-mvrv': 'MVRV Adjusted Ratio',
+    'transfer-volume-in-loss': 'Transfer Volume in Loss',
+    'transfer-volume-in-profit': 'Transfer Volume in Profit',
+    'percent-volume-in-profit': 'Transfer Volume in Profit (%)',
+    'utxo-value-spent-total': 'UTXO Value Spent Total',
+}
+
+DEFERRED_CHARTS = {
+    "cost-basis-distribution": "Price-bucket histograms and replay frames need a distribution renderer.",
+    "overhead-supply-wall": "Derived replay view has no standalone time series in the public bundle.",
+    "profit-ladder": "Derived replay view has no standalone time series in the public bundle.",
+}
+
+# Native implementations remain authoritative for these equivalent charts.
 REFERENCE_EQUIVALENTS = {
-    "Pi Cycle Top Indicator": "pi-cycle-top",
-    "PlanB: Moving Averages": "200-dma-200-wma",
+    "pi-cycle": "pi-cycle-top",
+    "pb-200wma": "200-dma-200-wma",
 }
 
 PALETTE = (
@@ -313,7 +335,11 @@ def _line_trace(chart: dict, source_series: dict, index: int) -> dict | None:
         "source_key": source_series.get("series_key"),
         "x": dates,
         "y": values,
-        "hovertemplate": "%{x}<br>%{y:,.4g}<extra>%{fullData.name}</extra>",
+        "hovertemplate": (
+            f"%{{x}}<br>{source_series.get('value_prefix') or ''}"
+            f"%{{y:,.4g}}{source_series.get('value_suffix') or ''}"
+            "<extra>%{fullData.name}</extra>"
+        ),
     }
     if series_type == "column":
         marker_color = color
@@ -454,6 +480,11 @@ def _build_payload(chart: dict, price_chart: dict, built_at: str | None) -> dict
             for index, source_series in enumerate(chart.get("series") or [])
             if (trace := _line_trace(chart, source_series, index)) is not None
         ]
+    if not traces:
+        raise RuntimeError(f"BlockHorizon chart has no renderable public series: {chart.get('slug')}")
+    if not style_config.get("ohlcChart") and not style_config.get("heatmap"):
+        if len(traces) != len(chart.get("series") or []):
+            raise RuntimeError(f"BlockHorizon chart has an invalid packed series: {chart.get('slug')}")
 
     dollar_metric = bool(chart.get("series")) and all(
         (series.get("value_prefix") or "") == "$" for series in chart.get("series") or []
@@ -520,6 +551,31 @@ def _build_payload(chart: dict, price_chart: dict, built_at: str | None) -> dict
         if len(suffixes) == 1:
             yaxis["ticksuffix"] = next(iter(suffixes))
 
+    # The new cohort-loss view has two panes and two different units. Mixing
+    # the percentage-point gap into the 0-100% pane changes its meaning.
+    if chart.get("slug") == "old-vs-new-loss":
+        yaxis["domain"] = [0.40, 1]
+        layout["yaxis2"].update({"domain": [0.40, 1], "title": "Supply in loss", "range": [0, 100], "ticksuffix": "%"})
+        layout["xaxis"] = {**layout.get("xaxis", {}), "anchor": "y3"}
+        layout["yaxis3"] = {
+            "title": "Old minus new",
+            "domain": [0, 0.28],
+            "anchor": "x",
+            "ticksuffix": " pp",
+            "zeroline": True,
+            "automargin": True,
+        }
+        for trace in traces:
+            if trace.get("source_key") == "lts_minus_sts_pp":
+                trace["axis"] = "y3"
+
+    # Keep bounded percentage metrics on their source's reviewed 0-100 axis.
+    if chart.get("slug") in {
+        "percent-supply-in-loss", "percent-utxos-in-loss",
+        "percent-volume-in-loss", "percent-addresses-in-loss",
+    }:
+        layout["yaxis2"]["range"] = [0, 100]
+
     latest_date = None
     for trace in traces:
         if trace.get("x"):
@@ -544,7 +600,7 @@ def _build_payload(chart: dict, price_chart: dict, built_at: str | None) -> dict
         ),
         "updated_at": source_updated,
         "source_label": "BlockHorizon public chart bundle",
-        "source_url": SOURCE_DASHBOARD_URL,
+        "source_url": f"https://charts.blockhorizon.io/charts/{chart['slug']}",
         "attributions": [
             {
                 "kind": "Data",
@@ -577,28 +633,9 @@ def _section_id(title: str) -> str:
     return "onchain"
 
 
-def _cached_chart_payload(output_dir: Path, title: str) -> dict | None:
-    """Return the last generated payload for a reference chart, if available.
-
-    The upstream public bundle is curated independently and can temporarily
-    remove a chart.  Keeping a known-good local payload is preferable to
-    failing the entire dashboard (or silently dropping a chart) in that case.
-    """
-    for path in output_dir.glob("*.json"):
-        try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            continue
-        if payload.get("title") == title and payload.get("series"):
-            return payload
-    return None
-
-
-def _manifest_entry(chart_id: str, title: str, order: int, section_name, *, cached: bool = False) -> dict:
+def _manifest_entry(chart_id: str, title: str, order: int, section_name) -> dict:
     section_id = _section_id(title)
     description = "Historical on-chain series, refreshed during the Fintech site build."
-    if cached:
-        description = "Historical on-chain series; showing the last valid imported dataset while its source feed is unavailable."
     return {
         "id": chart_id,
         "title": title,
@@ -611,7 +648,7 @@ def _manifest_entry(chart_id: str, title: str, order: int, section_name, *, cach
         "order": 10_000 + order,
         "image_exists": False,
         "source_label": "BlockHorizon",
-        "source_url": SOURCE_DASHBOARD_URL,
+        "source_url": f"https://charts.blockhorizon.io/charts/{chart_id}",
         "attributions": [
             {
                 "kind": "Data",
@@ -625,38 +662,40 @@ def _manifest_entry(chart_id: str, title: str, order: int, section_name, *, cach
 def import_reference_charts(output_dir: Path, section_name, *, timeout: int = 90) -> list[dict]:
     """Download, convert, and write the reviewed public reference chart set."""
     bundle, built_at = _fetch_bundle(timeout=timeout)
-    charts_by_name = {str(chart.get("name") or "").strip(): chart for chart in bundle}
-    missing = [title for title in REFERENCE_CHART_TITLES if title not in charts_by_name]
-    if "Price" not in charts_by_name:
-        raise RuntimeError("BlockHorizon bundle is missing its required Price chart")
+    charts_by_slug = {}
+    for chart in bundle:
+        slug = chart.get("slug")
+        if not slug or slug in charts_by_slug:
+            raise RuntimeError(f"BlockHorizon bundle contains an invalid or duplicate chart slug: {slug}")
+        charts_by_slug[slug] = chart
+    missing = sorted((set(REFERENCE_CHARTS) | {"price"}) - set(charts_by_slug))
     if missing:
-        print(
-            f"Warning: BlockHorizon bundle is missing {len(missing)} reviewed charts; "
-            "using cached payloads where available. "
-            f"Missing: {', '.join(missing[:5])}"
+        raise RuntimeError(
+            "BlockHorizon bundle is missing reviewed charts; publishing stopped "
+            f"until the upstream catalog is reviewed: {', '.join(missing)}"
         )
-    price_chart = charts_by_name["Price"]
-    output_dir.mkdir(parents=True, exist_ok=True)
+    price_chart = charts_by_slug["price"]
 
+    # Validate every payload before changing any output. A partial import or a
+    # stale cache must never make upstream schema/catalog drift look successful.
+    payloads = []
     manifest_entries = []
-    for order, title in enumerate(REFERENCE_CHART_TITLES):
-        if title in REFERENCE_EQUIVALENTS:
+    for order, slug in enumerate(REFERENCE_CHARTS):
+        if slug in REFERENCE_EQUIVALENTS:
             continue
-        if title not in charts_by_name:
-            cached_payload = _cached_chart_payload(output_dir, title)
-            if cached_payload:
-                manifest_entries.append(
-                    _manifest_entry(cached_payload["id"], title, order, section_name, cached=True)
-                )
-            else:
-                print(f"Warning: no cached payload for unavailable reference chart: {title}")
-            continue
-        source_chart = charts_by_name[title]
+        source_chart = charts_by_slug[slug]
+        if not str(source_chart.get("name") or "").strip():
+            raise RuntimeError(f"BlockHorizon chart is missing its display title: {slug}")
         payload = _build_payload(source_chart, price_chart, built_at)
         if not payload["series"]:
-            raise RuntimeError(f"BlockHorizon chart has no renderable public series: {title}")
-        chart_id = payload["id"]
-        path = output_dir / f"{chart_id}.json"
+            raise RuntimeError(f"BlockHorizon chart has no renderable public series: {slug}")
+        payloads.append(payload)
+        manifest_entries.append(_manifest_entry(slug, payload["title"], order, section_name))
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    for payload in payloads:
+        path = output_dir / f"{payload['id']}.json"
         path.write_text(json.dumps(payload, separators=(",", ":")) + "\n", encoding="utf-8")
-        manifest_entries.append(_manifest_entry(chart_id, title, order, section_name))
+    for slug in RETIRED_CHARTS:
+        (output_dir / f"{slug}.json").unlink(missing_ok=True)
     return manifest_entries
