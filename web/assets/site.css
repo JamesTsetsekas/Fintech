@@ -706,6 +706,7 @@ button { color: inherit; }
 .dashboard-card-menu:hover { color: var(--ink); }
 
 .dashboard-mini-plot {
+  position: relative;
   width: 100%;
   height: 230px;
 }
