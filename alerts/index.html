@@ -41,12 +41,13 @@
         <div>
           <p class="kicker">Saved in this browser</p>
           <h1>Custom alerts</h1>
-          <p>Create rules against normalized cycle scores. They are re-evaluated whenever this dashboard loads fresh repo data.</p>
+          <p>Create rules against normalized cycle scores. Rules are evaluated when this page loads or refreshes, and when you change rules; there is no background monitoring. Crossings compare with the prior saved observation, so the first check establishes a baseline. One-shot rules stay completed until you toggle them on to re-arm.</p>
         </div>
         <button class="primary-button" id="new-alert-button" type="button">＋ New alert</button>
       </div>
 
       <section class="alert-overview" id="alert-overview"></section>
+      <p id="alert-save-status" role="alert" aria-live="assertive"></p>
 
       <section class="alert-layout">
         <div class="module alert-list-module">

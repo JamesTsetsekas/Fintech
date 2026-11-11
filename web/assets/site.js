@@ -3,6 +3,7 @@ const appState = {
   payloadCache: new Map(),
   signals: [],
   activeChartId: null,
+  chartRequest: null,
   currentChart: null,
   currentPayload: null,
   chartOptions: {
@@ -189,7 +190,7 @@ async function renderMetricRibbon(referenceSignals = appState.signals) {
   const ma200 = last(numericSeries(trend.series[1]));
   const distance = ((latestPrice / ma200) - 1) * 100;
   const supplySignal = referenceSignals.find((signal) => signal.id === "supply-profit");
-  const supplyValue = Number(supplySignal?.rawValue);
+  const supplyValue = toFiniteNumber(supplySignal?.rawValue);
   const supplyChange30 = rawSignalDelta(supplySignal, 30);
   const supplyHistory = recentSignalValues(supplySignal, 45);
   const cycleIndex = average(referenceSignals.map((signal) => signal.score));
@@ -212,10 +213,10 @@ async function renderMetricRibbon(referenceSignals = appState.signals) {
     <article class="terminal-metric has-sparkline">
       <span class="terminal-metric-label">Supply in profit</span>
       <div class="terminal-metric-row">
-        <strong class="terminal-metric-value">${Number.isFinite(supplyValue) ? `${supplyValue.toFixed(1)}%` : signed(distance)}</strong>
-        <span class="terminal-metric-change ${supplyChange30 < 0 ? "negative" : ""}">${Number.isFinite(supplyChange30) ? `${supplyChange30 < 0 ? "↘" : "↗"} ${supplyChange30 >= 0 ? "+" : ""}${supplyChange30.toFixed(1)}pp 30d` : (distance >= 0 ? "above trend" : "below trend")}</span>
+        <strong class="terminal-metric-value">${Number.isFinite(supplyValue) ? `${supplyValue.toFixed(1)}%` : "Unavailable"}</strong>
+        <span class="terminal-metric-change ${supplyChange30 < 0 ? "negative" : ""}">${Number.isFinite(supplyChange30) ? `${supplyChange30 < 0 ? "↘" : "↗"} ${supplyChange30 >= 0 ? "+" : ""}${supplyChange30.toFixed(1)}pp 30d` : ""}</span>
       </div>
-      ${sparklineSvg(supplyHistory.length ? supplyHistory : recentRatios)}
+      ${Number.isFinite(supplyValue) ? sparklineSvg(supplyHistory) : ""}
     </article>
     <article class="terminal-metric has-sparkline wide-only-metric">
       <span class="terminal-metric-label">Price vs 200D</span>
@@ -318,6 +319,8 @@ function bindChartToolbar() {
 async function selectTerminalChart(chartId, options = {}) {
   const chart = chartById(chartId);
   if (!chart) return;
+  const request = {};
+  appState.chartRequest = request;
   appState.activeChartId = chart.id;
   appState.currentChart = chart;
   appState.currentPayload = null;
@@ -360,7 +363,7 @@ async function selectTerminalChart(chartId, options = {}) {
 
   try {
     const payload = await getPayload(chart.id);
-    if (appState.activeChartId !== chart.id) return;
+    if (appState.chartRequest !== request) return;
     appState.currentPayload = payload;
     appState.chartOptions.halvings = Boolean(
       payload.show_halvings_default || ["pi-cycle-top", "200-dma-200-wma"].includes(payload.id),
@@ -371,10 +374,12 @@ async function selectTerminalChart(chartId, options = {}) {
     updateChartControls(payload);
     target.classList.remove("loading-block");
     await renderTerminalPlot();
+    if (appState.chartRequest !== request) return;
     renderChartDetails(payload);
     renderDataSheet(payload);
     updateScaleButton();
   } catch (error) {
+    if (appState.chartRequest !== request) return;
     target.classList.remove("loading-block");
     if (chart.image_path) renderImageChart(chart, target);
     else target.innerHTML = `<p class="error-state">${escapeHtml(error.message)}</p>`;
@@ -1184,7 +1189,7 @@ function saveAlertFromForm(event) {
     enabled: true,
     createdAt: new Date().toISOString(),
   });
-  writeAlertRules(rules);
+  if (!writeAlertRules(rules)) return;
   resetAlertForm();
   renderAlertRules();
 }
@@ -1211,8 +1216,16 @@ function renderAlertRules() {
   const rules = readAlertRules();
   const list = document.querySelector("#alert-list");
   const evaluated = rules.map((rule) => ({ ...rule, triggered: evaluateAlert(rule) }));
-  const active = rules.filter((rule) => rule.enabled).length;
-  const triggered = evaluated.filter((rule) => rule.enabled && rule.triggered).length;
+  const next = evaluated.map(({ triggered, ...rule }) => {
+    const signal = appState.signals.find((item) => item.id === rule.signalId);
+    if (!rule.enabled || !signal || !Number.isFinite(signal.score)) return rule;
+    return { ...rule, lastScore: signal.score, ...(triggered && rule.cadence === "once" ? { triggeredAt: new Date().toISOString(), enabled: false } : {}) };
+  });
+  if (JSON.stringify(next) !== JSON.stringify(rules) && writeAlertRules(next)) {
+    evaluated.forEach((rule, index) => Object.assign(rule, next[index]));
+  }
+  const active = evaluated.filter((rule) => rule.enabled).length;
+  const triggered = evaluated.filter((rule) => rule.triggered).length;
   document.querySelector("#alert-count").textContent = `${rules.length} alert${rules.length === 1 ? "" : "s"}`;
   document.querySelector("#alert-overview").innerHTML = `
     <article class="alert-overview-item"><div><small>Active rules</small><strong>${active}</strong></div><span class="overview-icon" aria-hidden="true">♧</span></article>
@@ -1230,7 +1243,7 @@ function renderAlertRules() {
     const title = rule.label || signal?.label || "Unknown signal";
     return `
       <article class="alert-rule ${rule.triggered && rule.enabled ? "triggered" : ""}">
-        <span class="alert-rule-status" title="${rule.triggered ? "Condition met" : "Watching"}"></span>
+        <span class="alert-rule-status" title="${rule.triggeredAt ? "Completed" : rule.triggered ? "Condition met" : rule.enabled ? "Watching" : "Paused"}"></span>
         <div class="alert-rule-copy"><strong>${escapeHtml(title)}</strong><span>${escapeHtml(alertRuleText(rule, signal))}</span></div>
         <div class="alert-rule-actions">
           <label class="switch-control" title="Enable or pause alert"><input type="checkbox" data-alert-toggle="${escapeHtml(rule.id)}" ${rule.enabled ? "checked" : ""}><span class="switch-track"></span></label>
@@ -1242,35 +1255,44 @@ function renderAlertRules() {
 
   list.querySelectorAll("[data-alert-toggle]").forEach((control) => {
     control.addEventListener("change", () => {
-      const next = readAlertRules().map((rule) => rule.id === control.dataset.alertToggle ? { ...rule, enabled: control.checked } : rule);
-      writeAlertRules(next);
+      const next = readAlertRules().map((rule) => {
+        if (rule.id !== control.dataset.alertToggle) return rule;
+        const updated = { ...rule, enabled: control.checked };
+        if (control.checked) {
+          delete updated.triggeredAt;
+          delete updated.lastScore;
+        }
+        return updated;
+      });
+      if (!writeAlertRules(next)) { control.checked = !control.checked; return; }
       renderAlertRules();
     });
   });
   list.querySelectorAll("[data-alert-delete]").forEach((button) => {
     button.addEventListener("click", () => {
-      writeAlertRules(readAlertRules().filter((rule) => rule.id !== button.dataset.alertDelete));
+      if (!writeAlertRules(readAlertRules().filter((rule) => rule.id !== button.dataset.alertDelete))) return;
       renderAlertRules();
     });
   });
 }
 
 function evaluateAlert(rule) {
-  if (!rule.enabled) return false;
+  if (!rule.enabled || (rule.cadence === "once" && rule.triggeredAt)) return false;
   const signal = appState.signals.find((item) => item.id === rule.signalId);
   if (!signal) return false;
   const current = signal.score;
-  const previous = scoreAtDaysAgo(signal, 1);
+  if (!Number.isFinite(current)) return false;
+  const previous = rule.lastScore;
   if (rule.operator === "above") return current > rule.threshold;
   if (rule.operator === "below") return current < rule.threshold;
-  if (rule.operator === "crosses-above") return previous <= rule.threshold && current > rule.threshold;
-  if (rule.operator === "crosses-below") return previous >= rule.threshold && current < rule.threshold;
+  if (rule.operator === "crosses-above") return Number.isFinite(previous) && previous <= rule.threshold && current > rule.threshold;
+  if (rule.operator === "crosses-below") return Number.isFinite(previous) && previous >= rule.threshold && current < rule.threshold;
   return false;
 }
 
 function alertRuleText(rule, signal) {
   const current = signal ? Math.round(signal.score) : "—";
-  return `Score ${String(rule.operator).replaceAll("-", " ")} ${rule.threshold} · now ${current} · ${rule.cadence === "once" ? "once" : "each refresh"}`;
+  return `Score ${String(rule.operator).replaceAll("-", " ")} ${rule.threshold} · now ${current} · ${rule.triggeredAt ? "Completed — toggle on to re-arm" : rule.cadence === "once" ? "once" : "each refresh"}`;
 }
 
 function readAlertRules() {
@@ -1283,7 +1305,15 @@ function readAlertRules() {
 }
 
 function writeAlertRules(rules) {
-  localStorage.setItem("fintech-alerts-v1", JSON.stringify(rules));
+  const status = document.querySelector("#alert-save-status");
+  try {
+    localStorage.setItem("fintech-alerts-v1", JSON.stringify(rules));
+    if (status) status.textContent = "";
+    return true;
+  } catch {
+    if (status) status.textContent = "Alert changes could not be saved in this browser. Completion and observations are not persisted; retry when browser storage is available.";
+    return false;
+  }
 }
 
 function signalDelta(signal, days) {
@@ -1313,12 +1343,12 @@ function phaseColor(key) {
 }
 
 function formatSignalRaw(signal) {
-  const value = Number(signal.rawValue);
+  const value = toFiniteNumber(signal.rawValue);
   if (!Number.isFinite(value)) return "Unavailable";
   if (["trend", "pi-cycle"].includes(signal.id)) return `${value.toFixed(2)}x`;
   if (signal.id === "bollinger") return `${(value * 100).toFixed(0)}% of band`;
   if (signal.id === "ath-age") return `${Math.round(value)} days`;
-  if (["drawdown", "volatility", "sharpe"].includes(signal.id)) return `${value.toFixed(1)}%`;
+  if (["drawdown", "volatility"].includes(signal.id)) return `${value.toFixed(1)}%`;
   if (signal.id === "fees") return `${value.toFixed(2)} sat/vB`;
   return value.toFixed(Math.abs(value) >= 100 ? 0 : 2);
 }
@@ -1410,10 +1440,12 @@ async function buildSignals() {
     try {
       const payload = await getPayload(definition.chartId);
       const sourceSeries = signalSourceSeries(payload, definition);
+      if (definition.seriesKey && !sourceSeries) return null;
       const points = definition.build
         ? definition.build(payload)
         : seriesPoints(sourceSeries, definition.invert ? -1 : 1);
       const valid = points.filter((point) => Number.isFinite(point.value));
+      if (!valid.length) return null;
       const values = valid.map((point) => point.value);
       const low = quantile(values, 0.05);
       const high = quantile(values, 0.95);
@@ -1423,11 +1455,11 @@ async function buildSignals() {
         ...definition,
         payload,
         points: scored,
-        score: current?.score || 0,
+        score: current.score,
         rawValue: definition.invert ? Math.abs(current?.value) : current?.value,
         unitName: sourceSeries?.name || definition.label,
         date: current?.date,
-        phase: phaseFor(current?.score || 0),
+        phase: phaseFor(current.score),
       };
     } catch (error) {
       console.warn(`Signal unavailable: ${definition.id}`, error);
@@ -1439,8 +1471,7 @@ async function buildSignals() {
 
 function signalSourceSeries(payload, definition) {
   if (definition.seriesKey) {
-    const matching = payload.series.find((series) => series.source_key === definition.seriesKey);
-    if (matching) return matching;
+    return payload.series.find((series) => series.source_key === definition.seriesKey);
   }
   return payload.series[definition.series || 0];
 }
@@ -2526,7 +2557,10 @@ async function getPayload(chartId) {
   if (appState.payloadCache.has(chartId)) return appState.payloadCache.get(chartId);
   const chart = chartById(chartId);
   if (!chart?.data_path) throw new Error(`No interactive data for ${chartId}`);
-  const promise = fetchJson(assetPath(chart.data_path)).then(normalizePayload);
+  const promise = fetchJson(assetPath(chart.data_path)).then(normalizePayload).catch((error) => {
+    if (appState.payloadCache.get(chartId) === promise) appState.payloadCache.delete(chartId);
+    throw error;
+  });
   appState.payloadCache.set(chartId, promise);
   return promise;
 }
@@ -2565,7 +2599,10 @@ function numericSeries(series) {
 }
 
 function toFiniteNumber(value) {
-  return value === null || value === undefined || value === "" ? NaN : Number(value);
+  if (typeof value !== "number" && typeof value !== "string") return NaN;
+  if (typeof value === "string" && !value.trim()) return NaN;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : NaN;
 }
 
 function quantile(values, q) {
