@@ -92,17 +92,19 @@ test("candlestick sheets expose open, high, low, and close on their real dates",
   assert.deepEqual(rows(markup), [["Oct 19, 26", "$80.00", "$100", "—", "$90.00"]]);
 });
 
-test("sheet limits the sorted union to the latest 250 coordinates", () => {
-  const coordinates = Array.from({ length: 300 }, (_, index) => index + 1);
+test("sheet shows the latest 1,000 coordinates of the sorted union and says so", () => {
+  const coordinates = Array.from({ length: 1200 }, (_, index) => index + 1);
   const markup = renderSheet({
     x_value_type: "number",
     series: [
-      { name: "Earlier", x: coordinates.slice(0, 150), y: coordinates.slice(0, 150) },
-      { name: "Later", x: coordinates.slice(150), y: coordinates.slice(150) },
+      { name: "Earlier", x: coordinates.slice(0, 600), y: coordinates.slice(0, 600) },
+      { name: "Later", x: coordinates.slice(600), y: coordinates.slice(600) },
     ],
   });
   const actual = rows(markup);
-  assert.equal(actual.length, 250);
-  assert.deepEqual(actual[0], ["300", "—", "300"]);
-  assert.deepEqual(actual.at(-1), ["51", "51", "—"]);
+  assert.equal(actual.length, 1000);
+  assert.deepEqual(actual[0], ["1200", "—", "1.2K"]);
+  assert.deepEqual(actual.at(-1), ["201", "201", "—"]);
+  assert.match(markup, /latest 1,000 of 1,200 rows in full history/);
+  assert.match(markup, /data-sheet-action="csv"/);
 });

@@ -1868,3 +1868,177 @@ button { color: inherit; }
   .toolbar-group { flex-wrap: wrap; min-width: 0; }
   .toolbar-group-end { justify-content: flex-start; }
 }
+
+/* Chart terminal: status, filters, readout, notice, and related charts. */
+.chart-canvas {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.chart-canvas > .terminal-plot { flex: 0 0 auto; height: calc(100vh - 162px); }
+.chart-canvas > .data-sheet { flex: 1 1 0; }
+
+.chart-readout-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 30px;
+  padding: 4px 14px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.chart-readout {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 12px;
+  min-width: 0;
+  margin: 0;
+  color: var(--muted);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.68rem;
+  line-height: 1.4;
+}
+
+.chart-readout time { color: var(--ink); font-weight: 600; }
+.chart-readout-item { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.chart-readout-item strong { color: var(--ink); font-weight: 600; }
+.chart-readout-item i { display: inline-block; width: 7px; height: 7px; border-radius: 50%; }
+
+.chart-touch-mode {
+  display: inline-flex;
+  flex: 0 0 auto;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-raised);
+}
+
+.chart-touch-mode[hidden] { display: none; }
+
+.chart-touch-mode button {
+  min-height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.chart-touch-mode button[aria-pressed="true"] { background: var(--surface-muted); color: var(--ink); }
+.terminal-plot.touch-inspect .nsewdrag { touch-action: pan-y; }
+
+.chart-notice {
+  position: absolute;
+  top: 44px;
+  left: 50%;
+  z-index: 30;
+  width: min(520px, calc(100% - 32px));
+  margin: 0;
+  padding: 9px 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line));
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--ink);
+  box-shadow: var(--shadow-sm);
+  font-size: 0.78rem;
+  line-height: 1.4;
+  transform: translateX(-50%);
+}
+
+.chart-notice[hidden] { display: none; }
+
+.section-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 2px 4px 10px;
+}
+
+.section-filters:empty { display: none; }
+
+.section-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-raised);
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.section-chip span { color: var(--faint); font-family: "IBM Plex Mono", monospace; font-size: 0.62rem; }
+.section-chip:hover,
+.section-chip.active { border-color: var(--accent); background: var(--accent-soft); color: var(--ink); }
+.section-chip.active span { color: var(--accent-dark); }
+.section-chip:disabled { cursor: default; opacity: 0.45; }
+
+.related-list { display: grid; gap: 2px; }
+
+.related-chart-link {
+  display: block;
+  padding: 6px 8px;
+  overflow: hidden;
+  border-radius: 6px;
+  color: var(--ink);
+  font-size: 0.75rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.related-chart-link:hover { background: var(--surface-muted); }
+
+.related-more {
+  margin-top: 4px;
+  padding: 6px 8px;
+  border: 0;
+  background: transparent;
+  color: var(--accent-dark);
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.data-sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.data-sheet-summary { margin: 0; color: var(--muted); font-size: 0.75rem; }
+
+#performance-series-label {
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 820px) {
+  .chart-canvas { overflow: clip; }
+  .chart-canvas > .terminal-plot { height: calc(100vh - 132px); }
+  .chart-readout-bar {
+    position: sticky;
+    top: 48px;
+    z-index: 20;
+    padding-inline: 12px;
+  }
+}
+
+@media (max-width: 640px) {
+  .chart-readout-bar { align-items: flex-start; }
+}

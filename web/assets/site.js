@@ -15,7 +15,12 @@ const appState = {
     signalView: false,
     rangePayload: null,
     rangeTransition: null,
+    range: "all",
+    customRange: null,
+    touchMode: "inspect",
   },
+  sectionFilter: "",
+  lastSearchResultCount: 0,
 };
 
 const initialParams = new URLSearchParams(window.location.search);
@@ -131,6 +136,50 @@ function bindKeyboardSearch() {
   search.addEventListener("input", () => {
     setLibraryOpen(true);
     renderSidebar();
+    announceStatus(librarySearchStatus(), 450);
+  });
+  search.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      const first = search.value.trim() ? document.querySelector("#all-chart-list .sidebar-chart-link[data-chart-id]") : null;
+      if (!first) return;
+      event.preventDefault();
+      first.click();
+    } else if (event.key === "ArrowDown") {
+      const links = libraryResultLinks();
+      if (!links.length) return;
+      event.preventDefault();
+      setLibraryOpen(true);
+      links[0].focus();
+    } else if (event.key === "Escape" && search.value) {
+      // Clear first; a second Escape closes the mobile library as before.
+      event.preventDefault();
+      event.stopPropagation();
+      search.value = "";
+      renderSidebar();
+      announceStatus(librarySearchStatus());
+    }
+  });
+  const results = document.querySelector("#library-results");
+  results?.addEventListener("keydown", (event) => {
+    if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+    const links = libraryResultLinks();
+    const index = links.indexOf(document.activeElement);
+    if (index < 0) return;
+    event.preventDefault();
+    if (event.key === "ArrowUp" && index === 0) search.focus();
+    else if (event.key === "Home") links[0].focus();
+    else if (event.key === "End") links.at(-1).focus();
+    else links[clamp(index + (event.key === "ArrowDown" ? 1 : -1), 0, links.length - 1)].focus();
+  });
+  document.querySelector("#section-filters")?.addEventListener("click", (event) => {
+    const chip = event.target.closest?.("[data-section]");
+    if (!chip || chip.disabled) return;
+    const key = chip.dataset.section;
+    appState.sectionFilter = key && key !== appState.sectionFilter ? key : "";
+    renderSidebar();
+    document.querySelector(`#section-filters [data-section="${CSS.escape(appState.sectionFilter)}"]`)?.focus();
+    if (pageConfig.view === "charts") syncTerminalUrl();
+    announceStatus(librarySearchStatus());
   });
   document.querySelector(".library-sidebar")?.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && window.matchMedia("(max-width: 820px)").matches) {
@@ -158,12 +207,148 @@ function readPinnedCharts() {
   }
 }
 
-function renderSidebar(query = document.querySelector("#sidebar-search")?.value.trim().toLowerCase() || "") {
+// A section filter should not hide that the search matched elsewhere.
+function elsewhereMatchText(total) {
+  const section = terminalSections().find((item) => item.key === appState.sectionFilter);
+  if (!section || !total) return "";
+  return `No ${escapeHtml(section.name)} charts match. ${total} ${total === 1 ? "match is" : "matches are"} in other sections; choose All to see ${total === 1 ? "it" : "them"}.`;
+}
+
+function libraryResultLinks() {
+  return [...(document.querySelectorAll("#library-results .sidebar-chart-link[data-chart-id]") || [])];
+}
+
+function librarySearchStatus() {
+  const query = document.querySelector("#sidebar-search")?.value.trim() || "";
+  const section = terminalSections().find((item) => item.key === appState.sectionFilter);
+  const count = Number(document.querySelector("#all-count")?.textContent) || 0;
+  if (!query && !section) return `Showing all ${count} charts`;
+  const prefix = section ? `${section.name} ` : "";
+  const suffix = query ? ` “${query}”` : "";
+  if (!count) {
+    const elsewhere = section ? appState.lastSearchResultCount || 0 : 0;
+    return `No ${prefix}charts match${suffix}${elsewhere ? `; ${elsewhere} in other sections` : ""}`;
+  }
+  return count === 1 ? `1 ${prefix}chart matches${suffix}` : `${count} ${prefix}charts match${suffix}`;
+}
+
+// Small vocabulary bridge for common on-chain abbreviations. Each query word
+// must match (AND), but a word may match any of its listed alternatives.
+const SEARCH_ALIASES = {
+  sth: ["short term", "sts"],
+  sts: ["short term", "sth"],
+  lth: ["long term", "lts"],
+  lts: ["long term", "lth"],
+  mvrv: ["market value to realized value"],
+  nupl: ["net unrealized profit loss"],
+  zscore: ["z score"],
+  realized: ["realised"],
+  realised: ["realized"],
+  s2f: ["stock to flow"],
+  ath: ["all time high"],
+  ma: ["moving average"],
+  utxo: ["utxos"],
+};
+
+function normalizeSearchText(value) {
+  return String(value ?? "")
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+const boilerplateDescriptionCache = new WeakMap();
+
+function boilerplateDescriptions(charts) {
+  if (!Array.isArray(charts)) return new Set();
+  if (boilerplateDescriptionCache.has(charts)) return boilerplateDescriptionCache.get(charts);
+  const counts = new Map();
+  charts.forEach((chart) => {
+    const key = normalizeSearchText(chart?.description);
+    if (key) counts.set(key, (counts.get(key) || 0) + 1);
+  });
+  // A description shared by several charts describes the import pipeline,
+  // not the chart, so it should never make every imported chart match.
+  const boilerplate = new Set([...counts].filter(([, count]) => count >= 3).map(([key]) => key));
+  boilerplateDescriptionCache.set(charts, boilerplate);
+  return boilerplate;
+}
+
+function searchCharts(charts, query) {
+  const list = Array.isArray(charts) ? charts : [];
+  const terms = normalizeSearchText(query).split(" ").filter(Boolean)
+    .map((term) => [...new Set([term, ...(Object.hasOwn(SEARCH_ALIASES, term) ? SEARCH_ALIASES[term] : [])])]);
+  const byTitle = (a, b) => String(a.title).localeCompare(String(b.title));
+  if (!terms.length) return [...list].sort(byTitle);
+  const boilerplate = boilerplateDescriptions(list);
+  const phrase = normalizeSearchText(query);
+  return list.map((chart) => {
+    const description = normalizeSearchText(chart.description);
+    const fields = [
+      [` ${normalizeSearchText(chart.title)}`, 10],
+      [` ${normalizeSearchText(chart.section)} ${normalizeSearchText(chart.section_id)}`, 4],
+      [` ${normalizeSearchText(Array.isArray(chart.tags) ? chart.tags.join(" ") : chart.tags)}`, 4],
+      [boilerplate.has(description) ? "" : ` ${description}`, 1],
+    ];
+    let score = 0;
+    let titleTerms = 0;
+    for (const alternatives of terms) {
+      const weight = Math.max(0, ...fields.map(([text, value]) => (
+        alternatives.some((alternative) => text.includes(` ${alternative}`)) ? value : 0
+      )));
+      if (!weight) return null;
+      score += weight;
+      if (weight === 10) titleTerms += 1;
+    }
+    const title = normalizeSearchText(chart.title);
+    if (title.startsWith(phrase)) score += 6;
+    else if (` ${title}`.includes(` ${phrase}`)) score += 3;
+    return { chart, score, allInTitle: titleTerms === terms.length };
+  }).filter(Boolean)
+    .sort((a, b) => Number(b.allInTitle) - Number(a.allInTitle) || b.score - a.score || byTitle(a.chart, b.chart))
+    .map((result) => result.chart);
+}
+
+function chartSectionKey(chart) {
+  return String(chart?.section_id || normalizeSearchText(chart?.section).replaceAll(" ", "-") || "");
+}
+
+function terminalSections() {
+  const charts = appState.manifest?.charts || [];
+  const listed = Array.isArray(appState.manifest?.sections) ? appState.manifest.sections : [];
+  const sections = listed.filter((section) => section?.id).map((section) => ({ key: String(section.id), name: String(section.name || section.id) }));
+  charts.forEach((chart) => {
+    const key = chartSectionKey(chart);
+    if (key && !sections.some((section) => section.key === key)) sections.push({ key, name: String(chart.section || key) });
+  });
+  return sections;
+}
+
+function renderSectionFilters(results) {
+  const node = document.querySelector("#section-filters");
+  if (!node) return;
+  const counts = new Map();
+  results.forEach((chart) => counts.set(chartSectionKey(chart), (counts.get(chartSectionKey(chart)) || 0) + 1));
+  const chips = [{ key: "", name: "All", count: results.length }, ...terminalSections().map((section) => ({ ...section, count: counts.get(section.key) || 0 }))];
+  node.innerHTML = chips.map(({ key, name, count }) => {
+    const active = (appState.sectionFilter || "") === key;
+    return `<button type="button" class="section-chip${active ? " active" : ""}" data-section="${escapeHtml(key)}" aria-pressed="${active}"${!count && !active ? " disabled" : ""}>${escapeHtml(name)} <span aria-label="${count} charts">${count}</span></button>`;
+  }).join("");
+}
+
+function renderSidebar(query = document.querySelector("#sidebar-search")?.value || "") {
   if (!appState.manifest) return;
-  const charts = appState.manifest.charts.filter((chart) => {
-    const haystack = `${chart.title} ${chart.section} ${chart.description}`.toLowerCase();
-    return !query || haystack.includes(query);
-  }).sort((a, b) => a.title.localeCompare(b.title));
+  const results = searchCharts(appState.manifest.charts, query);
+  appState.lastSearchResultCount = results.length;
+  renderSectionFilters(results);
+  const charts = appState.sectionFilter
+    ? results.filter((chart) => chartSectionKey(chart) === appState.sectionFilter)
+    : results;
+  const ranked = Boolean(normalizeSearchText(query));
+  const allHeading = document.querySelector("#all-heading");
+  if (allHeading) allHeading.textContent = ranked ? "Best matches" : "All charts";
   const selectedPopular = POPULAR_IDS.map((id) => charts.find((chart) => chart.id === id)).filter(Boolean);
   const popularLayer = selectedPopular.length ? selectedPopular : charts.slice(0, 8);
   const allList = document.querySelector("#all-chart-list");
@@ -188,13 +373,14 @@ function renderSidebar(query = document.querySelector("#sidebar-search")?.value.
 
   let lastLetter = "";
   allList.innerHTML = charts.map((chart) => {
+    if (ranked) return sidebarChartLink(chart);
     const letter = chart.title.charAt(0).toUpperCase();
     const heading = letter !== lastLetter
       ? `<div class="sidebar-section-label" data-letter="${escapeHtml(letter)}"><span class="visually-hidden">Charts beginning with ${escapeHtml(letter)}</span></div>`
       : "";
     lastLetter = letter;
     return `${heading}${sidebarChartLink(chart)}`;
-  }).join("") || `<p class="empty-state">No charts match this search.</p>`;
+  }).join("") || `<p class="empty-state">${elsewhereMatchText(results.length) || "No charts match this search."}</p>`;
 
   document.querySelector("#popular-count").textContent = String(popularLayer.length);
   document.querySelector("#all-count").textContent = String(charts.length);
@@ -211,7 +397,7 @@ function sidebarChartLink(chart) {
   return `
     <a class="sidebar-chart-link ${chart.id === appState.activeChartId ? "active" : ""}" href="${href}" data-chart-id="${escapeHtml(chart.id)}" ${chart.id === appState.activeChartId ? 'aria-current="page"' : ""}>
       <span>${escapeHtml(chart.title)}</span>
-      ${chart.kind === "interactive" ? `<span class="pin-mark" aria-label="Interactive">◔</span>` : ""}
+      ${chart.kind === "interactive" ? `<span class="pin-mark" aria-hidden="true" title="Interactive chart">◔</span>` : ""}
     </a>
   `;
 }
@@ -352,14 +538,200 @@ async function renderChartTerminal() {
       void Promise.resolve().then(() => renderTerminalPlot()).catch((error) => console.warn("Chart theme update unavailable", error));
     }
   });
-  const requestedId = initialParams.get("chart");
-  const firstInteractive = appState.manifest.charts.find((chart) => chart.kind === "interactive" && chart.data_path);
-  const firstChart = appState.manifest.charts.find((chart) => chart.id === requestedId)
-    || appState.manifest.charts.find((chart) => chart.id === POPULAR_IDS[0])
-    || firstInteractive
-    || appState.manifest.charts[0];
-  if (firstChart) await selectTerminalChart(firstChart.id, { updateUrl: false, signalView: initialParams.get("signals") === "1" });
+  window.addEventListener?.("popstate", () => {
+    void restoreTerminalFromUrl().catch((error) => console.warn("Chart history unavailable", error));
+  });
+  updateTouchModeControls();
+  await restoreTerminalFromUrl();
+}
 
+// Resolves the chart and options named in the current URL. Used for the first
+// render and for Back/Forward, so a copied link and history entries reopen the
+// same view. Unknown ids show a visible notice instead of a silent fallback.
+async function restoreTerminalFromUrl() {
+  const state = parseTerminalUrlState(window.location?.search || "");
+  const sectionKeys = terminalSections().map((section) => section.key);
+  const nextSection = sectionKeys.includes(state.section) ? state.section : "";
+  if (nextSection !== appState.sectionFilter) {
+    appState.sectionFilter = nextSection;
+    renderSidebar();
+  }
+  const charts = appState.manifest?.charts || [];
+  const requested = state.chart ? chartById(state.chart) : null;
+  const firstInteractive = charts.find((chart) => chart.kind === "interactive" && chart.data_path);
+  const chart = requested
+    || charts.find((item) => item.id === POPULAR_IDS[0])
+    || firstInteractive
+    || charts[0];
+  if (!chart) return;
+  const notice = state.chart && !requested
+    ? `Chart “${state.chart}” isn’t in the library. Showing ${chart.title} instead.`
+    : "";
+  await selectTerminalChart(chart.id, {
+    updateUrl: false,
+    signalView: Boolean(requested && state.signals),
+    restore: requested ? state : null,
+    notice,
+  });
+}
+
+const TERMINAL_RANGES = ["1m", "3m", "6m", "ytd", "1y", "4y", "all"];
+const TERMINAL_URL_KEYS = ["chart", "signals", "range", "from", "to", "scale", "ma", "halvings", "grid", "view", "section", "market"];
+
+function parseTerminalUrlState(search) {
+  const params = new URLSearchParams(search || "");
+  const dateParam = (key) => {
+    const value = params.get(key) || "";
+    return /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(new Date(`${value}T00:00:00Z`).getTime()) ? value : null;
+  };
+  let from = dateParam("from");
+  let to = dateParam("to");
+  if (!from || !to) from = to = null;
+  else if (from > to) [from, to] = [to, from];
+  const halvings = params.get("halvings");
+  return {
+    chart: params.get("chart") || null,
+    signals: params.get("signals") === "1",
+    range: !from && TERMINAL_RANGES.includes(params.get("range")) ? params.get("range") : null,
+    from,
+    to,
+    scale: ["log", "linear"].includes(params.get("scale")) ? params.get("scale") : null,
+    movingAverage: params.get("ma") === "1",
+    halvings: halvings === "1" ? true : halvings === "0" ? false : null,
+    grid: params.get("grid") !== "0",
+    view: params.get("view") === "sheet" ? "sheet" : "chart",
+    section: params.get("section") || "",
+  };
+}
+
+function terminalOptionDefaults(payload) {
+  return {
+    halvings: Boolean(payload?.show_halvings_default || ["pi-cycle-top", "200-dma-200-wma"].includes(payload?.id)),
+    scale: payload?.default_scale || payload?.layout?.yaxis?.type || "linear",
+  };
+}
+
+function terminalUrlState() {
+  const options = appState.chartOptions;
+  const payload = appState.currentPayload;
+  const defaults = payload ? terminalOptionDefaults(payload) : null;
+  return {
+    chart: appState.activeChartId || appState.currentChart?.id || null,
+    signals: Boolean(options.signalView),
+    range: options.customRange ? null : options.range,
+    from: options.customRange?.[0] || null,
+    to: options.customRange?.[1] || null,
+    scale: defaults && payload.allow_scale_toggle && options.scale && options.scale !== defaults.scale ? options.scale : null,
+    movingAverage: Boolean(options.movingAverage),
+    halvings: defaults && payload.x_value_type === "date" && options.halvings !== defaults.halvings ? options.halvings : null,
+    grid: options.grid !== false,
+    view: options.table ? "sheet" : "chart",
+    section: appState.sectionFilter || "",
+  };
+}
+
+function terminalUrl(state, href) {
+  const url = new URL(href);
+  TERMINAL_URL_KEYS.forEach((key) => url.searchParams.delete(key));
+  if (state.chart) url.searchParams.set("chart", state.chart);
+  if (state.signals) url.searchParams.set("signals", "1");
+  if (state.from && state.to) {
+    url.searchParams.set("from", state.from);
+    url.searchParams.set("to", state.to);
+  } else if (state.range && state.range !== "all") url.searchParams.set("range", state.range);
+  if (state.scale) url.searchParams.set("scale", state.scale);
+  if (state.movingAverage) url.searchParams.set("ma", "1");
+  if (typeof state.halvings === "boolean") url.searchParams.set("halvings", state.halvings ? "1" : "0");
+  if (state.grid === false) url.searchParams.set("grid", "0");
+  if (state.view === "sheet") url.searchParams.set("view", "sheet");
+  if (state.section) url.searchParams.set("section", state.section);
+  return url;
+}
+
+function terminalHistory() {
+  // Tests and embedded previews may only expose a partial window object.
+  return typeof history !== "undefined" ? history : window.history;
+}
+
+// Chart changes push a history entry; option, range, and drag updates replace
+// the current one so Back returns to the previous chart rather than every zoom.
+function syncTerminalUrl({ push = false } = {}) {
+  const historyApi = terminalHistory();
+  const href = window.location?.href;
+  if (!historyApi?.replaceState || !href) return;
+  let url;
+  try {
+    url = terminalUrl(terminalUrlState(), href);
+  } catch {
+    return;
+  }
+  if (url.href === href) return;
+  const state = { fintechChart: appState.activeChartId || null };
+  if (push && typeof historyApi.pushState === "function") historyApi.pushState(state, "", url);
+  else historyApi.replaceState(state, "", url);
+}
+
+function queryNode(selector) {
+  return typeof document.querySelector === "function" ? document.querySelector(selector) : null;
+}
+
+let statusTimer = 0;
+
+// The page has a single polite status line. Lists and the chart canvas are not
+// live regions, so typing or redrawing does not re-read hundreds of links.
+function announceStatus(message, delay = 0) {
+  const node = queryNode("#terminal-status");
+  if (!node) return;
+  if (statusTimer && typeof window.clearTimeout === "function") window.clearTimeout(statusTimer);
+  statusTimer = 0;
+  if (!delay || typeof window.setTimeout !== "function") {
+    node.textContent = message;
+    return;
+  }
+  statusTimer = window.setTimeout(() => {
+    statusTimer = 0;
+    node.textContent = message;
+  }, delay);
+}
+
+function terminalRangeLabel() {
+  const options = appState.chartOptions;
+  if (options.customRange) return `${formatDate(new Date(`${options.customRange[0]}T00:00:00Z`))} to ${formatDate(new Date(`${options.customRange[1]}T00:00:00Z`))}`;
+  if (!options.range) return "zoomed";
+  if (options.range === "all") return "all history";
+  return `${options.range.toUpperCase()} range`;
+}
+
+function announceChartStatus() {
+  if (!appState.currentChart) return;
+  announceStatus(`Showing ${appState.currentChart.title}, ${terminalRangeLabel()}${appState.chartOptions.table ? ", data sheet" : ""}`);
+}
+
+function showChartNotice(message) {
+  const node = queryNode("#chart-notice");
+  if (!node) return;
+  node.textContent = message || "";
+  node.hidden = !message;
+}
+
+function setPressed(node, pressed) {
+  if (!node) return;
+  node.classList?.toggle?.("active", Boolean(pressed));
+  node.setAttribute?.("aria-pressed", String(Boolean(pressed)));
+}
+
+function updateRangeButtons() {
+  const active = appState.chartOptions.customRange ? null : (appState.chartOptions.range || null);
+  document.querySelectorAll("[data-range]").forEach((button) => setPressed(button, button.dataset.range === active));
+}
+
+function updateToolbarPressedStates() {
+  const options = appState.chartOptions;
+  setPressed(queryNode('[data-chart-action="moving-average"]'), options.movingAverage);
+  setPressed(queryNode('[data-chart-action="halvings"]'), options.halvings);
+  setPressed(queryNode('[data-chart-action="grid"]'), options.grid);
+  setPressed(queryNode('[data-chart-action="table"]'), options.table);
+  updateRangeButtons();
 }
 
 function bindChartLink(link) {
@@ -368,6 +740,11 @@ function bindChartLink(link) {
   link.addEventListener("click", (event) => {
     if (event.button > 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     event.preventDefault();
+    if (link.classList.contains("related-chart-link")) {
+      void selectTerminalChart(link.dataset.chartId);
+      document.querySelector(".chart-workspace")?.scrollIntoView?.({ block: "start" });
+      return;
+    }
     if (window.matchMedia("(max-width: 820px)").matches) setLibraryOpen(false, true);
     selectTerminalChart(link.dataset.chartId);
   });
@@ -381,11 +758,19 @@ function bindChartToolbar() {
     button.addEventListener("click", () => setChartRange(button.dataset.range));
   });
   document.querySelector("#scale-toggle")?.addEventListener("click", toggleChartScale);
+  document.querySelectorAll("[data-touch-mode]").forEach((button) => {
+    button.addEventListener("click", () => setTouchMode(button.dataset.touchMode));
+  });
+  document.querySelector("#data-sheet")?.addEventListener("click", (event) => {
+    if (event.target.closest?.('[data-sheet-action="csv"]')) downloadSheetCsv();
+  });
 }
 
 async function selectTerminalChart(chartId, options = {}) {
   const chart = chartById(chartId);
   if (!chart) return;
+  const restore = options.restore || null;
+  const previousChartId = appState.activeChartId;
   const request = {};
   appState.chartRequest = request;
   appState.activeChartId = chart.id;
@@ -398,9 +783,10 @@ async function selectTerminalChart(chartId, options = {}) {
   appState.chartOptions.signalView = false;
   appState.chartOptions.rangePayload = null;
   appState.chartOptions.rangeTransition = null;
-  document.querySelectorAll("[data-range]").forEach((button) => button.classList.toggle("active", button.dataset.range === "all"));
-  document.querySelectorAll("[data-chart-action]").forEach((button) => button.classList.remove("active"));
-  document.querySelector('[data-chart-action="grid"]')?.classList.toggle("active", !appState.chartOptions.grid);
+  appState.chartOptions.range = "all";
+  appState.chartOptions.customRange = null;
+  if (restore && typeof restore.grid === "boolean") appState.chartOptions.grid = restore.grid;
+  updateToolbarPressedStates();
   const pinButton = document.querySelector('[data-chart-action="pin"]');
   if (pinButton) {
     const pinned = readPinnedCharts().has(chart.id);
@@ -410,18 +796,14 @@ async function selectTerminalChart(chartId, options = {}) {
   }
   document.querySelector("#terminal-plot")?.removeAttribute("hidden");
   document.querySelector("#data-sheet")?.setAttribute("hidden", "");
+  showChartNotice(options.notice || "");
 
   const search = document.querySelector("#sidebar-search");
-  renderSidebar(search?.value.trim().toLowerCase() || "");
+  renderSidebar(search?.value || "");
   document.querySelectorAll(".sidebar-chart-link[data-chart-id]").forEach(bindChartLink);
   updateChartHeadings(chart);
-  if (options.updateUrl !== false) {
-    const url = new URL(window.location.href);
-    url.searchParams.set("chart", chart.id);
-    url.searchParams.delete("market");
-    url.searchParams.delete("signals");
-    history.replaceState(null, "", url);
-  }
+  renderRelatedCharts(chart);
+  if (options.updateUrl !== false) syncTerminalUrl({ push: chart.id !== previousChartId });
 
   const target = document.querySelector("#terminal-plot");
   target.innerHTML = "";
@@ -429,6 +811,8 @@ async function selectTerminalChart(chartId, options = {}) {
 
   if (!chart.data_path) {
     renderImageChart(chart, target);
+    syncTerminalUrl();
+    announceChartStatus();
     return;
   }
 
@@ -436,19 +820,29 @@ async function selectTerminalChart(chartId, options = {}) {
     const payload = await getPayload(chart.id);
     if (appState.chartRequest !== request) return;
     appState.currentPayload = payload;
-    appState.chartOptions.halvings = Boolean(
-      payload.show_halvings_default || ["pi-cycle-top", "200-dma-200-wma"].includes(payload.id),
-    );
-    appState.chartOptions.scale = payload.default_scale || payload.layout?.yaxis?.type || "linear";
-    appState.chartOptions.signalView = Boolean(payload.signal_view && options.signalView);
-    document.querySelector('[data-chart-action="halvings"]')?.classList.toggle("active", appState.chartOptions.halvings);
+    const defaults = terminalOptionDefaults(payload);
+    appState.chartOptions.halvings = typeof restore?.halvings === "boolean" && payload.x_value_type === "date"
+      ? restore.halvings
+      : defaults.halvings;
+    appState.chartOptions.scale = payload.allow_scale_toggle && restore?.scale ? restore.scale : defaults.scale;
+    appState.chartOptions.signalView = Boolean(payload.signal_view && (options.signalView || restore?.signals));
+    appState.chartOptions.movingAverage = Boolean(restore?.movingAverage && payloadHasNumericLine(payload));
     updateChartControls(payload);
+    updateToolbarPressedStates();
     target.classList.remove("loading-block");
     await renderTerminalPlot();
     if (appState.chartRequest !== request) return;
+    if (restore && payload.x_value_type === "date") {
+      if (restore.from && restore.to) await applyCustomRange([restore.from, restore.to]);
+      else if (restore.range && restore.range !== "all") await setChartRange(restore.range);
+      if (appState.chartRequest !== request) return;
+    }
     renderChartDetails(payload);
-    renderDataSheet(payload);
+    if (restore?.view === "sheet") setTableView(true);
+    else renderDataSheet(payload);
     updateScaleButton();
+    syncTerminalUrl();
+    announceChartStatus();
   } catch (error) {
     if (appState.chartRequest !== request) return;
     target.classList.remove("loading-block");
@@ -457,12 +851,16 @@ async function selectTerminalChart(chartId, options = {}) {
   }
 }
 
-function updateChartControls(payload) {
-  const hasNumericLine = payload.series.some((series) => (
+function payloadHasNumericLine(payload) {
+  return (payload?.series || []).some((series) => (
     series.type === "scatter"
     && Array.isArray(series.y)
     && series.y.some((value) => Number.isFinite(toFiniteNumber(value)))
   ));
+}
+
+function updateChartControls(payload) {
+  const hasNumericLine = payloadHasNumericLine(payload);
   const movingAverage = document.querySelector('[data-chart-action="moving-average"]');
   const halvings = document.querySelector('[data-chart-action="halvings"]');
   const rangeOptions = document.querySelector(".range-options");
@@ -486,6 +884,7 @@ function updateChartHeadings(chart) {
     const node = document.querySelector(selector);
     if (node) node.textContent = chart.section;
   });
+  document.title = `${chart.title} | Fintech Charts`;
   const summary = document.querySelector("#chart-summary");
   if (summary) setChartSummary(chart.description);
   renderChartAttribution(chart);
@@ -494,6 +893,37 @@ function updateChartHeadings(chart) {
     const definition = SIGNAL_DEFINITIONS.find((item) => item.chartId === chart.id);
     alertLink.href = definition ? `../alerts/?signal=${encodeURIComponent(definition.id)}` : "../alerts/";
   }
+}
+
+function renderRelatedCharts(chart) {
+  const section = queryNode("#related-section");
+  const list = queryNode("#related-list");
+  if (!section || !list) return;
+  const key = chartSectionKey(chart);
+  const related = (appState.manifest?.charts || [])
+    .filter((item) => item.id !== chart.id && key && chartSectionKey(item) === key)
+    .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0) || String(a.title).localeCompare(String(b.title)));
+  const heading = queryNode("#related-heading");
+  const count = queryNode("#related-count");
+  if (heading) heading.textContent = `More in ${chart.section || "this section"}`;
+  if (count) count.textContent = String(related.length);
+  const shown = related.slice(0, 8);
+  list.innerHTML = shown.map((item) => {
+    const href = `?chart=${encodeURIComponent(item.id)}`;
+    return `<a class="related-chart-link" href="${escapeHtml(href)}" data-chart-id="${escapeHtml(item.id)}">${escapeHtml(item.title)}</a>`;
+  }).join("") + (related.length > shown.length && key
+    ? `<button type="button" class="related-more" data-related-section="${escapeHtml(key)}">Show all ${related.length + 1} in the library</button>`
+    : "");
+  section.hidden = !related.length;
+  list.querySelectorAll?.(".related-chart-link[data-chart-id]").forEach(bindChartLink);
+  list.querySelector?.("[data-related-section]")?.addEventListener("click", (event) => {
+    appState.sectionFilter = event.currentTarget.dataset.relatedSection;
+    renderSidebar();
+    syncTerminalUrl();
+    setLibraryOpen(true);
+    document.querySelector("#sidebar-search")?.focus();
+    announceStatus(librarySearchStatus());
+  });
 }
 
 async function renderTerminalPlot() {
@@ -515,14 +945,96 @@ async function renderTerminalPlot() {
       layout[key] = { ...(layout[key] || {}), type: appState.chartOptions.scale };
     });
   }
-  await renderPlot(target, payload, { series, layout, grid: appState.chartOptions.grid, maxPoints: 2200, signalView: appState.chartOptions.signalView });
+  await renderPlot(target, payload, {
+    series,
+    layout,
+    grid: appState.chartOptions.grid,
+    maxPoints: 2200,
+    signalView: appState.chartOptions.signalView,
+    onViewportChange: onTerminalViewportChange,
+  });
   if (appState.currentPayload !== payload) return;
   appState.chartOptions.rangePayload = payload;
+  installTerminalInspector(target, payload);
   if (visibleRange && target._fintechNavigation) {
-    await target._fintechNavigation.zoomTo(visibleRange);
+    await target._fintechNavigation.zoomTo(visibleRange, "restore");
   } else if (visibleRange && window.Plotly) {
     await Plotly.relayout(target, { "xaxis.range": visibleRange, "xaxis.autorange": false });
   }
+}
+
+// Drag, wheel, keyboard, and modebar zooms report here once they settle.
+// Shortcut and restore transitions already own their URL state.
+function onTerminalViewportChange({ source, range, full } = {}) {
+  if (source !== "user" || !appState.currentPayload) return;
+  if (full) {
+    appState.chartOptions.range = "all";
+    appState.chartOptions.customRange = null;
+  } else {
+    appState.chartOptions.range = null;
+    appState.chartOptions.customRange = appState.currentPayload.x_value_type === "date" ? customRangeFromAxis(range) : null;
+  }
+  updateRangeButtons();
+  syncTerminalUrl();
+  if (appState.chartOptions.table) renderDataSheet(appState.currentPayload);
+  announceStatus(`Showing ${appState.currentChart?.title || "chart"}, ${terminalRangeLabel()}`, 300);
+}
+
+function customRangeFromAxis(range) {
+  if (!Array.isArray(range) || range.length < 2) return null;
+  const times = range.map((value) => new Date(value).getTime()).filter(Number.isFinite).sort((a, b) => a - b);
+  if (times.length < 2) return null;
+  // Round to whole UTC days: `from` is the first day shown and `to` the last,
+  // matching applyCustomRange's start-of-from to end-of-to window.
+  const day = 86_400_000;
+  const from = new Date(Math.round(times[0] / day) * day).toISOString().slice(0, 10);
+  const to = new Date(Math.round(times[1] / day) * day - 1).toISOString().slice(0, 10);
+  return [from, to < from ? from : to];
+}
+
+async function applyCustomRange(range) {
+  const target = queryNode("#terminal-plot");
+  appState.chartOptions.range = null;
+  appState.chartOptions.customRange = range.slice();
+  updateRangeButtons();
+  const selected = [`${range[0]}T00:00:00.000Z`, `${range[1]}T23:59:59.999Z`];
+  const transition = Promise.resolve(target?._fintechNavigation
+    ? target._fintechNavigation.zoomTo(selected, "restore")
+    : window.Plotly && target ? Plotly.relayout(target, { "xaxis.range": selected }) : null);
+  appState.chartOptions.rangeTransition = transition;
+  await transition;
+}
+
+function isCoarsePointer() {
+  try {
+    return Boolean(window.matchMedia?.("(pointer: coarse)").matches || window.matchMedia?.("(hover: none)").matches);
+  } catch {
+    return false;
+  }
+}
+
+function touchInspectActive() {
+  return isCoarsePointer() && appState.chartOptions.touchMode !== "zoom";
+}
+
+function updateTouchModeControls() {
+  const group = queryNode("#chart-touch-mode");
+  if (group) group.hidden = !isCoarsePointer();
+  document.querySelectorAll?.("[data-touch-mode]").forEach((button) => {
+    button.setAttribute("aria-pressed", String(button.dataset.touchMode === appState.chartOptions.touchMode));
+  });
+  const target = queryNode("#terminal-plot");
+  target?.classList?.toggle?.("touch-inspect", touchInspectActive());
+}
+
+async function setTouchMode(mode) {
+  appState.chartOptions.touchMode = mode === "zoom" ? "zoom" : "inspect";
+  updateTouchModeControls();
+  const target = queryNode("#terminal-plot");
+  if (target?._fullLayout && window.Plotly) {
+    await Plotly.relayout(target, { dragmode: touchInspectActive() ? false : "zoom" }).catch(() => {});
+  }
+  announceStatus(appState.chartOptions.touchMode === "zoom" ? "Touch drag zooms the chart" : "Touch drag inspects values");
 }
 
 function terminalSeries(payload) {
@@ -544,9 +1056,12 @@ function terminalSeries(payload) {
 }
 
 function terminalLayout(payload) {
-  return appState.chartOptions.halvings && payload.x_value_type !== "number"
+  const layout = appState.chartOptions.halvings && payload.x_value_type !== "number"
     ? halvingOverlayLayout(payload)
     : {};
+  // On touch screens a one-finger drag scrubs values unless Zoom is chosen.
+  if (touchInspectActive()) layout.dragmode = false;
+  return layout;
 }
 
 function halvingOverlayLayout(payload) {
@@ -590,42 +1105,56 @@ function renderImageChart(chart, target) {
   document.querySelector("#performance-list").innerHTML = "";
   document.querySelector("#chart-phase").innerHTML = `<span>Report</span><strong>Image view</strong>`;
   clearChartInsights();
+  renderChartReadout(null, null);
 }
 
 function renderChartDetails(payload) {
   const seriesList = document.querySelector("#series-list");
   const performanceList = document.querySelector("#performance-list");
-  const latestDate = payload.x_value_type === "date"
-    ? payload.series.find((series) => Array.isArray(series.x))?.x?.at(-1)
-    : null;
-  document.querySelector("#series-date").textContent = latestDate ? shortDate(latestDate) : "Latest";
+  // Projection traces can run years past today; "latest" means the last
+  // observed date, the same anchor the range shortcuts use.
+  const anchor = payload.x_value_type === "date" ? observedRangeEnd(payload) : null;
+  document.querySelector("#series-date").textContent = anchor !== null ? shortDate(anchor) : "Latest";
   setChartSummary(payload.summary_text || appState.currentChart.description);
   renderChartAttribution(payload);
 
   seriesList.innerHTML = payload.series.slice(0, 8).map((series, index) => {
-    const values = primaryValues(series);
-    const value = last(values);
+    const value = seriesLatestValue(series, anchor);
     return `
       <div class="series-row" data-series-index="${index}">
-        <span class="series-dot" style="background:${seriesColor(series, index)}"></span>
+        <span class="series-dot" style="background:${escapeHtml(seriesColor(series, index))}"></span>
         <span class="series-name" title="${escapeHtml(series.name)}">${escapeHtml(series.name)}</span>
-        <strong class="series-value">${formatMetricValue(series.name, value)}</strong>
+        <strong class="series-value">${escapeHtml(seriesDisplayValue(series, value))}</strong>
       </div>
     `;
   }).join("");
 
   const base = payload.x_value_type === "date" ? detailSeries(payload) : null;
   const performanceLabel = document.querySelector("#performance-series-label");
-  if (performanceLabel) performanceLabel.textContent = base ? "main series" : "—";
+  const changes = base
+    ? [[7, "1W"], [30, "1M"], [90, "3M"], [180, "6M"], ["ytd", "YTD"], [365, "1Y"]].map(([window, label]) => ({
+      label,
+      result: seriesWindowChange(base, window, { anchor }),
+    }))
+    : [];
+  const mode = changes.find((item) => item.result)?.result.mode || seriesChangeMode(base);
+  if (performanceLabel) {
+    performanceLabel.textContent = base ? `${base.name || "main series"} · ${{ relative: "% change", points: "pp change", absolute: "Δ change" }[mode]}` : "—";
+    performanceLabel.title = performanceLabel.textContent;
+  }
+  const largest = Math.max(0, ...changes.map((item) => Math.abs(item.result?.change || 0)));
   performanceList.innerHTML = base
-    ? [[7, "1W"], [30, "1M"], [90, "3M"], [180, "6M"], ["ytd", "YTD"], [365, "1Y"]].map(([window, label]) => {
-      const change = window === "ytd" ? seriesReturnYtd(base) : seriesReturn(base, window);
-      const width = Math.min(50, Math.abs(change) / 2);
+    ? changes.map(({ label, result }) => {
+      const change = result?.change;
+      const finite = Number.isFinite(change);
+      const width = !finite ? 0 : result.mode === "relative"
+        ? Math.min(50, Math.abs(change) / 2)
+        : largest ? (Math.abs(change) / largest) * 50 : 0;
       return `
-        <div class="performance-row ${change < 0 ? "negative" : ""}">
+        <div class="performance-row ${finite && change < 0 ? "negative" : ""}">
           <span>${label}</span>
           <span class="performance-bar"><span style="width:${width}%"></span></span>
-          <strong class="performance-value">${signed(change)}</strong>
+          <strong class="performance-value">${escapeHtml(formatSeriesChange(result))}</strong>
         </div>
       `;
     }).join("")
@@ -878,8 +1407,11 @@ function safeAttributionUrl(value) {
   }
 }
 
-function renderDataSheet(payload) {
-  const sheet = document.querySelector("#data-sheet");
+const SHEET_ROW_LIMIT = 1000;
+
+// Rows behind the sheet and its CSV export. A date or numeric range limits the
+// rows to the chart's visible window; `null` keeps the complete history.
+function dataSheetModel(payload, range = null) {
   const horizontal = payload.series.filter((series) => (
     series.orientation === "h"
     && Array.isArray(series.x)
@@ -887,7 +1419,7 @@ function renderDataSheet(payload) {
     && series.x.length === series.y.length
   ));
   const columns = horizontal.length
-    ? horizontal.map((series) => ({ name: series.name, coordinates: series.y, values: series.x }))
+    ? horizontal.map((series) => ({ name: series.name, template: series.hovertemplate, coordinates: series.y, values: series.x }))
     : payload.series.flatMap((series) => {
       if (series.type === "heatmap" || !Array.isArray(series.x)) return [];
       if (["candlestick", "ohlc"].includes(series.type)) {
@@ -901,13 +1433,9 @@ function renderDataSheet(payload) {
         }));
       }
       return Array.isArray(series.y) && series.x.length === series.y.length
-        ? [{ name: series.name, coordinates: series.x, values: series.y }]
+        ? [{ name: series.name, template: series.hovertemplate, coordinates: series.x, values: series.y }]
         : [];
     });
-  if (!columns.length) {
-    sheet.innerHTML = `<p class="empty-state">A tabular view is not available for this chart type.</p>`;
-    return;
-  }
   const orderedCoordinates = !horizontal.length && ["date", "number"].includes(payload.x_value_type);
   const coordinateKey = (value) => orderedCoordinates ? comparableX(value) : String(value);
   const coordinates = new Map();
@@ -918,16 +1446,132 @@ function renderDataSheet(payload) {
   })));
   let rowCoordinates = [...coordinates.values()];
   if (orderedCoordinates) rowCoordinates.sort((left, right) => comparableX(left) - comparableX(right));
-  if (!horizontal.length) rowCoordinates = rowCoordinates.slice(-250);
-  const headers = columns.map((column) => `<th>${escapeHtml(column.name)}</th>`).join("");
-  const rows = rowCoordinates.map((coordinate) => {
-    const key = coordinateKey(coordinate);
-    const values = columns.map((column, index) => `<td>${escapeHtml(formatMetricValue(column.formatName || column.name, lookups[index].get(key)))}</td>`).join("");
-    const label = !horizontal.length && payload.x_value_type === "date" ? shortDate(coordinate) : String(coordinate);
-    return `<tr><td>${escapeHtml(label)}</td>${values}</tr>`;
+  const bounds = orderedCoordinates && Array.isArray(range) ? range.map(comparableX).sort((a, b) => a - b) : null;
+  if (bounds && bounds.every(Number.isFinite)) {
+    rowCoordinates = rowCoordinates.filter((coordinate) => {
+      const value = comparableX(coordinate);
+      return value >= bounds[0] && value <= bounds[1];
+    });
+  }
+  return {
+    columns,
+    coordinateLabel: horizontal.length || payload.x_value_type === "category" ? "Category" : payload.x_value_type === "date" ? "Date" : "X",
+    dated: !horizontal.length && payload.x_value_type === "date",
+    filtered: Boolean(bounds),
+    rows: rowCoordinates.map((coordinate) => {
+      const key = coordinateKey(coordinate);
+      return { coordinate, values: lookups.map((lookup) => lookup.get(key)) };
+    }),
+  };
+}
+
+function terminalVisibleRange(payload) {
+  const options = appState.chartOptions;
+  if (!payload || !["date", "number"].includes(payload.x_value_type)) return null;
+  if (options.customRange) return [`${options.customRange[0]}T00:00:00.000Z`, `${options.customRange[1]}T23:59:59.999Z`];
+  if (options.range && options.range !== "all") return shortcutRange(payload, options.range);
+  if (options.range === null) {
+    const range = queryNode("#terminal-plot")?._fullLayout?.xaxis?.range;
+    return Array.isArray(range) ? range.slice() : null;
+  }
+  return null;
+}
+
+function renderDataSheet(payload, range = terminalVisibleRange(payload)) {
+  const sheet = document.querySelector("#data-sheet");
+  const model = dataSheetModel(payload, range);
+  if (!model.columns.length) {
+    sheet.innerHTML = `<p class="empty-state">A tabular view is not available for this chart type.</p>`;
+    return;
+  }
+  const shown = model.rows.slice(-SHEET_ROW_LIMIT);
+  const headers = model.columns.map((column) => `<th>${escapeHtml(column.name)}</th>`).join("");
+  const rows = shown.map(({ coordinate, values }) => {
+    const cells = model.columns.map((column, index) => `<td>${escapeHtml(formatHoverMetricValue(column.formatName || column.name, values[index], column.template))}</td>`).join("");
+    const label = model.dated ? shortDate(coordinate) : String(coordinate);
+    return `<tr><td>${escapeHtml(label)}</td>${cells}</tr>`;
   }).reverse().join("");
-  const coordinateLabel = horizontal.length || payload.x_value_type === "category" ? "Category" : payload.x_value_type === "date" ? "Date" : "X";
-  sheet.innerHTML = `<table><thead><tr><th>${coordinateLabel}</th>${headers}</tr></thead><tbody>${rows}</tbody></table>`;
+  const count = new Intl.NumberFormat("en-US").format(model.rows.length);
+  const scope = model.filtered ? "in the visible range" : "in full history";
+  const summary = shown.length < model.rows.length
+    ? `Showing the latest ${new Intl.NumberFormat("en-US").format(shown.length)} of ${count} rows ${scope}. The CSV includes every row.`
+    : `${count} row${model.rows.length === 1 ? "" : "s"} ${scope}.`;
+  sheet.innerHTML = `<div class="data-sheet-header"><p class="data-sheet-summary">${escapeHtml(summary)}</p><button type="button" class="toolbar-button" data-sheet-action="csv">⇩ Download CSV</button></div><table><caption class="visually-hidden">${escapeHtml(appState.currentChart?.title || "Chart data")}</caption><thead><tr><th>${model.coordinateLabel}</th>${headers}</tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+// Raw values (not display strings) so spreadsheets can calculate with them.
+// Text cells that start like a formula are prefixed to stop CSV injection.
+function dataSheetCsv(model) {
+  const cell = (value) => {
+    if (value === null || value === undefined) return "";
+    let text = String(value);
+    if (typeof value === "string" && /^[=+\-@\t\r]/.test(text) && !Number.isFinite(Number(text))) text = `'${text}`;
+    return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+  };
+  const header = [model.coordinateLabel, ...model.columns.map((column) => column.name)].map(cell).join(",");
+  const lines = model.rows.map(({ coordinate, values }) => [coordinate, ...values.map((value) => {
+    const number = toFiniteNumber(value);
+    return Number.isFinite(number) ? number : null;
+  })].map(cell).join(","));
+  return `${[header, ...lines].join("\r\n")}\r\n`;
+}
+
+function downloadSheetCsv() {
+  const payload = appState.currentPayload;
+  if (!payload) return;
+  const range = terminalVisibleRange(payload);
+  const model = dataSheetModel(payload, range);
+  if (!model.columns.length) return;
+  const suffix = appState.chartOptions.customRange
+    ? `-${appState.chartOptions.customRange.join("-to-")}`
+    : appState.chartOptions.range && appState.chartOptions.range !== "all" ? `-${appState.chartOptions.range}` : "";
+  const blob = new Blob([dataSheetCsv(model)], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${appState.currentChart?.id || "chart"}${suffix}.csv`;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  announceStatus(`Downloaded ${model.rows.length} rows as CSV`);
+}
+
+function setTableView(visible) {
+  appState.chartOptions.table = Boolean(visible);
+  setPressed(queryNode('[data-chart-action="table"]'), appState.chartOptions.table);
+  const plot = queryNode("#terminal-plot");
+  const sheet = queryNode("#data-sheet");
+  if (plot) plot.hidden = appState.chartOptions.table;
+  if (sheet) sheet.hidden = !appState.chartOptions.table;
+  if (appState.chartOptions.table && appState.currentPayload) renderDataSheet(appState.currentPayload);
+}
+
+async function copyTerminalLink(button) {
+  syncTerminalUrl();
+  const href = window.location.href;
+  let copied = false;
+  try {
+    await navigator.clipboard.writeText(href);
+    copied = true;
+  } catch {
+    const field = document.createElement("textarea");
+    field.value = href;
+    field.setAttribute("readonly", "");
+    field.className = "visually-hidden";
+    document.body.append(field);
+    field.select();
+    try { copied = document.execCommand("copy"); } catch { copied = false; }
+    field.remove();
+    button?.focus();
+  }
+  announceStatus(copied ? "Link to this chart view copied" : "Could not copy automatically. Copy the address bar to share this view.");
+  if (button && copied) {
+    const label = button.dataset.label || button.textContent;
+    button.dataset.label = label;
+    button.textContent = "✓ Copied";
+    window.setTimeout(() => { button.textContent = button.dataset.label; }, 1600);
+  }
 }
 
 async function handleChartAction(action, button) {
@@ -936,47 +1580,45 @@ async function handleChartAction(action, button) {
     appState.chartOptions.signalView = !appState.chartOptions.signalView;
     button.classList.toggle("active", appState.chartOptions.signalView);
     button.setAttribute("aria-pressed", String(appState.chartOptions.signalView));
-    const url = new URL(window.location.href);
-    if (appState.chartOptions.signalView) url.searchParams.set("signals", "1");
-    else url.searchParams.delete("signals");
-    history.replaceState(null, "", url);
-    if (appState.chartOptions.table) {
-      appState.chartOptions.table = false;
-      document.querySelector('[data-chart-action="table"]')?.classList.remove("active");
-      document.querySelector("#terminal-plot").hidden = false;
-      document.querySelector("#data-sheet").hidden = true;
-    }
+    if (appState.chartOptions.table) setTableView(false);
+    syncTerminalUrl();
     await renderTerminalPlot();
   }
   if (action === "moving-average") {
     appState.chartOptions.movingAverage = !appState.chartOptions.movingAverage;
-    button.classList.toggle("active", appState.chartOptions.movingAverage);
+    setPressed(button, appState.chartOptions.movingAverage);
+    syncTerminalUrl();
     if (appState.currentPayload) await renderTerminalPlot();
   }
   if (action === "halvings") {
     appState.chartOptions.halvings = !appState.chartOptions.halvings;
-    button.classList.toggle("active", appState.chartOptions.halvings);
+    setPressed(button, appState.chartOptions.halvings);
+    syncTerminalUrl();
     if (appState.currentPayload) await renderTerminalPlot();
   }
   if (action === "grid") {
     appState.chartOptions.grid = !appState.chartOptions.grid;
-    button.classList.toggle("active", !appState.chartOptions.grid);
+    setPressed(button, appState.chartOptions.grid);
+    syncTerminalUrl();
     if (appState.currentPayload) await renderTerminalPlot();
   }
   if (action === "table") {
-    appState.chartOptions.table = !appState.chartOptions.table;
-    button.classList.toggle("active", appState.chartOptions.table);
-    document.querySelector("#terminal-plot").hidden = appState.chartOptions.table;
-    document.querySelector("#data-sheet").hidden = !appState.chartOptions.table;
+    setTableView(!appState.chartOptions.table);
+    syncTerminalUrl();
+    announceChartStatus();
   }
   if (action === "pin") togglePinnedChart(button);
-  if (action === "download" && appState.currentPayload && !appState.chartOptions.table) {
-    Plotly.downloadImage(document.querySelector("#terminal-plot"), {
-      format: "png",
-      filename: appState.currentChart.id,
-      width: 1600,
-      height: 900,
-    });
+  if (action === "copy-link") await copyTerminalLink(button);
+  if (action === "download" && appState.currentPayload) {
+    if (appState.chartOptions.table) downloadSheetCsv();
+    else {
+      Plotly.downloadImage(document.querySelector("#terminal-plot"), {
+        format: "png",
+        filename: appState.currentChart.id,
+        width: 1600,
+        height: 900,
+      });
+    }
   }
 }
 
@@ -991,6 +1633,7 @@ function togglePinnedChart(button) {
     localStorage.setItem("fintech-pins", JSON.stringify([...pins]));
   } catch {
     if (status) status.textContent = "Could not save pins on this device. Check browser storage settings and try again.";
+    announceStatus("Could not save pins on this device.");
     return;
   }
   if (status) status.textContent = "";
@@ -998,19 +1641,12 @@ function togglePinnedChart(button) {
   button.setAttribute("aria-pressed", String(pins.has(id)));
   button.textContent = pins.has(id) ? "\u2316 Pinned" : "\u2316 Pin";
   renderSidebar();
+  announceStatus(`${appState.currentChart.title || "Chart"} ${pins.has(id) ? "pinned" : "unpinned"}`);
 }
 
-function setChartRange(range) {
-  if (!appState.currentPayload || !window.Plotly) return;
-  document.querySelectorAll("[data-range]").forEach((button) => button.classList.toggle("active", button.dataset.range === range));
-  const payload = appState.currentPayload;
-  const endpoint = payload.x_value_type === "date" ? observedRangeEnd(payload) : null;
-  if (endpoint === null || range === "all") {
-    const navigation = document.querySelector("#terminal-plot")?._fintechNavigation;
-    return appState.chartOptions.rangeTransition = Promise.resolve(navigation
-      ? navigation.reset()
-      : Plotly.relayout(document.querySelector("#terminal-plot"), { "xaxis.autorange": true }));
-  }
+function shortcutRange(payload, range) {
+  const endpoint = payload?.x_value_type === "date" ? observedRangeEnd(payload) : null;
+  if (endpoint === null || range === "all" || !TERMINAL_RANGES.includes(range)) return null;
   const end = new Date(endpoint);
   let start = new Date(end);
   if (range === "1m") start.setUTCMonth(start.getUTCMonth() - 1);
@@ -1019,11 +1655,29 @@ function setChartRange(range) {
   if (range === "1y") start.setUTCFullYear(start.getUTCFullYear() - 1);
   if (range === "4y") start.setUTCFullYear(start.getUTCFullYear() - 4);
   if (range === "ytd") start = new Date(Date.UTC(end.getUTCFullYear(), 0, 1));
+  return [start.toISOString(), end.toISOString()];
+}
+
+function setChartRange(range) {
+  if (!appState.currentPayload || !window.Plotly) return;
+  const payload = appState.currentPayload;
+  const selectedRange = shortcutRange(payload, range);
+  appState.chartOptions.range = selectedRange ? range : "all";
+  appState.chartOptions.customRange = null;
+  updateRangeButtons();
+  syncTerminalUrl();
   const target = document.querySelector("#terminal-plot");
-  const selectedRange = [start.toISOString(), end.toISOString()];
-  return appState.chartOptions.rangeTransition = Promise.resolve(target?._fintechNavigation
-    ? target._fintechNavigation.zoomTo(selectedRange)
-    : Plotly.relayout(target, { "xaxis.range": selectedRange }));
+  const navigation = target?._fintechNavigation;
+  const transition = Promise.resolve(selectedRange
+    ? navigation ? navigation.zoomTo(selectedRange, "shortcut") : Plotly.relayout(target, { "xaxis.range": selectedRange })
+    : navigation ? navigation.reset("shortcut") : Plotly.relayout(target, { "xaxis.autorange": true }));
+  appState.chartOptions.rangeTransition = transition;
+  void transition.then(() => {
+    if (appState.currentPayload !== payload) return;
+    if (appState.chartOptions.table) renderDataSheet(payload);
+    announceChartStatus();
+  }, () => {});
+  return transition;
 }
 
 function observedRangeEnd(payload) {
@@ -1057,6 +1711,7 @@ function toggleChartScale() {
   if (!payload?.allow_scale_toggle) return;
   appState.chartOptions.scale = appState.chartOptions.scale === "log" ? "linear" : "log";
   updateScaleButton();
+  syncTerminalUrl();
   renderTerminalPlot();
 }
 
@@ -1064,8 +1719,9 @@ function updateScaleButton() {
   const button = document.querySelector("#scale-toggle");
   if (!button || !appState.currentPayload) return;
   button.disabled = !appState.currentPayload.allow_scale_toggle;
-  button.textContent = appState.chartOptions.scale || "linear";
-  button.classList.toggle("active", appState.chartOptions.scale === "log");
+  // A fixed label with a pressed state reads consistently: "Log scale, pressed".
+  button.textContent = "log";
+  setPressed(button, appState.chartOptions.scale === "log");
 }
 
 function movingAverage(values, windowSize) {
@@ -1096,42 +1752,85 @@ function primaryValues(series) {
   return [];
 }
 
-function seriesReturn(series, days) {
+// Percentages and ratios move in points: a drawdown from -33% to -41% is
+// -8pp, not "+24%", and a Sharpe ratio crossing zero has no meaningful
+// percentage change. Relative change is reserved for strictly positive levels.
+function seriesChangeMode(series) {
+  if (!series) return "relative";
+  const name = String(series.name || "").toLowerCase();
+  const template = String(series.hovertemplate || "");
+  if (/}\s*(%|pp\b)/i.test(template) || /percent|%|\bshare\b|drawdown|return|volatility/.test(name)) return "points";
+  if (/ratio|multiple|mvrv|nupl|z[\s-]?score|sharpe|sortino|oscillator|\bscore\b|\bindex\b|error/.test(name) || /}\s*x\b/i.test(template)) return "absolute";
   const values = primaryValues(series);
-  if (values.length < 2) return 0;
-  const latest = last(values);
-  let previous;
-  if (Array.isArray(series.x) && series.x.length === (series.y || series.close || []).length) {
-    const latestDate = new Date(last(series.x));
-    const target = new Date(latestDate);
-    target.setUTCDate(target.getUTCDate() - days);
-    let index = series.x.findIndex((date) => new Date(date) >= target);
-    if (index < 0) index = Math.max(0, values.length - days - 1);
-    previous = Number((series.y || series.close)[index]);
-  } else {
-    previous = values[Math.max(0, values.length - days - 1)];
-  }
-  if (!Number.isFinite(previous) || previous === 0) return 0;
-  return ((latest / previous) - 1) * 100;
+  return values.length && values.every((value) => value > 0) ? "relative" : "absolute";
 }
 
-function seriesReturnYtd(series) {
-  if (!Array.isArray(series?.x) || !Array.isArray(series?.y) || series.x.length !== series.y.length) return 0;
-  const latestDate = new Date(last(series.x));
-  if (!Number.isFinite(latestDate.getTime())) return 0;
-  const target = Date.UTC(latestDate.getUTCFullYear(), 0, 1);
-  const index = series.x.findIndex((date) => new Date(date).getTime() >= target);
-  const values = series.y.map(toFiniteNumber);
-  const previous = values[index >= 0 ? index : 0];
-  const latest = last(values);
-  if (!Number.isFinite(previous) || previous === 0 || !Number.isFinite(latest)) return 0;
-  return ((latest / previous) - 1) * 100;
+function seriesWindowChange(series, window, { anchor = null, mode = seriesChangeMode(series) } = {}) {
+  if (!Array.isArray(series?.x) || !Array.isArray(series?.y)) return null;
+  const limit = Number.isFinite(Number(anchor)) && anchor !== null ? Number(anchor) : Infinity;
+  const points = datedSeriesPoints(series).filter((point) => point.date.getTime() <= limit);
+  const latest = points.at(-1);
+  if (!latest || points.length < 2) return null;
+  const target = window === "ytd"
+    ? Date.UTC(latest.date.getUTCFullYear(), 0, 1)
+    : latest.date.getTime() - Number(window) * 86_400_000;
+  const previous = points.find((point) => point.date.getTime() >= target);
+  if (!previous || previous === latest) return null;
+  if (mode === "relative") {
+    if (!(previous.value > 0) || !(latest.value > 0)) return null;
+    return { mode, change: ((latest.value / previous.value) - 1) * 100 };
+  }
+  return { mode, change: latest.value - previous.value };
+}
+
+function formatSeriesChange(result) {
+  const change = result?.change;
+  if (!Number.isFinite(change)) return "—";
+  if (result.mode === "relative") return signed(change);
+  const sign = change > 0 ? "+" : change < 0 ? "-" : "";
+  if (result.mode === "points") return `${sign}${Math.abs(change).toFixed(1)}pp`;
+  return `${sign}${formatReadableNumber(Math.abs(change))}`;
+}
+
+function seriesLatestValue(series, anchor = null) {
+  const values = seriesValueArray(series);
+  const limit = Number.isFinite(Number(anchor)) && anchor !== null ? Number(anchor) : Infinity;
+  for (let index = values.length - 1; index >= 0; index -= 1) {
+    if (!Number.isFinite(toFiniteNumber(values[index]))) continue;
+    if (Array.isArray(series.x) && Number.isFinite(limit) && series.orientation !== "h") {
+      const time = comparableX(series.x[index]);
+      if (Number.isFinite(time) && time > limit) continue;
+    }
+    return values[index];
+  }
+  return null;
+}
+
+// Units come from the series' own hover template, so the sidebar, readout,
+// and data sheet show "$73,136" and "193%" exactly as the tooltip does.
+function seriesDisplayValue(series, value) {
+  const name = ["candlestick", "ohlc"].includes(series?.type) ? `${series.name} price` : series?.name;
+  return formatHoverMetricValue(name, value, series?.hovertemplate || "");
+}
+
+const SAFE_COLOR_PATTERN = /^(#[0-9a-f]{3,8}|(rgb|hsl)a?\(\s*[-+\d.%\s,/deg]+\)|[a-z]{3,24})$/i;
+const SERIES_PALETTE = ["#c85f3c", "#2863a7", "#16844d", "#c91f50", "#7c5ca8"];
+
+// Upstream colours are data, not markup. Only plain CSS colour syntax survives;
+// anything else falls back to the palette before it reaches a style attribute.
+function safeCssColor(value, fallback) {
+  if (typeof value !== "string") return fallback;
+  const color = value.trim();
+  if (!color || color.length > 64 || !SAFE_COLOR_PATTERN.test(color)) return fallback;
+  if (typeof CSS !== "undefined" && typeof CSS.supports === "function" && !CSS.supports("color", color)) return fallback;
+  return color;
 }
 
 function seriesColor(series, index) {
-  const legacyMap = { "#f5c84b": "#c85f3c", "#55d6ff": "#2863a7", "#3ce38a": "#16844d", "#ff5f63": "#c91f50", "#ff9f43": "#d98945", "#ff5ccd": "#9d4c83", "#eef3f8": document.documentElement.dataset.theme === "dark" ? "#eef3f8" : "#393732" };
-  const color = series.line?.color || (typeof series.marker?.color === "string" ? series.marker.color : null);
-  return legacyMap[color] || color || ["#c85f3c", "#2863a7", "#16844d", "#c91f50", "#7c5ca8"][index % 5];
+  const legacyMap = { "#f5c84b": "#c85f3c", "#55d6ff": "#2863a7", "#3ce38a": "#16844d", "#ff5f63": "#c91f50", "#ff9f43": "#d98945", "#ff5ccd": "#9d4c83", "#eef3f8": document.documentElement?.dataset?.theme === "dark" ? "#eef3f8" : "#393732" };
+  const color = series?.line?.color || (typeof series?.marker?.color === "string" ? series.marker.color : null);
+  const fallback = SERIES_PALETTE[Math.abs(Number(index) || 0) % SERIES_PALETTE.length];
+  return safeCssColor(legacyMap[typeof color === "string" ? color.toLowerCase() : ""] || color, fallback);
 }
 
 async function renderSignalsPage() {
@@ -2013,7 +2712,16 @@ function installChartNavigation(target, options = {}) {
     const tolerance = target._fullLayout.xaxis.type === "date" ? 1 : Math.abs(Number(initial.xaxis[1]) - Number(initial.xaxis[0])) * 1e-9;
     return range?.some((value, index) => Math.abs(axisNumber(value) - axisNumber(initial.xaxis[index])) > tolerance);
   };
-  const animate = (ranges) => {
+  const notifyViewport = (source) => {
+    if (closed || typeof options.onViewportChange !== "function") return;
+    const range = target._fullLayout?.xaxis?.range?.slice();
+    try {
+      options.onViewportChange({source, range, full: !rangeChanged(range)});
+    } catch (error) {
+      console.warn("Chart viewport listener failed", error);
+    }
+  };
+  const animate = (ranges, source = "user") => {
     if (closed) return Promise.resolve();
     const id = ++animationId;
     if (settleAnimation) settleAnimation();
@@ -2036,10 +2744,11 @@ function installChartNavigation(target, options = {}) {
       if (id === animationId) {
         ownUpdate = false;
         settleAnimation = null;
+        notifyViewport(source);
       }
     });
   };
-  const zoomTo = range => {
+  const zoomTo = (range, source = "user") => {
     const limits = initial.xaxis.map(axisNumber);
     let [start, end] = range.map(axisNumber).sort((left, right) => left - right);
     const minimum = target._fullLayout.xaxis.type === "date" ? 86400000 : Math.abs(limits[1] - limits[0]) / 100000;
@@ -2052,15 +2761,15 @@ function installChartNavigation(target, options = {}) {
     start = clamp(start, Math.min(...limits), Math.max(...limits) - span);
     const selected = [axisValue(start), axisValue(start + span)];
     if (limits[0] > limits[1]) selected.reverse();
-    return animate({xaxis: selected, ...visibleChartYRanges(target, selected)});
+    return animate({xaxis: selected, ...visibleChartYRanges(target, selected)}, source);
   };
-  const reset = () => animate(initial);
+  const reset = (source = "user") => animate(initial, source);
   const zoomBy = (factor, fraction = 0.5) => {
     const range = target._fullLayout.xaxis.range.map(axisNumber);
     const anchor = range[0] + (range[1] - range[0]) * fraction;
     return zoomTo(range.map(value => axisValue(anchor + (value - anchor) * factor)));
   };
-  const fit = () => animate(visibleChartYRanges(target, target._fullLayout.xaxis.range));
+  const fit = () => animate(visibleChartYRanges(target, target._fullLayout.xaxis.range), "fit");
   target._fintechNavigation = {zoomTo, reset, zoomBy, fit};
   const clearSelection = () => {
     if (gesture && target.hasPointerCapture?.(gesture.id)) target.releasePointerCapture(gesture.id);
@@ -2146,7 +2855,10 @@ function installChartNavigation(target, options = {}) {
       ...Object.fromEntries(Object.entries(fitted).map(([key, values]) => [`${key}.range`, values])),
       ...priceAxisTickUpdates(target, fitted),
     })
-      .finally(() => {ownUpdate = false;});
+      .finally(() => {
+        ownUpdate = false;
+        notifyViewport("user");
+      });
   };
   const onReset = () => reset().catch(() => {});
   target.addEventListener("pointerdown", onDown, true);
@@ -2445,7 +3157,8 @@ function updateHoveredSeriesDetails(payload, xValue) {
   const dateNode = document.querySelector("#series-date");
   const referenceSeries = payload.series.find((series) => Array.isArray(series.x) && series.x.length);
   const referenceIndex = xValue === null ? -1 : nearestSeriesIndex(referenceSeries, xValue);
-  const referenceDate = referenceIndex >= 0 ? referenceSeries.x[referenceIndex] : referenceSeries?.x?.at(-1);
+  const anchor = payload.x_value_type === "date" ? observedRangeEnd(payload) : null;
+  const referenceDate = referenceIndex >= 0 ? referenceSeries.x[referenceIndex] : anchor ?? referenceSeries?.x?.at(-1);
   if (dateNode) dateNode.textContent = referenceDate ? shortDate(referenceDate) : "Latest";
   document.querySelectorAll("#series-list .series-row[data-series-index]").forEach((row) => {
     const series = payload.series[Number(row.dataset.seriesIndex)];
@@ -2453,9 +3166,192 @@ function updateHoveredSeriesDetails(payload, xValue) {
     if (!series || !valueNode) return;
     const index = xValue === null ? -1 : nearestSeriesIndex(series, xValue);
     const values = seriesValueArray(series);
-    const rawValue = index >= 0 ? values[index] : values.at(-1);
-    valueNode.textContent = formatMetricValue(series.name, rawValue);
+    const rawValue = index >= 0 ? values[index] : seriesLatestValue(series, anchor);
+    valueNode.textContent = seriesDisplayValue(series, rawValue);
   });
+}
+
+function readoutSeries(payload) {
+  return (payload?.series || []).filter((series) => (
+    series?.type !== "heatmap"
+    && series?.hoverinfo !== "skip"
+    && !series?.meta?.fintechHelper
+    && series?.orientation !== "h"
+    && Array.isArray(series?.x)
+    && series.x.length
+  )).slice(0, 6);
+}
+
+function inspectorReferenceSeries(payload) {
+  const candidates = readoutSeries(payload);
+  return candidates.find((series) => ["candlestick", "ohlc"].includes(series.type) || series.source_key === "price" || /^(btc\s+)?price$/i.test(String(series.name || "").trim()))
+    || (payload?.x_value_type === "date" ? detailSeries(payload) : null)
+    || candidates[0]
+    || null;
+}
+
+// Nearest observation, but only when it is close to the inspected coordinate:
+// a series that ended years earlier should read "—", not its final value.
+function seriesIndexNear(series, xValue) {
+  const index = nearestSeriesIndex(series, xValue);
+  if (index < 0) return -1;
+  const coordinates = series.x.map(comparableX).filter(Number.isFinite);
+  const span = coordinates.length > 1 ? Math.abs(coordinates.at(-1) - coordinates[0]) / (coordinates.length - 1) : 0;
+  const tolerance = Math.max(span * 2, 1.5 * 86_400_000);
+  return Math.abs(comparableX(series.x[index]) - comparableX(xValue)) <= tolerance ? index : -1;
+}
+
+function chartReadout(payload, xValue) {
+  const label = payload?.x_value_type === "date"
+    ? formatDate(new Date(comparableX(xValue)))
+    : formatReadableNumber(comparableX(xValue));
+  const items = readoutSeries(payload).map((series, index) => {
+    const pointIndex = seriesIndexNear(series, xValue);
+    const values = seriesValueArray(series);
+    const value = pointIndex >= 0 ? values[pointIndex] : null;
+    return { name: String(series.name || `Series ${index + 1}`), value: seriesDisplayValue(series, value), color: seriesColor(series, index) };
+  });
+  return { label, items };
+}
+
+function renderChartReadout(payload, xValue, { latest = false } = {}) {
+  const node = queryNode("#chart-readout");
+  if (!node) return "";
+  if (xValue === null || xValue === undefined || !Number.isFinite(comparableX(xValue))) {
+    node.innerHTML = "";
+    return "";
+  }
+  const { label, items } = chartReadout(payload, xValue);
+  node.innerHTML = `<time>${latest ? "Latest · " : ""}${escapeHtml(label)}</time>${items.map((item) => (
+    `<span class="chart-readout-item"><i style="background:${escapeHtml(item.color)}" aria-hidden="true"></i>${escapeHtml(item.name)} <strong>${escapeHtml(item.value)}</strong></span>`
+  )).join("")}`;
+  return `${label}: ${items.map((item) => `${item.name} ${item.value}`).join(", ")}`;
+}
+
+// Keyboard (←/→) and touch scrubbing share one inspected position. The readout
+// sits above the plot so a finger never covers it; the range is not changed.
+function installTerminalInspector(target, payload) {
+  if (typeof target?.addEventListener !== "function" || !target._fullLayout?.xaxis) return;
+  target.classList.toggle("touch-inspect", touchInspectActive());
+  const reference = inspectorReferenceSeries(payload);
+  const coordinates = reference && ["date", "number"].includes(payload.x_value_type)
+    ? [...new Map(reference.x.map((value) => [comparableX(value), value])).entries()]
+      .filter(([time]) => Number.isFinite(time)).sort((a, b) => a[0] - b[0])
+    : [];
+  const anchor = payload.x_value_type === "date" ? observedRangeEnd(payload) : null;
+  const latestIndex = () => {
+    for (let index = coordinates.length - 1; index >= 0; index -= 1) {
+      if (anchor === null || coordinates[index][0] <= anchor) return index;
+    }
+    return coordinates.length - 1;
+  };
+  let pinned = -1;
+  const showLatest = () => {
+    if (!coordinates.length) return renderChartReadout(payload, null);
+    return renderChartReadout(payload, coordinates[latestIndex()][1], { latest: true });
+  };
+  const show = (index, { announce = false } = {}) => {
+    if (!coordinates[index]) return;
+    pinned = index;
+    const [time, value] = coordinates[index];
+    const text = renderChartReadout(payload, value);
+    target.dataset.inspectX = String(value);
+    try {
+      window.Plotly?.Fx?.hover?.(target, { xval: payload.x_value_type === "date" ? time : value });
+    } catch {
+      // Hover labels are decorative here; the readout above carries the value.
+    }
+    if (announce) announceStatus(text, 120);
+  };
+  const visibleBounds = () => {
+    const range = (target._fullLayout?.xaxis?.range || []).map(comparableX).filter(Number.isFinite).sort((a, b) => a - b);
+    return range.length === 2 ? range : [-Infinity, Infinity];
+  };
+  const nearestIndex = (time) => {
+    let best = -1;
+    coordinates.forEach(([value], index) => {
+      if (best < 0 || Math.abs(value - time) < Math.abs(coordinates[best][0] - time)) best = index;
+    });
+    return best;
+  };
+  const onKey = (event) => {
+    if (event.target !== target || !coordinates.length || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    const [low, high] = visibleBounds();
+    const visible = coordinates.map(([time], index) => (time >= low && time <= high ? index : -1)).filter((index) => index >= 0);
+    if (!visible.length) return;
+    event.preventDefault();
+    // Without a pinned point the readout already shows the latest visible
+    // observation, so the first arrow press steps away from it.
+    const latest = latestIndex();
+    const current = visible.includes(pinned) ? pinned : visible.includes(latest) ? latest : visible.at(-1);
+    let next;
+    if (event.key === "Home") next = visible[0];
+    else if (event.key === "End") next = visible.at(-1);
+    else {
+      const position = visible.indexOf(current) + (event.key === "ArrowRight" ? 1 : -1) * (event.shiftKey ? 10 : 1);
+      next = visible[clamp(position, 0, visible.length - 1)];
+    }
+    show(next, { announce: true });
+  };
+  let touch = null;
+  const touchIndex = (event) => {
+    const axis = target._fullLayout?.xaxis;
+    if (!axis?.p2d) return -1;
+    const bounds = target.getBoundingClientRect();
+    const pixel = event.clientX - bounds.left - axis._offset;
+    if (pixel < 0 || pixel > axis._length) return -1;
+    return nearestIndex(comparableX(axis.p2d(pixel)));
+  };
+  const onTouchDown = (event) => {
+    if (event.pointerType !== "touch" || !touchInspectActive() || !coordinates.length) return;
+    if (!event.target.closest?.(".nsewdrag")) return;
+    const index = touchIndex(event);
+    if (index < 0) return;
+    touch = event.pointerId;
+    show(index);
+  };
+  const onTouchMove = (event) => {
+    if (touch === null || event.pointerId !== touch) return;
+    const index = touchIndex(event);
+    if (index >= 0 && index !== pinned) show(index);
+  };
+  const onTouchEnd = (event) => {
+    if (touch !== null && event.pointerId === touch) touch = null;
+  };
+  let hoverTimer = 0;
+  const onHover = (event) => {
+    clearTimeout(hoverTimer);
+    const xValue = event?.points?.find((point) => point.x !== undefined)?.x;
+    if (xValue !== undefined && touch === null) renderChartReadout(payload, xValue);
+  };
+  const onUnhover = () => {
+    clearTimeout(hoverTimer);
+    hoverTimer = window.setTimeout(() => {
+      if (pinned >= 0 && coordinates[pinned]) renderChartReadout(payload, coordinates[pinned][1]);
+      else showLatest();
+    }, 120);
+  };
+  target.addEventListener("keydown", onKey);
+  target.addEventListener("pointerdown", onTouchDown, true);
+  target.addEventListener("pointermove", onTouchMove, true);
+  target.addEventListener("pointerup", onTouchEnd, true);
+  target.addEventListener("pointercancel", onTouchEnd, true);
+  target.on?.("plotly_hover", onHover);
+  target.on?.("plotly_unhover", onUnhover);
+  showLatest();
+  const priorCleanup = target._fintechChartCleanup;
+  target._fintechChartCleanup = () => {
+    clearTimeout(hoverTimer);
+    target.removeEventListener("keydown", onKey);
+    target.removeEventListener("pointerdown", onTouchDown, true);
+    target.removeEventListener("pointermove", onTouchMove, true);
+    target.removeEventListener("pointerup", onTouchEnd, true);
+    target.removeEventListener("pointercancel", onTouchEnd, true);
+    target.removeListener?.("plotly_hover", onHover);
+    target.removeListener?.("plotly_unhover", onUnhover);
+    delete target.dataset.inspectX;
+    return typeof priorCleanup === "function" ? priorCleanup() : undefined;
+  };
 }
 
 function nearestSeriesIndex(series, xValue) {
