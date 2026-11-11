@@ -509,6 +509,16 @@ class PublishingTests(unittest.TestCase):
             self.assertEqual({key: published[key] for key in ("data_through", "composite", "unavailable")},
                              {key: expected[key] for key in ("data_through", "composite", "unavailable")})
 
+    def test_unchanged_data_rebuilds_to_identical_content_apart_from_generated_at(self):
+        # The publisher skips deployments when nothing but generated_at moved.
+        definitions_ = load_fixture("definitions.json")
+        charts = load_fixture("charts.json")
+        first = artifact.build_signals_artifact(definitions_, charts.get, "2026-01-01T00:00:00+00:00")
+        second = artifact.build_signals_artifact(definitions_, charts.get, "2026-01-01T06:00:00+00:00")
+        self.assertNotEqual(first.pop("generated_at"), second.pop("generated_at"))
+        self.assertEqual(json.dumps(first, sort_keys=True), json.dumps(second, sort_keys=True))
+        self.assertNotIn("updated_at", json.dumps(first))
+
     def test_site_build_keeps_going_and_removes_a_stale_artifact_on_failure(self):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
