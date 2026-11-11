@@ -1,6 +1,7 @@
 """Regression coverage for the compact cycle-signal artifact and its method."""
 
 import copy
+from datetime import datetime
 import json
 import os
 from pathlib import Path
@@ -86,7 +87,7 @@ class GoldenFixtureTests(unittest.TestCase):
     def test_builder_reproduces_the_shared_golden_artifact(self):
         expected = load_fixture("expected.json")
         charts = load_fixture("charts.json")
-        built = artifact.build_signals_artifact(load_fixture("definitions.json"), charts.get, expected["generated_at"])
+        built = artifact.build_signals_artifact(load_fixture("definitions.json"), charts.get)
         self.assertEqual(json.loads(json.dumps(built)), expected)
 
     def test_golden_artifact_covers_the_reviewed_edge_cases(self):
@@ -98,6 +99,18 @@ class GoldenFixtureTests(unittest.TestCase):
         self.assertFalse(by_id["weekly-ratio"]["stale"])
         self.assertEqual(expected["composite"]["missing_members"], ["abandoned", "too-short"])
         self.assertEqual(expected["data_through"], "2024-12-17")
+        # Exact halfway values round away from zero, above and below zero.
+        ties_up = by_id["halfway-up"]
+        ties_down = by_id["halfway-down"]
+        self.assertLessEqual({1.063, 0.1563, 1235.0, 0.007813}, set(ties_up["history"]["values"]))
+        self.assertEqual(ties_down["history"]["values"], [-value for value in ties_up["history"]["values"]])
+        self.assertEqual((ties_up["value"], ties_down["value"]), (0.007813, -0.007813))
+        # An outage is published as unavailable samples, not as a carried score.
+        outage = by_id["gappy"]["history"]
+        missing = [index for index, score in enumerate(outage["scores"]) if score is None]
+        self.assertEqual(missing, list(range(7, 13)))
+        self.assertEqual([outage["values"][index] for index in missing], [None] * 6)
+        self.assertEqual(expected["history"]["dates"][7:13], ["2024-09-24", "2024-10-01", "2024-10-08", "2024-10-15", "2024-10-22", "2024-10-29"])
         self.assertTrue(all(len(entry["history"]["scores"]) == len(expected["history"]["dates"]) for entry in expected["signals"]))
 
 
@@ -190,6 +203,26 @@ class ScoringMethodTests(unittest.TestCase):
         self.assertEqual(by_count[:3], [None, None, None])
         self.assertEqual(by_count[3], 87.5)
 
+    def test_rounding_is_half_away_from_zero_on_the_exact_value(self):
+        # These halfway values are exactly representable, so the tie is real.
+        decimals = [(6.25, 1, 6.3), (-6.25, 1, -6.3), (0.125, 2, 0.13), (-0.125, 2, -0.13), (2.5, 0, 3.0), (-2.5, 0, -3.0),
+                    (0.0078125, 6, 0.007813), (-0.0078125, 6, -0.007813), (18.75, 1, 18.8), (34.5, 1, 34.5)]
+        for value, places, expected in decimals:
+            with self.subTest(value=value, places=places):
+                self.assertEqual(artifact.round_decimals(value, places), expected)
+        significant = [(1.0625, 4, 1.063), (-1.0625, 4, -1.063), (0.15625, 4, 0.1563), (-0.15625, 4, -0.1563),
+                       (1234.5, 4, 1235.0), (-1234.5, 4, -1235.0), (9.9996, 4, 10.0), (73631.4, 4, 73630.0), (0.0, 4, 0.0)]
+        for value, digits, expected in significant:
+            with self.subTest(value=value, digits=digits):
+                self.assertEqual(artifact.round_significant(value, digits), expected)
+        # 1.005 is stored slightly below the tie, so the exact value rounds down.
+        self.assertEqual(artifact.round_decimals(1.005, 2), 1.0)
+        self.assertEqual(str(artifact.round_decimals(-0.04, 1)), "0.0", "negative zero is never published")
+        self.assertEqual(str(artifact.round_significant(-0.0, 4)), "0.0")
+        self.assertIsNone(artifact.round_score(None))
+        self.assertIsNone(artifact.round_significant(None, 4))
+        self.assertEqual(artifact.load_definitions()["method"]["rounding"]["rule"], "half_away_from_zero")
+
     def test_phase_cut_offs(self):
         phases = artifact.load_definitions()["method"]["phases"]
         cases = [(0, "bottom"), (24.9, "bottom"), (25, "bearish"), (49.9, "bearish"), (50, "bullish"), (74.9, "bullish"), (75, "top"), (100, "top")]
@@ -199,7 +232,7 @@ class ScoringMethodTests(unittest.TestCase):
 
 class ArtifactTests(unittest.TestCase):
     def build(self, charts, signals, **scoring):
-        return artifact.build_signals_artifact(definitions(signals, **scoring), charts.get, "2026-01-01T00:00:00+00:00")
+        return artifact.build_signals_artifact(definitions(signals, **scoring), charts.get)
 
     def test_changes_are_unavailable_until_scored_history_covers_the_window(self):
         values = [float(value) for value in range(1, 41)]
@@ -246,7 +279,27 @@ class ArtifactTests(unittest.TestCase):
             "weekly-late": ("2024-01-20", 10, True),
         })
         self.assertEqual(built["composite"]["stale_members"], ["late", "weekly-late"])
-        self.assertEqual(built["generated_at"], "2026-01-01T00:00:00+00:00")
+        self.assertNotIn("generated_at", built, "the artifact never embeds a clock reading")
+
+    def test_an_outage_longer_than_the_carry_limit_is_published_as_unavailable(self):
+        dates = (pd.date_range("2024-01-01", periods=30, freq="D").strftime("%Y-%m-%d").tolist()
+                 + pd.date_range("2024-03-26", periods=10, freq="D").strftime("%Y-%m-%d").tolist())
+        payload = {"series": [series([float(value % 9) for value in range(40)], name="metric", dates=dates)]}
+        built = self.build({"m": payload, "steady": daily([1.0] * 95)}, [signal("m"), signal("steady")])
+        history = dict(zip(built["history"]["dates"], built["signals"][0]["history"]["scores"]))
+        # The last reading before the outage is 2024-01-30 and expires 14 days
+        # later; readings resume on 2024-03-26.
+        outage = [day for day in history if "2024-02-13" < day < "2024-03-26"]
+        self.assertEqual(outage, ["2024-02-15", "2024-02-22", "2024-02-29", "2024-03-07", "2024-03-14", "2024-03-21"])
+        for day, score in history.items():
+            with self.subTest(day=day):
+                if day in outage:
+                    self.assertIsNone(score, "an outage must not repeat the January score")
+                else:
+                    self.assertIsNotNone(score)
+        composite = dict(zip(built["history"]["dates"], built["composite"]["history"]["scores"]))
+        self.assertEqual(composite["2024-03-07"], dict(zip(built["history"]["dates"], built["signals"][1]["history"]["scores"]))["2024-03-07"],
+                         "the index only averages members that are current on each date")
 
     def test_unresolved_definitions_are_reported_not_dropped(self):
         charts = {"m": daily([1.0, 2.0, 3.0]), "empty": daily([None, None])}
@@ -503,28 +556,59 @@ class PublishingTests(unittest.TestCase):
             self.assertEqual(published["schema_version"], 1)
             self.assertEqual(published["signals"], json.loads(json.dumps(written["signals"])))
             self.assertNotIn("NaN", text)
-            self.assertNotIn(": ", text.split('"description"')[0], "the artifact is written without padding")
+            self.assertEqual(text.strip(), json.dumps(published, separators=(",", ":")), "the artifact is written without padding")
             self.assertFalse((directory / "signals.json.tmp").exists())
             expected = copy.deepcopy(load_fixture("expected.json"))
             self.assertEqual({key: published[key] for key in ("data_through", "composite", "unavailable")},
                              {key: expected[key] for key in ("data_through", "composite", "unavailable")})
 
-    def test_unchanged_data_rebuilds_to_identical_content_apart_from_generated_at(self):
-        # The publisher skips deployments when nothing but generated_at moved.
+    def test_identical_inputs_build_byte_identical_artifacts(self):
+        # No clock reading is embedded, so two builds at different times agree
+        # byte for byte and the publisher can skip an unchanged site.
+        definitions_ = load_fixture("definitions.json")
+        files = []
+        for moment in ("2026-01-01T00:00:00+00:00", "2031-06-15T12:34:56+00:00"):
+            with tempfile.TemporaryDirectory() as temporary:
+                directory = Path(temporary)
+                self.write_charts(directory)
+                frozen = datetime.fromisoformat(moment)
+                with patch("datetime.datetime") as clock, patch("time.time", return_value=frozen.timestamp()):
+                    clock.now.return_value = frozen
+                    clock.utcnow.return_value = frozen
+                    artifact.write_signals_artifact(directory, definitions_)
+                files.append((directory / "signals.json").read_bytes())
+        self.assertEqual(files[0], files[1])
+        self.assertTrue(files[0].endswith(b"}\n") and b"\r" not in files[0])
+        text = files[0].decode("utf-8")
+        for key in ("generated_at", "updated_at", "built_at", "timestamp"):
+            self.assertNotIn(key, text)
+        self.assertNotRegex(text, r"20(2[5-9]|3\d)-\d\d-\d\dT", "no time of day appears anywhere in the artifact")
+
+    def test_source_fingerprint_identifies_the_inputs(self):
         definitions_ = load_fixture("definitions.json")
         charts = load_fixture("charts.json")
-        first = artifact.build_signals_artifact(definitions_, charts.get, "2026-01-01T00:00:00+00:00")
-        second = artifact.build_signals_artifact(definitions_, charts.get, "2026-01-01T06:00:00+00:00")
-        self.assertNotEqual(first.pop("generated_at"), second.pop("generated_at"))
-        self.assertEqual(json.dumps(first, sort_keys=True), json.dumps(second, sort_keys=True))
-        self.assertNotIn("updated_at", json.dumps(first))
+        base = artifact.build_signals_artifact(definitions_, charts.get)
+        self.assertRegex(base["source_fingerprint"], r"^[0-9a-f]{64}$")
+        self.assertEqual(base["source_fingerprint"], artifact.build_signals_artifact(copy.deepcopy(definitions_), copy.deepcopy(charts).get)["source_fingerprint"])
+        revised = copy.deepcopy(charts)
+        revised["plain-chart"]["series"][0]["y"][3] += 0.5
+        self.assertNotEqual(base["source_fingerprint"], artifact.build_signals_artifact(definitions_, revised.get)["source_fingerprint"],
+                            "a revised historical observation is a different input")
+        unrelated = copy.deepcopy(charts)
+        unrelated["plain-chart"]["series"].append({"name": "Not a signal input", "x": ["2024-06-01"], "y": [1]})
+        unrelated["plain-chart"]["updated_at"] = "2030-01-01T00:00:00+00:00"
+        self.assertEqual(base["source_fingerprint"], artifact.build_signals_artifact(definitions_, unrelated.get)["source_fingerprint"],
+                         "series and timestamps the signals do not read are not inputs")
+        new_method = copy.deepcopy(definitions_)
+        new_method["method"]["version"] = 3
+        self.assertNotEqual(base["source_fingerprint"], artifact.build_signals_artifact(new_method, charts.get)["source_fingerprint"])
 
     def test_site_build_keeps_going_and_removes_a_stale_artifact_on_failure(self):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
             (directory / "signals.json").write_text('{"stale": true}', encoding="utf-8")
             with patch("builtins.print"):
-                self.assertFalse(generate_site.generate_signals_artifact(directory))
+                self.assertIsNone(generate_site.generate_signals_artifact(directory))
             self.assertFalse((directory / "signals.json").exists(), "no chart data means no artifact, not an old one")
 
     def test_site_build_reports_unavailable_signals(self):
@@ -536,10 +620,38 @@ class PublishingTests(unittest.TestCase):
                 patch.object(artifact, "load_definitions", return_value=load_fixture("definitions.json")),
                 patch("builtins.print", side_effect=lambda *values: lines.append(" ".join(map(str, values)))),
             ):
-                self.assertTrue(generate_site.generate_signals_artifact(directory))
-            self.assertTrue((directory / "signals.json").is_file())
+                entry = generate_site.generate_signals_artifact(directory)
+            published = json.loads((directory / "signals.json").read_text(encoding="utf-8"))
+            self.assertEqual(entry, {
+                "path": "web/data/bitcoin/signals.json",
+                "source_fingerprint": published["source_fingerprint"],
+                "data_through": "2024-12-17",
+                "method_version": 2,
+            })
             self.assertIn("WARNING: signal unavailable: renamed (series 'Old metric name' is missing from chart 'plain-chart')", lines)
-            self.assertTrue(any(line.startswith("Generated signal artifact: 8 signals") for line in lines))
+            self.assertTrue(any(line.startswith("Generated signal artifact: 11 signals") for line in lines))
+
+    def test_manifest_records_the_artifact_and_supplies_the_publication_time(self):
+        entry = {"path": "web/data/bitcoin/signals.json", "source_fingerprint": "f" * 64, "data_through": "2024-12-17", "method_version": 2}
+        for outcome in (entry, None):
+            written = []
+            with tempfile.TemporaryDirectory() as temporary:
+                with (
+                    patch.object(generate_site, "WEB_DATA_DIR", Path(temporary)),
+                    patch.object(generate_site, "BITCOIN_SITE_DATA_DIR", Path(temporary) / "bitcoin"),
+                    patch.object(generate_site, "generate_interactive_data"),
+                    patch.object(generate_site, "import_reference_charts", return_value=[]),
+                    patch.object(generate_site, "generate_signals_artifact", return_value=outcome),
+                    patch.object(generate_site, "build_bitcoin_manifest", return_value={"generated_at": "2026-01-01T00:00:00+00:00", "charts": []}),
+                    patch.object(generate_site, "write_json", side_effect=lambda path, payload: written.append(json.loads(json.dumps(payload)))),
+                    patch("builtins.print"),
+                ):
+                    self.assertEqual(generate_site.main(), 0)
+            self.assertEqual(len(written), 2)
+            for manifest in written:
+                self.assertIn("signals", manifest)
+                self.assertEqual(manifest["signals"], outcome)
+                self.assertEqual(manifest["generated_at"], "2026-01-01T00:00:00+00:00")
 
 
 if __name__ == "__main__":

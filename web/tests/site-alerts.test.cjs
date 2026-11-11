@@ -214,12 +214,14 @@ test('rules are checked on every page and new firings are counted on the Alerts 
   await again.scope.checkAlertsInBackground();
   assert.equal(again.rules()[0].firedAt, h.rules()[0].firedAt);
   assert.equal(again.nav.badge.textContent, '1');
-  // Opening Alerts shows it as new, then marks everything seen.
+  // Opening Alerts shows it as new; displaying it is what marks it seen.
   const alerts = harness(h.store);
   vm.runInContext('alertSession.seenAt = readAlertsSeenAt()', alerts.scope);
   alerts.scope.renderAlertRules();
   assert.match(alerts.list(), /title="Triggered since your last visit"/);
-  alerts.scope.writeAlertsSeenAt(new Date(Date.now() + 1000).toISOString());
+  assert.ok(h.store.seen >= h.rules()[0].firedAt, 'the displayed firing is acknowledged');
+  alerts.scope.renderAlertRules();
+  assert.match(alerts.list(), /title="Triggered since your last visit"/, 'it stays highlighted for the rest of this visit');
   const after = harness(h.store);
   after.scope.loadSignalState = async () => vm.runInContext('appState.signalState', after.scope);
   await after.scope.checkAlertsInBackground();
@@ -228,4 +230,45 @@ test('rules are checked on every page and new firings are counted on the Alerts 
   none.scope.loadSignalState = async () => { throw new Error('signals must not load when there are no rules'); };
   await none.scope.checkAlertsInBackground();
   assert.equal(none.nav.badge, null);
+});
+test('a firing shown on the Alerts page is never counted again elsewhere, including after creating or re-arming a rule', async () => {
+  const badgeElsewhere = async (store) => {
+    const page = harness(store);
+    page.scope.loadSignalState = async () => vm.runInContext('appState.signalState', page.scope);
+    await page.scope.checkAlertsInBackground();
+    return page.nav.badge;
+  };
+  // The Alerts page is open with no rules, so the visit is recorded before anything fires.
+  const h = harness();
+  vm.runInContext('alertSession.seenAt = readAlertsSeenAt()', h.scope);
+  h.scope.renderAlertRules();
+  assert.equal(h.store.seen, undefined, 'nothing has fired, so there is nothing to acknowledge');
+  // Create a rule whose condition already holds: it fires and is displayed at once.
+  h.nodes['#alert-form'] = { reset() {} };
+  for (const [id, value] of Object.entries({ 'alert-signal': 's', 'alert-operator': 'above', 'alert-threshold': '75', 'alert-cadence': 'once', 'alert-label': '' })) h.nodes[`#${id}`] = { value };
+  h.scope.crypto = { randomUUID: () => 'created' };
+  h.scope.saveAlertFromForm({ preventDefault() {} });
+  const created = h.rules()[0];
+  assert.ok(created.firedAt && created.triggeredAt);
+  assert.match(h.list(), /alert-rule triggered/);
+  assert.ok(h.store.seen >= created.firedAt, 'the firing was acknowledged when it was displayed');
+  assert.equal(await badgeElsewhere(h.store), null, 'navigating away must not report the firing as unseen');
+  // Re-arming a rule that immediately fires again is displayed too.
+  h.controls.created = { dataset: { alertToggle: 'created' }, checked: true, addEventListener(type, fn) { this.change = fn; } };
+  h.scope.renderAlertRules();
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  h.controls.created.change();
+  const rearmed = h.rules()[0];
+  assert.ok(rearmed.firedAt > created.firedAt, 'the rule fired again after re-arming');
+  assert.ok(h.store.seen >= rearmed.firedAt);
+  assert.match(h.list(), /title="Triggered since your last visit"/, 'the highlight stays for this visit');
+  assert.equal(await badgeElsewhere(h.store), null);
+  // A firing recorded later on another page is still counted.
+  h.store.value = JSON.stringify([...h.rules(), rule({ id: 'later', cadence: 'refresh', operator: 'crosses-above', lastScore: 50, methodVersion: 2 })]);
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  assert.equal((await badgeElsewhere(h.store)).textContent, '1');
+  // A firing that could not be saved was not recorded, so it is not acknowledged.
+  const failing = harness(); seed(failing, rule()); failing.store.fail = true;
+  failing.scope.renderAlertRules();
+  assert.equal(failing.store.seen, undefined);
 });

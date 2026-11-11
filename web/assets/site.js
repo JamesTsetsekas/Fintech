@@ -48,7 +48,6 @@ const POPULAR_IDS = [
 const SIGNAL_DEFINITIONS_PATH = "web/assets/signal-definitions.json";
 const SIGNALS_ARTIFACT_NAME = "signals.json";
 const SIGNALS_ARTIFACT_SCHEMA = 1;
-const SIGNALS_ARTIFACT_MAX_LAG_MS = 36 * 60 * 60 * 1000;
 const DEFAULT_SIGNAL_PHASES = [
   { key: "bottom", label: "Bottom", below: 25 },
   { key: "bearish", label: "Bearish", below: 50 },
@@ -1988,7 +1987,7 @@ function formatDateTime(value) {
 // observation inside it. They differ, so they are never merged into "Updated".
 function renderFreshness(target, state, options = {}) {
   if (!target) return;
-  const published = formatDateTime(state?.generatedAt || appState.manifest?.generated_at);
+  const published = formatDateTime(appState.manifest?.generated_at);
   const parts = [published ? `Published ${published}` : "Publication time unavailable"];
   if (state?.dataThrough) parts.push(`Data through ${formatDate(new Date(state.dataThrough))}`);
   const stale = (state?.signals || []).filter((signal) => signal.stale);
@@ -2055,8 +2054,6 @@ async function renderAlertsPage() {
   });
   updateAlertPreview();
   renderAlertRules();
-  // Everything fired before this point has now been shown on this page.
-  writeAlertsSeenAt(new Date().toISOString());
   updateAlertBadge(0);
 }
 
@@ -2244,10 +2241,23 @@ function updateAlertBadge(count) {
   link.title = `${summary} · checked when you open the site`;
 }
 
+// Every saved firing on screen has now been shown to the visitor, so it must
+// not come back as an unseen count on another page. This runs on each render
+// of the Alerts page, including after a rule is created or re-armed; the
+// in-page highlight keeps using the visit's original `alertSession.seenAt`.
+function acknowledgeDisplayedAlerts(rules) {
+  const latest = rules.reduce((newest, rule) => (rule.firedAt && rule.firedAt > newest ? rule.firedAt : newest), "");
+  if (!latest || latest <= readAlertsSeenAt()) return;
+  const now = new Date().toISOString();
+  writeAlertsSeenAt(now > latest ? now : latest);
+}
+
 function renderAlertRules() {
   const outcome = evaluateAlertRules();
   outcome.results.forEach((result) => { if (result.fired) alertSession.fired.add(result.rule.id); });
   const rules = outcome.rules;
+  // `rules` holds only what was actually saved, so an unsaved firing is not acknowledged.
+  acknowledgeDisplayedAlerts(rules);
   const list = document.querySelector("#alert-list");
   const view = rules.map((rule) => {
     const signal = appState.signals.find((item) => item.id === rule.signalId);
@@ -2472,7 +2482,11 @@ function shortTime(date) {
   return new Intl.DateTimeFormat("en", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "UTC" }).format(date);
 }
 
-function signalsArtifactPath() {
+// The manifest names the artifact it was built with. Without that entry the
+// artifact is looked for beside the manifest.
+function signalsArtifactPath(manifest = appState.manifest) {
+  const declared = manifest?.signals?.path;
+  if (typeof declared === "string" && declared) return assetPath(declared);
   return pageConfig.manifestPath.replace(/[^/]*$/, SIGNALS_ARTIFACT_NAME);
 }
 
@@ -2494,12 +2508,12 @@ function signalsArtifactProblem(artifact, manifest = appState.manifest) {
     || signal.history.scores.length !== dates
   ));
   if (broken) return `invalid signal ${broken?.id ?? ""}`.trim();
-  const generated = Date.parse(artifact.generated_at);
-  if (!Number.isFinite(generated)) return "missing generated_at";
-  const manifestGenerated = Date.parse(manifest?.generated_at);
-  if (Number.isFinite(manifestGenerated) && manifestGenerated - generated > SIGNALS_ARTIFACT_MAX_LAG_MS) {
-    return "older than the published charts";
-  }
+  // The artifact carries no clock reading. It is identified by a fingerprint
+  // of its inputs, and the manifest it was published with repeats that
+  // fingerprint, so an artifact left over from another build is rejected.
+  if (typeof artifact.source_fingerprint !== "string" || !artifact.source_fingerprint) return "missing source fingerprint";
+  const expected = manifest?.signals?.source_fingerprint;
+  if (expected && expected !== artifact.source_fingerprint) return "built from different data than the published manifest";
   return "";
 }
 
@@ -2511,6 +2525,8 @@ function loadSignalState() {
   signalStatePromise ||= (async () => {
     let state = null;
     try {
+      // A manifest that records "no artifact" means the build could not make one.
+      if (appState.manifest?.signals === null) throw new Error("the site build did not publish a signal artifact");
       const artifact = await fetchJson(signalsArtifactPath());
       const problem = signalsArtifactProblem(artifact);
       if (problem) throw new Error(problem);
@@ -2552,11 +2568,14 @@ async function buildSignalsFromCharts() {
 
 function hydrateSignalState(artifact, source) {
   const dates = artifact.history.dates;
-  const points = (history) => dates.map((date, index) => ({
+  // `samples` keeps every weekly sample, including unavailable (null) ones, so
+  // a gap in the data stays a gap. `points` is the scored subset.
+  const samples = (history) => dates.map((date, index) => ({
     date,
     value: history?.values?.[index] ?? null,
     score: history?.scores?.[index] ?? null,
-  })).filter((point) => Number.isFinite(point.score));
+  }));
+  const scored = (items) => items.filter((point) => Number.isFinite(point.score));
   const method = artifact.method;
   const phase = (score) => phaseFor(score, method.phases);
   const signals = artifact.signals.map((signal) => ({
@@ -2579,7 +2598,8 @@ function hydrateSignalState(artifact, source) {
     exclusion: signal.exclusion || null,
     firstDate: signal.first_date,
     observations: signal.observations,
-    points: points(signal.history),
+    samples: samples(signal.history),
+    points: scored(samples(signal.history)),
   }));
   const composite = artifact.composite ? {
     id: artifact.composite.id,
@@ -2593,7 +2613,8 @@ function hydrateSignalState(artifact, source) {
     membersUsed: artifact.composite.members_used,
     missingMembers: artifact.composite.missing_members || [],
     staleMembers: artifact.composite.stale_members || [],
-    points: points(artifact.composite.history),
+    samples: samples(artifact.composite.history),
+    points: scored(samples(artifact.composite.history)),
   } : null;
   const market = artifact.market ? {
     date: artifact.market.date,
@@ -2606,7 +2627,7 @@ function hydrateSignalState(artifact, source) {
   } : null;
   return {
     source,
-    generatedAt: artifact.generated_at,
+    sourceFingerprint: artifact.source_fingerprint ?? null,
     dataThrough: artifact.data_through,
     method,
     signals,
@@ -2631,6 +2652,7 @@ function compositeSignal(state) {
     chartId: composite.chartId,
     label: composite.label,
     category: "Composite",
+    samples: composite.samples,
     points: composite.points,
     score: composite.score,
     rawValue: composite.score,
@@ -2671,9 +2693,11 @@ function signalNumber(value) {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
+// One rounding rule for every published number: half away from zero on the
+// exact value. toFixed and toPrecision both work that way, and the site build
+// does the same with decimal arithmetic. Adding 0 turns -0 into 0.
 function roundDecimals(value, decimals) {
-  const factor = 10 ** decimals;
-  return Math.floor(value * factor + 0.5) / factor;
+  return Number(value.toFixed(decimals)) + 0;
 }
 
 function roundSignalScore(value) {
@@ -2681,7 +2705,7 @@ function roundSignalScore(value) {
 }
 
 function roundSignificant(value, digits) {
-  return value === null || value === undefined ? null : Number(value.toPrecision(digits));
+  return value === null || value === undefined ? null : Number(value.toPrecision(digits)) + 0;
 }
 
 function selectSignalSeries(payload, selector) {
@@ -2843,7 +2867,7 @@ function buildSignalMarket(market, payloadFor, carryForwardDays) {
   };
 }
 
-function buildSignalsArtifact(definitions, loadPayload, generatedAt = new Date().toISOString()) {
+function buildSignalsArtifact(definitions, loadPayload) {
   const method = definitions.method;
   const { scoring, phases } = method;
   const windows = method.change_windows_days;
@@ -2976,7 +3000,8 @@ function buildSignalsArtifact(definitions, loadPayload, generatedAt = new Date()
     .map((definition) => ({ id: definition.id, ...(definition.exclusion || {}) }));
   return {
     schema_version: SIGNALS_ARTIFACT_SCHEMA,
-    generated_at: generatedAt,
+    // Only the site build fingerprints its inputs; this copy is never published.
+    source_fingerprint: null,
     data_through: dataThrough === null ? null : signalDate(dataThrough),
     method: publishedMethod,
     market,
@@ -3021,15 +3046,20 @@ function renderSignalHeatmap(target, signals, columns = 56, options = {}) {
     return;
   }
   const cutoff = options.startDate ? new Date(options.startDate).getTime() : -Infinity;
-  const visibleSignals = signals.map((signal) => ({
-    ...signal,
-    points: signal.points.map((point) => ({ ...point, timestamp: new Date(point.date).getTime() }))
-      .filter((point) => Number.isFinite(point.timestamp) && Number.isFinite(point.score))
-      .sort((left, right) => left.timestamp - right.timestamp),
-  }));
-  const histories = visibleSignals.filter((signal) => signal.points.length);
-  const start = Math.max(cutoff, Math.min(...histories.map((signal) => signal.points[0].timestamp)));
-  const end = Math.max(...histories.map((signal) => last(signal.points).timestamp));
+  // A cell shows the latest sample at or before its date. Unavailable samples
+  // are kept in the series so they end the preceding score, and no sample is
+  // carried further than the method's carry-forward limit.
+  const maxAge = (appState.signalState?.method?.history?.carry_forward_days ?? 14) * 86400000;
+  const visibleSignals = signals.map((signal) => {
+    const samples = (signal.samples || signal.points || [])
+      .map((point) => ({ ...point, timestamp: new Date(point.date).getTime() }))
+      .filter((point) => Number.isFinite(point.timestamp))
+      .sort((left, right) => left.timestamp - right.timestamp);
+    return { ...signal, samples, scored: samples.filter((point) => Number.isFinite(point.score)) };
+  });
+  const histories = visibleSignals.filter((signal) => signal.scored.length);
+  const start = Math.max(cutoff, Math.min(...histories.map((signal) => signal.scored[0].timestamp)));
+  const end = Math.max(...histories.map((signal) => last(signal.scored).timestamp));
   if (!histories.length || start > end) {
     target.innerHTML = `<p class="empty-state">No signal history matches these filters.</p>`;
     return;
@@ -3038,9 +3068,12 @@ function renderSignalHeatmap(target, signals, columns = 56, options = {}) {
   const rows = visibleSignals.map((signal) => {
     let pointIndex = -1;
     const cells = dates.map((timestamp) => {
-      while (pointIndex + 1 < signal.points.length && signal.points[pointIndex + 1].timestamp <= timestamp) pointIndex += 1;
-      const point = signal.points[pointIndex];
-      const covered = point && timestamp <= last(signal.points).timestamp;
+      while (pointIndex + 1 < signal.samples.length && signal.samples[pointIndex + 1].timestamp <= timestamp) pointIndex += 1;
+      const point = signal.samples[pointIndex];
+      const covered = Boolean(point)
+        && Number.isFinite(point.score)
+        && timestamp - point.timestamp <= maxAge
+        && timestamp <= last(signal.scored)?.timestamp;
       const dateLabel = formatDate(new Date(timestamp));
       const detail = covered
         ? `${Math.round(point.score)} · as of ${formatDate(new Date(point.timestamp))}`

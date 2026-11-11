@@ -21,7 +21,6 @@ sys.path.insert(0, str(FIXTURE_DIR.parents[2]))
 
 from signals_artifact import build_signals_artifact  # noqa: E402
 
-GENERATED_AT = "2025-01-02T00:00:00+00:00"
 START = date(2024, 6, 1)
 DAYS = 200
 
@@ -83,6 +82,19 @@ def build_charts() -> dict:
     band_lower_x = daily[:120] + daily[121:]
     band_lower_y = lower[:120] + lower[121:]
 
+    # Values that sit exactly halfway between two rounded results at four
+    # significant digits (and, for the last one, at six decimals). They are
+    # exactly representable, so the tie is real in both implementations.
+    ties = [1.0625, 0.15625, 1234.5, 2.5, 0.0078125, 1.0625, 3.75, 0.15625, 1234.5, 1.1875, 0.0078125, 1.0625, 0.15625, 1234.5, 0.0078125]
+    halfway = [ties[index // 14] for index in range(DAYS)]
+
+    # An outage: no observations for 56 days, so six weekly samples are older
+    # than the carry-forward limit and must be published as unavailable.
+    gap = set(range(100, 156))
+    gappy_values = walk(31, DAYS, 5.0, 0.6)
+    gappy_x = [day for index, day in enumerate(daily) if index not in gap]
+    gappy_y = [value for index, value in enumerate(gappy_values) if index not in gap]
+
     days_since = []
     peak = 0.0
     last_peak = 0
@@ -115,6 +127,11 @@ def build_charts() -> dict:
         "lagging-chart": {"id": "lagging-chart", "series": [series("Lagging", daily[:-5], walk(19, DAYS - 5, 0.05, 0.004, 5))]},
         "abandoned-chart": {"id": "abandoned-chart", "series": [series("Abandoned", daily[:-40], walk(23, DAYS - 40, 3.0, 0.5))]},
         "short-chart": {"id": "short-chart", "series": [series("Short", daily[-40:], walk(29, 40, 1.0, 0.1))]},
+        "halfway-chart": {
+            "id": "halfway-chart",
+            "series": [series("Halfway up", daily, halfway), series("Halfway down", daily, [-value for value in halfway])],
+        },
+        "gappy-chart": {"id": "gappy-chart", "series": [series("Gappy", gappy_x, gappy_y)]},
     }
 
 
@@ -122,7 +139,7 @@ def main() -> int:
     definitions = json.loads((FIXTURE_DIR / "definitions.json").read_text(encoding="utf-8"))
     charts = build_charts()
     (FIXTURE_DIR / "charts.json").write_text(json.dumps(charts, separators=(",", ":")) + "\n", encoding="utf-8")
-    expected = build_signals_artifact(definitions, charts.get, GENERATED_AT)
+    expected = build_signals_artifact(definitions, charts.get)
     (FIXTURE_DIR / "expected.json").write_text(json.dumps(expected, indent=1) + "\n", encoding="utf-8")
     print(f"Wrote fixture: {len(expected['signals'])} signals, {len(expected['unavailable'])} unavailable")
     return 0

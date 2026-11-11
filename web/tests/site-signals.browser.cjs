@@ -11,8 +11,11 @@ const FIXTURES = path.resolve(__dirname, "fixtures/signals");
 const fixture = (name) => fs.readFileSync(path.join(FIXTURES, name), "utf8");
 const expected = JSON.parse(fixture("expected.json"));
 const charts = JSON.parse(fixture("charts.json"));
+// The manifest supplies the publication time and names the artifact it was
+// built with; the artifact itself carries no clock reading.
 const manifest = {
   generated_at: "2025-01-02T00:05:00+00:00",
+  signals: { path: "web/data/bitcoin/signals.json", source_fingerprint: expected.source_fingerprint, data_through: expected.data_through, method_version: 2 },
   charts: [
     ...Object.keys(charts).map((id) => ({ id, title: id, section: "Fixture", description: "", kind: "interactive", data_path: `web/data/bitcoin/${id}.json` })),
     { id: "hodl-waves", title: "HODL Waves", section: "Fixture", description: "", kind: "interactive", data_path: "web/data/bitcoin/hodl-waves.json" },
@@ -33,7 +36,7 @@ async function open(browser, { width = 1280, artifact = true, storage = {} } = {
     if (url.origin !== ORIGIN) return route.abort();
     requests.push(url.pathname);
     const json = (body) => route.fulfill({ contentType: "application/json", body: typeof body === "string" ? body : JSON.stringify(body) });
-    if (url.pathname === "/web/data/bitcoin/site-manifest.json") return json(manifest);
+    if (url.pathname === "/web/data/bitcoin/site-manifest.json") return json(artifact ? manifest : { ...manifest, signals: null });
     if (url.pathname === "/web/data/bitcoin/signals.json") return artifact ? json(expected) : route.fulfill({ status: 404, body: "missing" });
     if (url.pathname === "/web/assets/signal-definitions.json") return json(fixture("definitions.json"));
     const chart = url.pathname.match(/^\/web\/data\/bitcoin\/(.+)\.json$/);
@@ -73,13 +76,28 @@ const headline = new RegExp(`CYCLE INDEX\\s+${index}(?!\\d)`, "i");
       assert.match(summary, headline);
       assert.match(summary, /5 of 7 signals · equal weight/);
       const freshness = await text(site.page, "#signals-freshness");
-      assert.match(freshness, /^Published Jan 2, 2025, 00:00 UTC · Data through Dec 17, 2024 · 2 signals stale: .+ · 3 signals unavailable: Too short, Renamed upstream series, Chart not generated$/);
+      assert.match(freshness, /^Published Jan 2, 2025, 00:05 UTC · Data through Dec 17, 2024 · 2 signals stale: .+ · 3 signals unavailable: Too short, Renamed upstream series, Chart not generated$/);
       assert.equal(await text(site.page, "#signal-method-version"), "Method v2");
       const membership = await text(site.page, "#signal-method-membership");
       assert.match(membership, /In the Cycle Index \(7, equal weight\)/);
       assert.match(membership, /Weekly ratio rescaled — Same quantity as another member \(Weekly price ratio\)/);
       assert.match(await text(site.page, ".method-points"), /percentile rank/);
-      assert.match(await text(site.page, "#signal-table-count"), /^8 signals · Average of 8 shown: \d+$/);
+      assert.match(await text(site.page, "#signal-table-count"), /^11 signals · Average of 11 shown: \d+$/);
+      // An outage in a signal's history stays empty on the timeline; the
+      // score from before it is never painted across the gap.
+      const outage = await site.page.evaluate(() => {
+        const labels = [...document.querySelectorAll("#signal-page-heatmap .heatmap-label")];
+        const label = labels.find((node) => node.textContent === "Metric with an outage");
+        const cells = [];
+        for (let node = label.nextElementSibling; node && node.classList.contains("heatmap-cell"); node = node.nextElementSibling) {
+          cells.push({ title: node.title, scored: /phase-/.test(node.className) });
+        }
+        return cells;
+      });
+      const october = outage.filter((cell) => / · Oct \d+, 2024 · /.test(cell.title));
+      assert.ok(october.length >= 10, "the timeline has columns inside the outage");
+      assert.ok(october.every((cell) => !cell.scored && / · No data$/.test(cell.title)), "outage columns are unavailable");
+      assert.ok(outage.filter((cell) => / · (Aug|Dec) \d+, 2024 · /.test(cell.title)).every((cell) => cell.scored));
       const young = site.page.locator('tr[data-signal-id="young"] .signal-delta');
       assert.deepEqual(await young.allInnerTexts(), ["+6", "-40", "—", "—"]);
       assert.equal(await site.page.locator('tr[data-signal-id="lagging"] .stale-flag').count(), 1);
@@ -102,7 +120,7 @@ const headline = new RegExp(`CYCLE INDEX\\s+${index}(?!\\d)`, "i");
     const ribbon = await text(dashboard.page, "#metric-ribbon");
     assert.match(ribbon, new RegExp(`CYCLE INDEX\\s+${index}\\s*Bottom`, "i"));
     assert.match(ribbon, /\$58,535/);
-    assert.match(await text(dashboard.page, "#dashboard-updated"), /^Published Jan 2, 2025, 00:00 UTC · Data through Dec 17, 2024 · 2 signals stale · 3 signals unavailable$/);
+    assert.match(await text(dashboard.page, "#dashboard-updated"), /^Published Jan 2, 2025, 00:05 UTC · Data through Dec 17, 2024 · 2 signals stale · 3 signals unavailable$/);
     await dashboard.page.waitForSelector("#dashboard-signal-heatmap .heatmap-label");
     assert.deepEqual((await dashboard.page.locator("#dashboard-signal-heatmap .heatmap-label").allInnerTexts()).slice(0, 2), ["Cycle Index", "Plain daily metric"]);
     assert.deepEqual(dashboard.errors, []);
@@ -112,6 +130,7 @@ const headline = new RegExp(`CYCLE INDEX\\s+${index}(?!\\d)`, "i");
     const fallback = await open(browser, { artifact: false });
     await fallback.visit("/signals/", "#signal-table-body tr[data-signal-id]");
     assert.ok(fallback.chartRequests().length >= 8, "the fallback reads chart payloads");
+    assert.equal(fallback.requests.filter((item) => item.endsWith("/signals.json")).length, 0, "a manifest that records no artifact causes no request for one");
     assert.equal(await text(fallback.page, "#signal-method-version"), "Method v2 · computed in this browser");
     assert.match(await text(fallback.page, "#signal-summary"), headline);
     assert.match(await text(fallback.page, "#signals-freshness"), /Data through Dec 17, 2024 · 2 signals stale: .+ · 3 signals unavailable/);
@@ -145,6 +164,10 @@ const headline = new RegExp(`CYCLE INDEX\\s+${index}(?!\\d)`, "i");
     assert.match(await fired.getAttribute("class"), /triggered/, "a one-shot alert that just fired keeps its triggered styling");
     assert.match(await fired.innerText(), /Score is above 50 · now 66 · Completed/);
     assert.equal(await alerts.page.locator("#alert-signal").inputValue(), "lagging", "the requested signal stays selected after saving");
+    // That firing was displayed here, so another page must not count it as unseen.
+    await alerts.visit("/signals/", "#signal-table-body tr[data-signal-id]");
+    await alerts.page.waitForTimeout(150);
+    assert.equal(await alerts.page.locator(".terminal-nav .nav-badge").count(), 0, "a firing already shown on Alerts is not re-announced");
     assert.deepEqual(alerts.errors, []);
     await alerts.context.close();
 

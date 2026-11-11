@@ -10,6 +10,7 @@
       "min_history_days": 60,
       "min_observations": 8
     },
+    "rounding": { "rule": "half_away_from_zero" },
     "phases": [
       { "key": "bottom", "label": "Bottom", "below": 25 },
       { "key": "bearish", "label": "Bearish", "below": 50 },
@@ -46,6 +47,15 @@
       "input": { "type": "series", "series": { "name": "Lagging" } }, "unit": "usd", "decimals": 2, "composite": true },
     { "id": "abandoned", "chart_id": "abandoned-chart", "label": "Abandoned metric", "category": "Mining", "source": "native",
       "input": { "type": "series", "series": { "name": "Abandoned" } }, "unit": "sat_per_vbyte", "decimals": 2, "composite": true },
+    { "id": "halfway-up", "chart_id": "halfway-chart", "label": "Positive rounding ties", "category": "Risk", "source": "native",
+      "input": { "type": "series", "series": { "name": "Halfway up" } }, "unit": "index", "decimals": 4,
+      "composite": false, "exclusion": { "reason": "short_horizon", "note": "Fixture: values sit exactly halfway between two rounded results." } },
+    { "id": "halfway-down", "chart_id": "halfway-chart", "label": "Negative rounding ties", "category": "Risk", "source": "native",
+      "input": { "type": "series", "series": { "name": "Halfway down" } }, "unit": "index", "decimals": 4,
+      "composite": false, "exclusion": { "reason": "short_horizon", "note": "Fixture: the same ties below zero." } },
+    { "id": "gappy", "chart_id": "gappy-chart", "label": "Metric with an outage", "category": "Risk", "source": "native",
+      "input": { "type": "series", "series": { "name": "Gappy" } }, "unit": "index", "decimals": 2,
+      "composite": false, "exclusion": { "reason": "non_directional", "note": "Fixture: six weekly samples are unavailable mid-history." } },
     { "id": "too-short", "chart_id": "short-chart", "label": "Too short", "category": "Risk", "source": "native",
       "input": { "type": "series", "series": { "name": "Short" } }, "unit": "index", "decimals": 2, "composite": true },
     { "id": "renamed", "chart_id": "plain-chart", "label": "Renamed upstream series", "category": "Valuation", "source": "native",

@@ -15,7 +15,7 @@ const fixture = {
 const production = json('../assets/signal-definitions.json');
 const plain = (value) => JSON.parse(JSON.stringify(value));
 
-function context(search = '') {
+function context(search = '', manifest = {}) {
   const nodes = {};
   const node = (selector) => nodes[selector] ||= {
     innerHTML: '', textContent: '', title: '', hidden: false, value: '',
@@ -30,7 +30,13 @@ function context(search = '') {
   };
   vm.createContext(scope);
   vm.runInContext(source, scope);
-  vm.runInContext('appState.manifest = { generated_at: "2025-01-02T00:05:00+00:00", charts: [] }', scope);
+  scope.manifest = {
+    generated_at: '2025-01-02T00:05:00+00:00',
+    charts: [],
+    signals: { path: 'web/data/bitcoin/signals.json', source_fingerprint: fixture.expected.source_fingerprint, data_through: fixture.expected.data_through, method_version: 2 },
+    ...manifest,
+  };
+  vm.runInContext('appState.manifest = manifest', scope);
   return { scope, nodes };
 }
 
@@ -55,22 +61,19 @@ function serve(scope, { artifact = fixture.expected, definitions = fixture.defin
   return requests;
 }
 
-function assertClose(actual, expected, where = 'artifact') {
-  if (typeof expected === 'number' && typeof actual === 'number') {
-    const tolerance = 1e-9 * Math.max(1, Math.abs(expected));
-    assert.ok(Math.abs(actual - expected) <= tolerance, `${where}: ${actual} != ${expected}`);
-    return;
-  }
+// Both implementations use one rounding rule, so published numbers are
+// compared exactly rather than within a tolerance.
+function assertSame(actual, expected, where = 'artifact') {
   if (Array.isArray(expected)) {
     assert.ok(Array.isArray(actual), `${where}: expected an array`);
     assert.equal(actual.length, expected.length, `${where}: length`);
-    expected.forEach((item, index) => assertClose(actual[index], item, `${where}[${index}]`));
+    expected.forEach((item, index) => assertSame(actual[index], item, `${where}[${index}]`));
     return;
   }
   if (expected && typeof expected === 'object') {
     assert.ok(actual && typeof actual === 'object', `${where}: expected an object`);
     assert.deepEqual(Object.keys(actual).sort(), Object.keys(expected).sort(), `${where}: keys`);
-    Object.keys(expected).forEach((key) => assertClose(actual[key], expected[key], `${where}.${key}`));
+    Object.keys(expected).forEach((key) => assertSame(actual[key], expected[key], `${where}.${key}`));
     return;
   }
   assert.equal(actual, expected, where);
@@ -78,9 +81,35 @@ function assertClose(actual, expected, where = 'artifact') {
 
 test('browser fallback scoring reproduces the Python golden artifact', () => {
   const { scope } = context();
-  const built = plain(scope.buildSignalsArtifact(plain(fixture.definitions), (id) => fixture.charts[id] ?? null, fixture.expected.generated_at));
-  assertClose(built, fixture.expected);
+  const built = plain(scope.buildSignalsArtifact(plain(fixture.definitions), (id) => fixture.charts[id] ?? null));
+  // Only the site build fingerprints its inputs; everything else must match.
+  assert.equal(built.source_fingerprint, null);
+  assertSame({ ...built, source_fingerprint: fixture.expected.source_fingerprint }, fixture.expected);
   assert.deepEqual(built.unavailable.map((item) => item.id), ['too-short', 'renamed', 'no-chart']);
+  assert.equal(JSON.stringify(built), JSON.stringify(plain(scope.buildSignalsArtifact(plain(fixture.definitions), (id) => fixture.charts[id] ?? null))), 'no clock reading is embedded');
+  assert.doesNotMatch(JSON.stringify(built), /generated_at|updated_at/);
+  // The fixture contains exact halfway values above and below zero.
+  const ties = Object.fromEntries(built.signals.filter((signal) => signal.id.startsWith('halfway')).map((signal) => [signal.id, signal]));
+  for (const rounded of [1.063, 0.1563, 1235, 0.007813]) {
+    assert.ok(ties['halfway-up'].history.values.includes(rounded), `${rounded} rounds away from zero`);
+    assert.ok(ties['halfway-down'].history.values.includes(-rounded), `${-rounded} rounds away from zero`);
+  }
+  assert.deepEqual([ties['halfway-up'].value, ties['halfway-down'].value], [0.007813, -0.007813]);
+});
+
+test('rounding is half away from zero on the exact value, as in the site build', () => {
+  const { scope } = context();
+  const decimals = [[6.25, 1, 6.3], [-6.25, 1, -6.3], [0.125, 2, 0.13], [-0.125, 2, -0.13], [2.5, 0, 3], [-2.5, 0, -3],
+    [0.0078125, 6, 0.007813], [-0.0078125, 6, -0.007813], [18.75, 1, 18.8], [34.5, 1, 34.5], [1.005, 2, 1]];
+  for (const [value, places, expected] of decimals) assert.equal(scope.roundDecimals(value, places), expected, `${value} to ${places} decimals`);
+  const significant = [[1.0625, 4, 1.063], [-1.0625, 4, -1.063], [0.15625, 4, 0.1563], [-0.15625, 4, -0.1563],
+    [1234.5, 4, 1235], [-1234.5, 4, -1235], [9.9996, 4, 10], [73631.4, 4, 73630], [0, 4, 0]];
+  for (const [value, digits, expected] of significant) assert.equal(scope.roundSignificant(value, digits), expected, `${value} to ${digits} digits`);
+  assert.ok(Object.is(scope.roundDecimals(-0.04, 1), 0), 'negative zero is never published');
+  assert.ok(Object.is(scope.roundSignificant(-0, 4), 0));
+  assert.equal(scope.roundSignalScore(null), null);
+  assert.equal(scope.roundSignificant(null, 4), null);
+  assert.equal(production.method.rounding.rule, 'half_away_from_zero');
 });
 
 test('pages read one compact artifact instead of a payload per signal', async () => {
@@ -92,7 +121,8 @@ test('pages read one compact artifact instead of a payload per signal', async ()
   assert.equal(state.signals.length, fixture.expected.signals.length);
   assert.equal(state.composite.score, fixture.expected.composite.score);
   assert.equal(state.dataThrough, fixture.expected.data_through);
-  assert.equal(state.generatedAt, fixture.expected.generated_at);
+  assert.equal(state.sourceFingerprint, fixture.expected.source_fingerprint);
+  assert.equal('generatedAt' in state, false, 'publication time comes from the manifest, not the artifact');
   assert.equal((await scope.buildSignals()).length, state.signals.length);
   assert.equal(requests.length, 1, 'the artifact is requested once per page');
   for (const signal of state.signals) {
@@ -101,18 +131,88 @@ test('pages read one compact artifact instead of a payload per signal', async ()
     assert.equal(signal.rawValue, published.value);
     assert.equal(signal.date, published.date);
     assert.ok(signal.points.length > 0 && signal.points.every((point) => Number.isFinite(point.score)));
+    assert.equal(signal.samples.length, fixture.expected.history.dates.length, 'unavailable samples are kept');
   }
 });
 
-test('a missing, invalid or outdated artifact falls back to chart payloads with the same result', async () => {
-  const outdated = { ...fixture.expected, generated_at: '2024-12-25T00:00:00+00:00' };
+test('the artifact is located and verified through the manifest that was published with it', async () => {
+  // The manifest names the file; a fingerprint from another build is rejected.
+  const moved = context('', { signals: { path: 'web/data/other/cycle.json', source_fingerprint: fixture.expected.source_fingerprint } });
+  const requests = [];
+  moved.scope.fetchJson = async (file) => { requests.push(file); return plain(fixture.expected); };
+  assert.equal((await moved.scope.loadSignalState()).source, 'artifact');
+  assert.deepEqual(requests, ['web/data/other/cycle.json']);
+
+  const mismatch = context('', { signals: { path: 'web/data/bitcoin/signals.json', source_fingerprint: 'f'.repeat(64) } });
+  serve(mismatch.scope);
+  assert.equal(mismatch.scope.signalsArtifactProblem(plain(fixture.expected)), 'built from different data than the published manifest');
+  assert.equal((await mismatch.scope.loadSignalState()).source, 'fallback');
+
+  // A build that could not make the artifact says so, and nothing is requested.
+  const none = context('', { signals: null });
+  const noneRequests = serve(none.scope);
+  assert.equal((await none.scope.loadSignalState()).source, 'fallback');
+  assert.equal(noneRequests.some((file) => file.endsWith('signals.json')), false);
+
+  // A manifest without the entry still finds the artifact beside it.
+  const legacy = context('', { signals: undefined });
+  const legacyRequests = serve(legacy.scope);
+  assert.equal((await legacy.scope.loadSignalState()).source, 'artifact');
+  assert.deepEqual(legacyRequests, ['web/data/bitcoin/signals.json']);
+});
+
+test('the timeline shows an outage as unavailable instead of carrying the last score across it', async () => {
+  const { scope } = context();
+  serve(scope);
+  const state = await scope.loadSignalState();
+  const dates = fixture.expected.history.dates;
+  const gappy = state.signals.find((signal) => signal.id === 'gappy');
+  const outage = dates.slice(7, 13);
+  assert.deepEqual(plain(gappy.samples.filter((sample) => sample.score === null).map((sample) => sample.date)), outage);
+  assert.equal(gappy.points.length, dates.length - outage.length);
+
+  const cells = (signals, columns) => {
+    const target = { innerHTML: '', classList: { remove() {} } };
+    scope.renderSignalHeatmap(target, signals, columns);
+    return [...target.innerHTML.matchAll(/<span class="heatmap-cell([^"]*)" title="([^"]*)"><\/span>/g)].map((cell) => ({ classes: cell[1], title: cell[2] }));
+  };
+  // One column per weekly sample: the six outage weeks are empty and the
+  // score from before the outage is never shown for a later date.
+  const weekly = cells([gappy], dates.length);
+  assert.equal(weekly.length, dates.length);
+  weekly.forEach((cell, index) => {
+    const during = index >= 7 && index < 13;
+    assert.equal(/phase-/.test(cell.classes), !during, `${dates[index]} ${during ? 'is unavailable' : 'is scored'}`);
+    assert.equal(/· No data$/.test(cell.title), during, cell.title);
+  });
+  assert.match(weekly[6].title, /Sep 17, 2024 · 46 · as of Sep 17, 2024$/);
+  assert.match(weekly[13].title, /Nov 5, 2024 · 75 · as of Nov 5, 2024$/);
+  // Any other column density gives the same answer for dates inside the outage.
+  for (const columns of [7, 40, 133]) {
+    for (const cell of cells([gappy], columns)) {
+      const date = new Date(`${cell.title.split(' · ')[1]} UTC`).toISOString().slice(0, 10);
+      if (date >= '2024-09-24' && date < '2024-11-05') assert.match(cell.title, /No data$/, `${columns} columns: ${cell.title}`);
+      else assert.match(cell.classes, /phase-/, `${columns} columns: ${cell.title}`);
+    }
+  }
+  // The Cycle Index row and legacy point lists obey the same limit.
+  const index = scope.compositeSignal(state);
+  assert.equal(index.samples.length, dates.length);
+  const sparse = cells([{ label: 'Sparse', points: [{ date: '2026-01-01', score: 10 }, { date: '2026-03-01', score: 90 }] }], 60);
+  const carried = sparse.filter((cell) => /phase-bottom/.test(cell.classes)).map((cell) => cell.title.split(' · ')[1]);
+  assert.equal(carried.at(-1), 'Jan 15, 2026', 'a reading is carried for at most 14 days');
+  assert.equal(sparse.filter((cell) => /No data$/.test(cell.title)).length, 60 - carried.length - 1);
+});
+
+test('a missing, invalid or mismatched artifact falls back to chart payloads with the same result', async () => {
   const cases = [
     new Error('Could not load signals.json'),
     { ...fixture.expected, schema_version: 99 },
     { ...fixture.expected, signals: [] },
     { ...fixture.expected, signals: [{ ...fixture.expected.signals[0], score: null }] },
     { ...fixture.expected, method: undefined },
-    outdated,
+    { ...fixture.expected, source_fingerprint: undefined },
+    { ...fixture.expected, source_fingerprint: 'another build' },
     'not json',
   ];
   for (const artifact of cases) {
@@ -240,7 +340,7 @@ test('freshness separates publication time from data date and reports stale and 
   assert.equal(weekly.stale, false, 'a weekly source one day behind is not stale');
   const target = scope.document.querySelector('#dashboard-updated');
   scope.renderFreshness(target, state);
-  assert.equal(target.textContent, 'Published Jan 2, 2025, 00:00 UTC · Data through Dec 17, 2024 · 2 signals stale · 3 signals unavailable');
+  assert.equal(target.textContent, 'Published Jan 2, 2025, 00:05 UTC · Data through Dec 17, 2024 · 2 signals stale · 3 signals unavailable');
   assert.match(target.title, /Renamed upstream series: series 'Old metric name' is missing from chart 'plain-chart'/);
   scope.renderFreshness(target, state, { detail: true });
   assert.match(target.textContent, /3 signals unavailable: Too short, Renamed upstream series, Chart not generated/);

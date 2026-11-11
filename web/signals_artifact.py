@@ -12,17 +12,24 @@ port of this algorithm only as a fallback for a missing artifact; both are
 pinned to the same golden fixture (``web/tests/fixtures/signals``).
 
 The scoring code deliberately uses plain Python floats and the same operation
-order as the browser port so both produce identical numbers.
+order as the browser port so both produce identical numbers.  Every published
+number is rounded with one rule, half away from zero on the exact value.
+
+The artifact never embeds the current time: identical chart inputs produce
+byte-identical output.  ``source_fingerprint`` and ``data_through`` describe
+the inputs; the publication time is the site manifest's ``generated_at``.
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import re
 import sys
 from bisect import bisect_left, bisect_right, insort
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, timedelta
+from decimal import ROUND_HALF_UP, Context, Decimal
 from pathlib import Path
 
 
@@ -31,6 +38,9 @@ ARTIFACT_NAME = "signals.json"
 DEFINITIONS_PATH = Path(__file__).resolve().parent / "assets" / "signal-definitions.json"
 _EPOCH = date(1970, 1, 1)
 _DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}")
+# decimal's ROUND_HALF_UP rounds ties away from zero. The precision is large
+# enough to hold the exact binary expansion of any float.
+_ROUNDING = Context(prec=2000, rounding=ROUND_HALF_UP)
 
 
 class SignalUnavailable(Exception):
@@ -62,9 +72,16 @@ def finite_number(value) -> float | None:
     return number if math.isfinite(number) else None
 
 
+def _round_at(value: float, exponent: int) -> float:
+    """Round the exact value of ``value`` to a multiple of 10**exponent, with
+    ties going away from zero. The browser port uses ``toFixed`` and
+    ``toPrecision``, which follow the same rule on the exact value."""
+    rounded = Decimal(value).quantize(Decimal(1).scaleb(exponent), context=_ROUNDING)
+    return float(rounded) + 0.0  # never publish a negative zero
+
+
 def round_decimals(value: float, decimals: int) -> float:
-    factor = 10 ** decimals
-    return math.floor(value * factor + 0.5) / factor
+    return _round_at(value, -decimals)
 
 
 def round_score(value: float | None) -> float | None:
@@ -74,7 +91,9 @@ def round_score(value: float | None) -> float | None:
 def round_significant(value: float | None, digits: int) -> float | None:
     if value is None:
         return None
-    return float(f"{value:.{digits}g}")
+    if value == 0:
+        return 0.0
+    return _round_at(value, Decimal(value).adjusted() - digits + 1)
 
 
 def select_series(payload, selector: dict):
@@ -244,12 +263,39 @@ def _build_market(market: dict | None, payload_for, carry_forward_days: int):
     }
 
 
-def build_signals_artifact(definitions: dict, load_payload, generated_at: str | None = None) -> dict:
+def source_fingerprint(definitions: dict, payload_for) -> str:
+    """Stable digest of everything the artifact is computed from: the
+    definitions (including the method) and each referenced input series."""
+    inputs = []
+    sources = [(entry.get("chart_id"), entry.get("input") or {}) for entry in definitions.get("signals", [])]
+    if isinstance(definitions.get("market"), dict):
+        sources.append((definitions["market"].get("chart_id"), definitions["market"]))
+    for chart_id, source in sources:
+        payload = payload_for(chart_id)
+        for role in sorted(source):
+            selector = source[role]
+            if not isinstance(selector, dict):
+                continue
+            series = select_series(payload, selector)
+            inputs.append([
+                chart_id,
+                role,
+                selector,
+                None if series is None else [series.get("x"), series.get("y")],
+            ])
+    canonical = json.dumps(
+        {"definitions": definitions, "inputs": inputs}, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def build_signals_artifact(definitions: dict, load_payload) -> dict:
     """Score every definition and return the publishable artifact.
 
     ``load_payload(chart_id)`` returns a chart payload dict, or ``None`` when
     the chart has no data.  Definitions that cannot be resolved are reported
-    under ``unavailable`` instead of being dropped silently.
+    under ``unavailable`` instead of being dropped silently.  The result is a
+    pure function of its inputs; it contains no clock reading.
     """
     method = definitions["method"]
     scoring = method["scoring"]
@@ -410,7 +456,7 @@ def build_signals_artifact(definitions: dict, load_payload, generated_at: str | 
     ]
     return {
         "schema_version": ARTIFACT_SCHEMA_VERSION,
-        "generated_at": generated_at or datetime.now(timezone.utc).isoformat(),
+        "source_fingerprint": source_fingerprint(definitions, payload_for),
         "data_through": None if data_through is None else from_day(data_through),
         "method": published_method,
         "market": market,
@@ -440,8 +486,9 @@ def write_signals_artifact(data_dir: Path, definitions: dict | None = None) -> d
     target = data_dir / ARTIFACT_NAME
     temporary = target.with_suffix(".json.tmp")
     try:
-        temporary.write_text(
-            json.dumps(artifact, separators=(",", ":"), allow_nan=False) + "\n", encoding="utf-8"
+        # Bytes, not text: the same inputs give the same file on every platform.
+        temporary.write_bytes(
+            (json.dumps(artifact, separators=(",", ":"), allow_nan=False) + "\n").encode("utf-8")
         )
         temporary.replace(target)
     finally:

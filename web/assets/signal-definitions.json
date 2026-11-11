@@ -11,6 +11,10 @@
       "min_observations": 60,
       "description": "Each score is the percentile rank (0-100, ties at mid-rank) of a reading within that indicator's own history up to and including the observation date. Ranks do not depend on how a metric is expressed, so NUPL and MVRV, which are rescalings of each other, score identically. Because every historical score only uses data available on its date, the timeline does not use hindsight; the latest score is ranked against the full history. No score is published until an indicator has two years of history."
     },
+    "rounding": {
+      "rule": "half_away_from_zero",
+      "description": "Every published number is rounded once, on its exact value, with ties going away from zero: scores and changes to 1 decimal, latest values to 6 decimals, history values to 4 significant digits."
+    },
     "phases": [
       { "key": "bottom", "label": "Bottom", "below": 25 },
       { "key": "bearish", "label": "Bearish", "below": 50 },
