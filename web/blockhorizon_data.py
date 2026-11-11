@@ -9,8 +9,11 @@ from __future__ import annotations
 
 import json
 import math
+import os
+import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 
@@ -230,20 +233,86 @@ SOURCE_SERIES_OVERRIDES = {
 SOURCE_LOG_SCALE_OVERRIDES = {"pb-s2f"}
 
 
-def _fetch_bundle(timeout: int = 90) -> tuple[list[dict], str | None]:
-    request = Request(
-        SOURCE_BUNDLE_URL,
-        headers={
-            "Accept": "application/json",
-            "User-Agent": "Fintech-Charts/1.0 (+https://github.com/JamesTsetsekas/Fintech)",
-        },
-    )
-    with urlopen(request, timeout=timeout) as response:
-        payload = json.load(response)
-        built_at = response.headers.get("X-Bundle-Built-At")
-    if not isinstance(payload, list):
+# Conditional-GET cache for the upstream bundle. It lives under logs/ (ignored by
+# git and never copied into the published site).
+BUNDLE_CACHE_PATH = Path(__file__).resolve().parent.parent / "logs" / "blockhorizon-bundle-cache.json"
+
+
+def _is_valid_bundle(bundle) -> bool:
+    """A bundle is a non-empty list of chart objects; anything else is unusable."""
+    return isinstance(bundle, list) and bool(bundle) and all(isinstance(chart, dict) for chart in bundle)
+
+
+def _read_bundle_cache(path: Path) -> dict | None:
+    try:
+        cached = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if (
+        isinstance(cached, dict)
+        and isinstance(cached.get("etag"), str) and cached["etag"]
+        and _is_valid_bundle(cached.get("bundle"))
+    ):
+        return cached
+    return None
+
+
+def _write_bundle_cache(path: Path, etag: str, built_at: str | None, bundle: list[dict]) -> None:
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = path.with_name(path.name + ".tmp")
+        temporary.write_text(
+            json.dumps({"etag": etag, "built_at": built_at, "bundle": bundle}, separators=(",", ":")),
+            encoding="utf-8",
+        )
+        os.replace(temporary, path)
+    except OSError:
+        pass  # The cache is an optimization only.
+
+
+def _fetch_bundle(timeout: int = 90, cache_path: Path | None = None) -> tuple[list[dict], str | None]:
+    cache_path = BUNDLE_CACHE_PATH if cache_path is None else cache_path
+    cached = _read_bundle_cache(cache_path)
+    headers = {
+        "Accept": "application/json",
+        "User-Agent": "Fintech-Charts/1.0 (+https://github.com/JamesTsetsekas/Fintech)",
+    }
+    if cached:
+        headers["If-None-Match"] = cached["etag"]
+    request = Request(SOURCE_BUNDLE_URL, headers=headers)
+    try:
+        with urlopen(request, timeout=timeout) as response:
+            payload = json.load(response)
+            built_at = response.headers.get("X-Bundle-Built-At")
+            etag = response.headers.get("ETag")
+    except HTTPError as error:
+        if error.code == 304 and cached:
+            return cached["bundle"], cached.get("built_at")
+        raise
+    if not _is_valid_bundle(payload):
         raise ValueError("BlockHorizon chart bundle did not contain a chart list")
+    if etag:
+        _write_bundle_cache(cache_path, etag, built_at, payload)
     return payload, built_at
+
+
+_HEX_COLOR = re.compile(r"#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})")
+_FUNCTIONAL_COLOR = re.compile(r"(?:rgba?|hsla?)\(\s*[-+]?[0-9.]+(?:%|deg)?(?:\s*[,/\s]\s*[-+]?[0-9.]+(?:%|deg)?){2,3}\s*\)")
+
+
+def _safe_color(value, fallback):
+    """Return an upstream color only when it is plainly a CSS color literal.
+
+    Colors are copied into chart payloads and rendered by the browser, so
+    anything that is not a hex or rgb()/hsl() literal falls back to the palette.
+    """
+    if isinstance(value, str):
+        candidate = value.strip()
+        if len(value) <= 64 and (
+            _HEX_COLOR.fullmatch(candidate) or _FUNCTIONAL_COLOR.fullmatch(candidate)
+        ):
+            return candidate
+    return fallback
 
 
 def _decode_series(source_series: dict) -> tuple[list[str], list[float | None]]:
@@ -271,8 +340,11 @@ def _point_colors(source_series: dict, length: int) -> list[str] | None:
     overrides = (source_series.get("pd") or {}).get("x") or {}
     if not overrides:
         return None
-    fallback = source_series.get("color") or PALETTE[0]
-    return [overrides.get(str(index), {}).get("color", fallback) for index in range(length)]
+    fallback = _safe_color(source_series.get("color"), PALETTE[0])
+    return [
+        _safe_color((overrides.get(str(index)) or {}).get("color", fallback), fallback)
+        for index in range(length)
+    ]
 
 
 def _value_line_marker(source_series: dict, values: list[float | None]) -> dict | None:
@@ -297,9 +369,12 @@ def _line_trace(chart: dict, source_series: dict, index: int) -> dict | None:
         return None
     style = _series_style(chart, source_series)
     override = SOURCE_SERIES_OVERRIDES.get((chart.get("slug"), source_series.get("series_key")), {})
-    color = override.get("color") or style.get("color") or source_series.get("color") or PALETTE[index % len(PALETTE)]
+    default_color = PALETTE[index % len(PALETTE)]
     if (chart.get("gradient_config") or {}).get("default_series_key") == source_series.get("series_key"):
-        color = override.get("color") or style.get("color") or source_series.get("color") or "#c96442"
+        default_color = "#c96442"
+    color = override.get("color") or _safe_color(
+        style.get("color"), _safe_color(source_series.get("color"), default_color)
+    )
     series_type = style.get("type", "line")
     base = {
         "name": str(source_series.get("name") or source_series.get("series_key") or f"Series {index + 1}").strip(),
@@ -315,7 +390,7 @@ def _line_trace(chart: dict, source_series: dict, index: int) -> dict | None:
     if series_type == "column":
         marker_color = color
         threshold = style.get("threshold")
-        negative_color = style.get("negativeColor")
+        negative_color = _safe_color(style.get("negativeColor"), None)
         if isinstance(threshold, (int, float)) and negative_color:
             marker_color = [negative_color if value is not None and value < threshold else color for value in values]
         return {
@@ -416,7 +491,14 @@ def _heatmap_trace(chart: dict) -> list[dict]:
             rows.append(values)
     if not rows:
         return []
-    stops = style.get("stops") or [[0, "#2863a7"], [0.5, "#fffefa"], [1, "#c91f50"]]
+    default_stops = [[0, "#2863a7"], [0.5, "#fffefa"], [1, "#c91f50"]]
+    stops = style.get("stops")
+    if not isinstance(stops, list) or not stops or not all(
+        isinstance(stop, (list, tuple)) and len(stop) == 2
+        and isinstance(stop[0], (int, float)) and not isinstance(stop[0], bool)
+        and _safe_color(stop[1], None) for stop in stops
+    ):
+        stops = default_stops
     return [{
         "name": "Distribution",
         "source_key": "distribution",
@@ -571,7 +653,8 @@ def _build_payload(chart: dict, price_chart: dict, built_at: str | None) -> dict
         if trace.get("x"):
             latest_date = trace["x"][-1]
             break
-    source_updated = built_at or chart.get("updated_at") or datetime.now(timezone.utc).isoformat()
+    # Deterministic fallback: never stamp wall-clock time into publishable data.
+    source_updated = built_at or chart.get("updated_at") or latest_date
     main_series_id = chart.get("main_series_id")
     main_series_key = next(
         (

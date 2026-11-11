@@ -46,6 +46,8 @@ PUBLISH_EXCLUDED_BITCOIN_PATHS = {
     Path("Bitcoin/price_prediction/price_prediction.png"),
 }
 PUBLISH_STATE_PATH = script_dir / "logs" / "publish-state.json"
+# Generation-time metadata that must not make otherwise identical sites look changed.
+VOLATILE_JSON_KEYS = frozenset({"generated_at", "updated_at"})
 
 # Define report runners to execute
 REPORT_RUNNERS = [
@@ -178,25 +180,28 @@ def _normalized_publish_bytes(path: Path) -> bytes:
     except (OSError, json.JSONDecodeError):
         return path.read_bytes()
 
-    def strip_generated_at(value):
+    def strip_volatile(value):
         if isinstance(value, dict):
             return {
-                key: strip_generated_at(child)
+                key: strip_volatile(child)
                 for key, child in value.items()
-                if key != "generated_at"
+                if key not in VOLATILE_JSON_KEYS
             }
         if isinstance(value, list):
-            return [strip_generated_at(child) for child in value]
+            return [strip_volatile(child) for child in value]
         return value
 
     return json.dumps(
-        strip_generated_at(payload), sort_keys=True, separators=(",", ":"), ensure_ascii=False
+        strip_volatile(payload), sort_keys=True, separators=(",", ":"), ensure_ascii=False
     ).encode("utf-8")
 
 
-def static_site_fingerprint(site_dir: Path) -> str:
-    """Hash publishable content without volatile generated_at metadata."""
+def static_site_fingerprint(site_dir: Path, branch: str = "") -> str:
+    """Hash publishable content (and target branch) without volatile timestamps."""
     digest = hashlib.sha256()
+    branch_bytes = branch.encode("utf-8")
+    digest.update(len(branch_bytes).to_bytes(4, "big"))
+    digest.update(branch_bytes)
     for path in sorted(candidate for candidate in site_dir.rglob("*") if candidate.is_file()):
         relative_path = path.relative_to(site_dir).as_posix().encode("utf-8")
         digest.update(len(relative_path).to_bytes(4, "big"))
@@ -207,22 +212,60 @@ def static_site_fingerprint(site_dir: Path) -> str:
     return digest.hexdigest()
 
 
-def last_published_fingerprint() -> str | None:
+def _load_publish_state() -> dict:
     try:
         payload = json.loads(PUBLISH_STATE_PATH.read_text(encoding="utf-8"))
-        return payload.get("fingerprint") if isinstance(payload, dict) else None
-    except (OSError, json.JSONDecodeError):
-        return None
+    except (OSError, ValueError):
+        # ValueError covers JSONDecodeError and UnicodeDecodeError (corrupt state file).
+        return {}
+    return payload if isinstance(payload, dict) else {}
 
 
-def remember_published_fingerprint(fingerprint: str, branch: str) -> None:
+def _save_publish_state(state: dict) -> None:
     PUBLISH_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
     temporary_path = PUBLISH_STATE_PATH.with_suffix(".tmp")
-    temporary_path.write_text(
-        json.dumps({"fingerprint": fingerprint, "branch": branch}, indent=2) + "\n",
-        encoding="utf-8",
-    )
+    temporary_path.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
     temporary_path.replace(PUBLISH_STATE_PATH)
+
+
+def last_published_fingerprint() -> str | None:
+    fingerprint = _load_publish_state().get("fingerprint")
+    return fingerprint if isinstance(fingerprint, str) else None
+
+
+def remember_published_fingerprint(fingerprint: str, branch: str, source_head: str | None = None) -> None:
+    """Record a successful publish and clear any publish-pending marker."""
+    _save_publish_state({
+        "fingerprint": fingerprint,
+        "branch": branch,
+        "source_head": source_head,
+        "pending": False,
+    })
+
+
+def mark_publish_pending(source_head: str | None = None) -> None:
+    """Record a failed/incomplete publish attempt so the next hourly run retries."""
+    state = _load_publish_state()
+    state["pending"] = True
+    state["pending_head"] = source_head
+    _save_publish_state(state)
+
+
+def get_head_sha() -> str | None:
+    result = run_git(
+        ['git', 'rev-parse', 'HEAD'], capture_output=True, text=True, cwd=script_dir
+    )
+    head = result.stdout.strip() if result.returncode == 0 else ""
+    return head or None
+
+
+def publish_is_due(current_head: str | None = None) -> bool:
+    """True when a publish was never recorded, last failed, or the source HEAD moved."""
+    state = _load_publish_state()
+    if "fingerprint" not in state or state.get("pending"):
+        return True
+    head = current_head if current_head is not None else get_head_sha()
+    return head is not None and head != state.get("source_head")
 
 def get_current_branch():
     result = run_git(
@@ -840,6 +883,7 @@ def publish_static_site():
         if parsed_url.scheme in ('http', 'https') and parsed_url.username is not None:
             raise ValueError("Use a credential-free Git remote URL")
 
+        source_head = get_head_sha()
         now = datetime.now(EST) if EST else datetime.now()
         timestamp = now.strftime('%Y-%m-%d %H:%M:%S')
         commit_message = f"Publish generated site - {timestamp}"
@@ -847,9 +891,10 @@ def publish_static_site():
         with tempfile.TemporaryDirectory(prefix="fintech-site-") as temp_dir:
             site_dir = Path(temp_dir) / "site"
             stage_static_site(site_dir)
-            fingerprint = static_site_fingerprint(site_dir)
+            fingerprint = static_site_fingerprint(site_dir, publish_branch)
             if fingerprint == last_published_fingerprint():
                 print("✓ Static site content is unchanged; skipped GitHub Pages deployment")
+                remember_published_fingerprint(fingerprint, publish_branch, source_head)
                 return True
 
             run_git(['git', 'init'], cwd=site_dir, check=True, capture_output=True, text=True)
@@ -883,7 +928,7 @@ def publish_static_site():
                 return False
 
             print_git_output_tail(push_result.stdout, "Push output:")
-            remember_published_fingerprint(fingerprint, publish_branch)
+            remember_published_fingerprint(fingerprint, publish_branch, source_head)
             print(f"✓ Published latest static site to {publish_branch}")
             return True
 
@@ -910,6 +955,12 @@ def main(publish: bool = True):
     print("\nThis will run the Bitcoin visualization reports used by the public site.")
     print("Stock reports and the experimental ML report are excluded from scheduled runs.")
     print("Individual runners will show detailed progress for each report.\n")
+
+    # Persist the pending marker up front so a run that is killed mid-publish
+    # (power loss, OOM, SIGKILL) is retried on the next hourly run. It is cleared
+    # by remember_published_fingerprint() on a confirmed publish or unchanged skip.
+    if publish:
+        mark_publish_pending(get_head_sha())
 
     # Pull latest changes from GitHub
     pull_success = git_pull()
@@ -964,6 +1015,8 @@ def main(publish: bool = True):
         for name in results['failed']:
             print(f"  ✗ {name}")
         print("\nSkipping git commit due to failed runners.")
+        if publish:
+            mark_publish_pending()
         sys.exit(1)
 
     print("\nAll report runners completed successfully!")
@@ -974,6 +1027,8 @@ def main(publish: bool = True):
         print("ERROR: Static website generation failed.")
         print("Skipping git commit to avoid pushing stale web data.")
         print("="*60)
+        if publish:
+            mark_publish_pending()
         sys.exit(1)
 
     if not publish:
@@ -982,6 +1037,8 @@ def main(publish: bool = True):
 
     # Publish the generated site without committing generated outputs to main.
     publish_success = publish_static_site()
+    if not publish_success:
+        mark_publish_pending(get_head_sha())
 
     if publish_success:
         print("\n" + "="*60)
@@ -995,8 +1052,15 @@ def main(publish: bool = True):
         sys.exit(1)
 
 if __name__ == '__main__':
+    if '--publish-due' in sys.argv:
+        # Exit 0 when a publish is due (never published, last attempt failed, or HEAD moved).
+        sys.exit(0 if publish_is_due() else 1)
     if '--publish-only' in sys.argv:
-        sys.exit(0 if publish_static_site() else 1)
+        mark_publish_pending(get_head_sha())
+        published = publish_static_site()
+        if not published:
+            mark_publish_pending(get_head_sha())
+        sys.exit(0 if published else 1)
     if '--push-pending-only' in sys.argv:
         sys.exit(0 if push_pending_commits() else 1)
     main(publish='--skip-publish' not in sys.argv)

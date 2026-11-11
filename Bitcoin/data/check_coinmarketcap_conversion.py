@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Simple test script to verify CoinMarketCap CSV to price.csv conversion
+Manual check script (not a unit test) to verify CoinMarketCap CSV to price.csv conversion
 """
 
 import pandas as pd
@@ -9,6 +9,9 @@ from pathlib import Path
 # Test conversion
 input_file = "Bitcoin_1_1_2008-1_2_2026_historical_data_coinmarketcap.csv"
 output_file = "price_test.csv"
+
+if not Path(input_file).exists():
+    raise SystemExit(f"Skipping: {input_file} not found (private local CSV; run from the directory that holds it).")
 
 print(f"Reading: {input_file}")
 df = pd.read_csv(input_file, sep=';', quotechar='"')
