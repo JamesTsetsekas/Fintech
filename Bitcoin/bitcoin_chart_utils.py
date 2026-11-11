@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 
@@ -19,6 +20,12 @@ POWER_LAW_CONSTANT_LOG10 = -17.016
 POWER_LAW_EXPONENT = 5.845
 POWER_LAW_SUPPORT_MULTIPLE = 10 ** -0.45
 POWER_LAW_RESISTANCE_MULTIPLE = 3.5166650570993987
+# Bump when the daily block-metric aggregation or its output columns change so
+# caches written by older code are rebuilt instead of reused.
+BLOCK_METRICS_CACHE_VERSION = 1
+BLOCK_METRICS_CACHE_REQUIRED_COLUMNS = frozenset(
+    {"Date", "Fees_BTC", "Reward_BTC", "Block_Count", "Estimated_Hashrate_EH_S"}
+)
 
 HALVINGS = [
     {"epoch": 1, "block": 0, "date": pd.Timestamp("2009-01-03"), "subsidy": 50.0},
@@ -90,16 +97,45 @@ def load_intraday_price(data_dir):
     return data[["DateTime", "Date", "Price", "Log_Return"]]
 
 
+def _block_metrics_cache_key(block_csvs):
+    """Describe the exact inputs (and code version) a block-metrics cache was built from."""
+    inventory = []
+    for csv_path in block_csvs:
+        stat = csv_path.stat()
+        inventory.append([csv_path.name, stat.st_size, stat.st_mtime_ns])
+    return {"version": BLOCK_METRICS_CACHE_VERSION, "sources": inventory}
+
+
+def _read_block_metrics_cache(cache_path, key_path, key):
+    """Return the cached frame only if its recorded key matches; otherwise None."""
+    try:
+        if json.loads(key_path.read_text(encoding="utf-8")) != key:
+            return None
+        cached = pd.read_csv(cache_path)
+        if not BLOCK_METRICS_CACHE_REQUIRED_COLUMNS.issubset(cached.columns):
+            return None
+        cached["Date"] = pd.to_datetime(cached["Date"])
+    except (OSError, ValueError, KeyError, pd.errors.ParserError, pd.errors.EmptyDataError):
+        return None
+    return cached
+
+
 def load_daily_block_metrics(data_dir):
-    """Aggregate block CSVs into daily fee, revenue, difficulty, and activity metrics."""
+    """Aggregate block CSVs into daily fee, revenue, difficulty, and activity metrics.
+
+    The aggregate is cached next to the sources and reused only when the set of
+    block files (names, sizes, mtimes) and BLOCK_METRICS_CACHE_VERSION match what
+    the cache was built from. Added, removed, or edited inputs, a code version
+    bump, or a missing/corrupt cache all trigger a rebuild.
+    """
     data_dir = Path(data_dir)
     cache_path = data_dir / "daily_block_metrics_cache.csv"
+    key_path = data_dir / "daily_block_metrics_cache.key.json"
     block_csvs = sorted(data_dir.glob("block_data_*.csv"))
-    if cache_path.exists() and block_csvs:
-        cache_mtime = cache_path.stat().st_mtime
-        if all(csv_path.stat().st_mtime <= cache_mtime for csv_path in block_csvs):
-            cached = pd.read_csv(cache_path)
-            cached["Date"] = pd.to_datetime(cached["Date"])
+    cache_key = _block_metrics_cache_key(block_csvs)
+    if block_csvs:
+        cached = _read_block_metrics_cache(cache_path, key_path, cache_key)
+        if cached is not None:
             return cached
 
     frames = []
@@ -172,8 +208,14 @@ def load_daily_block_metrics(data_dir):
         grouped["Avg_Difficulty"] * (2**32) / SECONDS_PER_BLOCK_TARGET / 1e18
     )
     tmp_cache_path = cache_path.with_name(f"{cache_path.stem}.{os.getpid()}.tmp")
+    tmp_key_path = key_path.with_name(f"{key_path.stem}.{os.getpid()}.tmp")
+    # Drop the old key first so a crash between the two writes cannot pair a new
+    # cache with a stale key.
+    key_path.unlink(missing_ok=True)
     grouped.to_csv(tmp_cache_path, index=False)
     tmp_cache_path.replace(cache_path)
+    tmp_key_path.write_text(json.dumps(cache_key), encoding="utf-8")
+    tmp_key_path.replace(key_path)
     return grouped
 
 

@@ -19,6 +19,7 @@ logs/
 .report_generation.lock
 Bitcoin/visual_qa_contact_sheet.png
 Bitcoin/data/bitcoin_csv_data/daily_block_metrics_cache.csv
+Bitcoin/data/bitcoin_csv_data/daily_block_metrics_cache.key.json
 
 # Generated report outputs
 *.png

@@ -29,11 +29,17 @@ The cron runner checks the upstream Bitcoin CSVs hourly, regenerates native repo
 
 Bitcoin report retries use a local `Bitcoin/.successful_generation` content fingerprint (source CSVs, Python code, and scheduled report selection). It is replaced atomically only after every scheduled report succeeds and expected outputs exist. Failed, interrupted, `--only`, and `--skip-update` runs cannot mark scheduled outputs current; manual generation invalidates prior success. Deleting the marker forces regeneration on the next scheduled run. The derived block metrics cache is excluded from the fingerprint.
 
+Publishing skips unchanged sites. `run.py` hashes the staged site (plus the target branch) and ignores the volatile `generated_at` and `updated_at` JSON keys, so a run that only changes timestamps does not force-push `gh-pages`; native chart payloads use their latest observation date as `updated_at`. Publish state lives in the gitignored `logs/publish-state.json`. Outside the six-hour windows, an hourly run also publishes when a publish is *pending*: the last attempt failed, no successful publish is recorded, or the source `HEAD` differs from the commit last published (`python run.py --publish-due` exits 0 in that case). A successful publish, or a run whose site content is unchanged, clears the marker. Runs still never overlap because the existing lock is held first.
+
+The block metrics cache (`daily_block_metrics_cache.csv` plus its `.key.json` sidecar) is reused only when the block CSV inventory (names, sizes, mtimes) and `BLOCK_METRICS_CACHE_VERSION` match; bump that constant whenever the aggregation changes. The BlockHorizon bundle is fetched with `If-None-Match` and a local cache in `logs/`, so an unchanged upstream answers `304`.
+
+Use a fine-grained GitHub personal access token restricted to this single repository with only **Contents: read and write** for the publish `GITHUB_TOKEN`, rather than a classic `public_repo` token that can write to every public repository you own.
+
 GitHub HTTPS authentication is supplied only to child Git processes for GitHub remotes. The updater keeps remote URLs credential-free; SSH remotes continue using their existing authentication.
 
 ### Dashboard regression checks
 
-GitHub Actions runs the Python calculation/importer/report-runner suites and Node logic checks on pushes and pull requests. Locally, run `python -m unittest discover -s web -p "test_*.py"`, `python -m unittest Bitcoin.test_run_all_reports`, and `python -m unittest discover -s Bitcoin/model_price_prediction -p "test_*.py"` (calculation tests require NumPy and pandas).
+GitHub Actions runs the Python calculation/importer/report-runner suites and Node logic checks, plus the Playwright browser suite as a separate job (failure screenshots and logs are uploaded as artifacts), on pushes and pull requests. Locally, run `python -m unittest discover -s web -p "test_*.py"`, `python -m unittest Bitcoin.test_run_all_reports`, and `python -m unittest discover -s Bitcoin/model_price_prediction -p "test_*.py"` (calculation tests require NumPy and pandas).
 
 Run importer tests from the repository root with `python -m unittest web.test_blockhorizon_data`. Set `FINTECH_LIVE_TESTS=1` to also verify the complete reviewed catalog against the current upstream bundle; the default tests use local fixtures.
 

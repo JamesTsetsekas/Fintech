@@ -492,6 +492,25 @@ def ohlc_frame(data, period):
     return grouped
 
 
+_ISO_DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
+
+
+def latest_observation_date(series) -> str | None:
+    """Latest YYYY-MM-DD x value in a payload's series, or None.
+
+    Used instead of wall-clock time so unchanged data yields identical JSON.
+    """
+    latest = None
+    for item in series:
+        x_values = item.get("x") if isinstance(item, dict) else None
+        if not isinstance(x_values, list):
+            continue
+        for value in x_values:
+            if isinstance(value, str) and _ISO_DATE.fullmatch(value) and (latest is None or value > latest):
+                latest = value
+    return latest
+
+
 def base_payload(
     chart_id: str,
     title: str,
@@ -510,7 +529,7 @@ def base_payload(
         "id": chart_id,
         "title": title,
         "summary_text": summary_text,
-        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": latest_observation_date(series),
         "allow_scale_toggle": allow_scale_toggle,
         "default_scale": default_scale,
         "axis_guards": axis_guards or {},
@@ -2102,7 +2121,7 @@ INTERACTIVE_BUILDERS = {
 
 def write_json(path: Path, payload) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2, separators=(",", ": ")) + "\n", encoding="utf-8")
+    path.write_text(json.dumps(payload, separators=(",", ":")) + "\n", encoding="utf-8")
 
 
 STOCK_PRICE_CACHE = {}

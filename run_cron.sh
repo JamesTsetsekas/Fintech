@@ -38,19 +38,6 @@ if ! flock -n 9; then
     exit 0
 fi
 
-log "============================================================"
-log "Starting automated report generation"
-log "Mode: Bitcoin-only (stock and experimental ML reports disabled)"
-PUBLISH_ARGS=()
-CURRENT_HOUR="$(date -u '+%H')"
-if (( 10#$CURRENT_HOUR % 6 != 0 )); then
-    PUBLISH_ARGS=(--skip-publish)
-    log "GitHub Pages deployment deferred: hourly refresh will publish at the next six-hour UTC window."
-else
-    log "GitHub Pages deployment enabled for this six-hour UTC publish window."
-fi
-log "============================================================"
-
 # Check if venv exists
 VENV_PYTHON="$SCRIPT_DIR/venv/bin/python"
 if [ ! -f "$VENV_PYTHON" ]; then
@@ -58,6 +45,23 @@ if [ ! -f "$VENV_PYTHON" ]; then
     log "Please run setup_ubuntu.sh first to create the virtual environment"
     exit 1
 fi
+
+log "============================================================"
+log "Starting automated report generation"
+log "Mode: Bitcoin-only (stock and experimental ML reports disabled)"
+PUBLISH_ARGS=()
+CURRENT_HOUR="$(date -u '+%H')"
+if (( 10#$CURRENT_HOUR % 6 == 0 )); then
+    log "GitHub Pages deployment enabled for this six-hour UTC publish window."
+elif "$VENV_PYTHON" "$SCRIPT_DIR/run.py" --publish-due >> "$LOG_FILE" 2>&1; then
+    # Publish-pending marker (logs/publish-state.json): the last publish failed
+    # or never ran, or the source HEAD changed since the last successful one.
+    log "GitHub Pages deployment enabled: a publish is pending (retry or new source commit)."
+else
+    PUBLISH_ARGS=(--skip-publish)
+    log "GitHub Pages deployment deferred: hourly refresh will publish at the next six-hour UTC window."
+fi
+log "============================================================"
 
 # Check if .env exists
 if [ ! -f "$SCRIPT_DIR/.env" ]; then
