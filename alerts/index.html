@@ -41,7 +41,7 @@
         <div>
           <p class="kicker">Saved in this browser</p>
           <h1>Custom alerts</h1>
-          <p>Create rules against normalized cycle scores. Rules are evaluated when this page loads or refreshes, and when you change rules; there is no background monitoring. Crossings compare with the prior saved observation, so the first check establishes a baseline. One-shot rules stay completed until you toggle them on to re-arm.</p>
+          <p>Create rules against cycle scores. Rules are checked when you open any page of this site in this browser, and when you change a rule; there is no background monitoring and nothing is sent to you. Crossings compare with the previously saved observation, so the first check only establishes a baseline. If the scoring method changes, saved observations are re-baselined instead of firing. One-shot rules stay completed until you toggle them on to re-arm.</p>
         </div>
         <button class="primary-button" id="new-alert-button" type="button">＋ New alert</button>
       </div>
@@ -60,6 +60,7 @@
 
         <form class="module alert-form" id="alert-form">
           <div class="module-heading"><div><p class="kicker">Rule builder</p><h2 id="alert-form-title">Create an alert</h2></div></div>
+          <p id="alert-request-notice" class="form-notice" role="status" hidden></p>
           <div class="form-grid">
             <label>
               <span>Signal</span>
@@ -80,7 +81,7 @@
             </label>
             <label>
               <span>Check cadence</span>
-              <select id="alert-cadence" name="cadence"><option value="refresh">Each data refresh</option><option value="once">Trigger once</option></select>
+              <select id="alert-cadence" name="cadence"><option value="refresh">Every time the site is opened</option><option value="once">Trigger once</option></select>
             </label>
             <label class="form-wide">
               <span>Label <em>optional</em></span>

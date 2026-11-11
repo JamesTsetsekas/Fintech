@@ -1,0 +1,826 @@
+{
+ "schema_version": 1,
+ "generated_at": "2025-01-02T00:00:00+00:00",
+ "data_through": "2024-12-17",
+ "method": {
+  "version": 2,
+  "scoring": {
+   "type": "expanding_percentile_rank",
+   "ties": "midrank",
+   "point_in_time": true,
+   "percentile_bounds": [
+    0,
+    100
+   ],
+   "min_history_days": 60,
+   "min_observations": 8
+  },
+  "phases": [
+   {
+    "key": "bottom",
+    "label": "Bottom",
+    "below": 25
+   },
+   {
+    "key": "bearish",
+    "label": "Bearish",
+    "below": 50
+   },
+   {
+    "key": "bullish",
+    "label": "Bullish",
+    "below": 75
+   },
+   {
+    "key": "top",
+    "label": "Top",
+    "below": null
+   }
+  ],
+  "change_windows_days": [
+   7,
+   30,
+   90,
+   365
+  ],
+  "history": {
+   "step_days": 7,
+   "carry_forward_days": 14,
+   "value_significant_digits": 4
+  },
+  "freshness": {
+   "sources": {
+    "native": {
+     "label": "Daily fixture",
+     "cadence_days": 1,
+     "stale_after_days": 2
+    },
+    "blockhorizon": {
+     "label": "Weekly fixture",
+     "cadence_days": 7,
+     "stale_after_days": 9
+    }
+   }
+  },
+  "composite": {
+   "id": "cycle-index",
+   "label": "Cycle Index",
+   "chart_id": "cycle-phase-dashboard",
+   "weighting": "equal",
+   "min_members": 2,
+   "members": [
+    "plain",
+    "weekly-ratio",
+    "inverted",
+    "young",
+    "lagging",
+    "abandoned",
+    "too-short"
+   ],
+   "excluded": [
+    {
+     "id": "weekly-rescaled",
+     "reason": "duplicate",
+     "of": "weekly-ratio",
+     "note": "1 - 1/ratio is a rescaling of the ratio."
+    },
+    {
+     "id": "band",
+     "reason": "short_horizon",
+     "note": "Fixture exclusion."
+    },
+    {
+     "id": "renamed"
+    },
+    {
+     "id": "no-chart"
+    }
+   ]
+  }
+ },
+ "market": {
+  "date": "2024-12-17",
+  "price": 58535.46,
+  "change_30d_pct": -5.12,
+  "average_200d": 56098.31,
+  "distance_200d_pct": 4.34,
+  "recent": {
+   "dates": [
+    "2024-12-08",
+    "2024-12-09",
+    "2024-12-10",
+    "2024-12-11",
+    "2024-12-12",
+    "2024-12-13",
+    "2024-12-14",
+    "2024-12-15",
+    "2024-12-16",
+    "2024-12-17"
+   ],
+   "prices": [
+    56480.5,
+    55647.9,
+    56010.49,
+    56272.79,
+    57125.91,
+    56698.39,
+    57672.03,
+    57060.1,
+    58152.24,
+    58535.46
+   ],
+   "ratios": [
+    1.0011,
+    0.9895,
+    0.9985,
+    1.0047,
+    1.0184,
+    1.0137,
+    1.032,
+    1.0177,
+    1.038,
+    1.0434
+   ]
+  }
+ },
+ "composite": {
+  "id": "cycle-index",
+  "label": "Cycle Index",
+  "chart_id": "cycle-phase-dashboard",
+  "date": "2024-12-17",
+  "score": 20.4,
+  "phase": "bottom",
+  "changes": {
+   "7": 7.0,
+   "30": -2.0,
+   "90": -18.7,
+   "365": null
+  },
+  "members_total": 7,
+  "members_used": 5,
+  "missing_members": [
+   "abandoned",
+   "too-short"
+  ],
+  "stale_members": [
+   "lagging",
+   "abandoned"
+  ],
+  "history": {
+   "scores": [
+    32.1,
+    19.6,
+    23.7,
+    24.0,
+    33.8,
+    15.3,
+    37.3,
+    43.0,
+    63.4,
+    60.2,
+    56.3,
+    49.7,
+    35.1,
+    25.1,
+    35.5,
+    23.9,
+    8.4,
+    9.9,
+    13.4,
+    20.4
+   ]
+  }
+ },
+ "history": {
+  "dates": [
+   "2024-08-06",
+   "2024-08-13",
+   "2024-08-20",
+   "2024-08-27",
+   "2024-09-03",
+   "2024-09-10",
+   "2024-09-17",
+   "2024-09-24",
+   "2024-10-01",
+   "2024-10-08",
+   "2024-10-15",
+   "2024-10-22",
+   "2024-10-29",
+   "2024-11-05",
+   "2024-11-12",
+   "2024-11-19",
+   "2024-11-26",
+   "2024-12-03",
+   "2024-12-10",
+   "2024-12-17"
+  ]
+ },
+ "signals": [
+  {
+   "id": "plain",
+   "chart_id": "plain-chart",
+   "label": "Plain daily metric",
+   "category": "Valuation",
+   "source": "native",
+   "unit": "index",
+   "decimals": 2,
+   "invert": false,
+   "value": 0.9748,
+   "date": "2024-12-17",
+   "score": 7.8,
+   "phase": "bottom",
+   "changes": {
+    "7": 7.5,
+    "30": 4.5,
+    "90": -70.0,
+    "365": null
+   },
+   "lag_days": 0,
+   "stale": false,
+   "composite": true,
+   "exclusion": null,
+   "first_date": "2024-06-01",
+   "observations": 200,
+   "history": {
+    "scores": [
+     84.3,
+     68.2,
+     67.3,
+     24.4,
+     41.6,
+     8.3,
+     89.4,
+     62.5,
+     76.8,
+     99.6,
+     93.1,
+     36.5,
+     18.2,
+     54.7,
+     5.2,
+     13.1,
+     0.3,
+     5.6,
+     0.3,
+     7.8
+    ],
+    "values": [
+     1.836,
+     1.72,
+     1.726,
+     1.45,
+     1.552,
+     1.306,
+     1.85,
+     1.67,
+     1.761,
+     2.076,
+     1.98,
+     1.573,
+     1.427,
+     1.663,
+     1.285,
+     1.341,
+     0.9171,
+     1.086,
+     0.6699,
+     0.9748
+    ]
+   }
+  },
+  {
+   "id": "weekly-ratio",
+   "chart_id": "weekly-chart",
+   "label": "Weekly price ratio",
+   "category": "Cost Basis",
+   "source": "blockhorizon",
+   "unit": "multiple",
+   "decimals": 2,
+   "invert": false,
+   "value": 1.39953,
+   "date": "2024-12-16",
+   "score": 19.0,
+   "phase": "bottom",
+   "changes": {
+    "7": 17.1,
+    "30": -16.5,
+    "90": -31.0,
+    "365": null
+   },
+   "lag_days": 1,
+   "stale": false,
+   "composite": true,
+   "exclusion": null,
+   "first_date": "2024-06-08",
+   "observations": 29,
+   "history": {
+    "scores": [
+     null,
+     5.0,
+     13.6,
+     54.2,
+     73.1,
+     60.7,
+     50.0,
+     28.1,
+     91.2,
+     69.4,
+     50.0,
+     87.5,
+     92.9,
+     38.6,
+     93.5,
+     35.4,
+     2.0,
+     1.9,
+     1.9,
+     19.0
+    ],
+    "values": [
+     1.42,
+     1.396,
+     1.407,
+     1.436,
+     1.483,
+     1.481,
+     1.478,
+     1.418,
+     1.493,
+     1.483,
+     1.479,
+     1.491,
+     1.5,
+     1.471,
+     1.503,
+     1.451,
+     1.394,
+     1.361,
+     1.34,
+     1.4
+    ]
+   }
+  },
+  {
+   "id": "weekly-rescaled",
+   "chart_id": "weekly-chart",
+   "label": "Weekly ratio rescaled",
+   "category": "Valuation",
+   "source": "blockhorizon",
+   "unit": "index",
+   "decimals": 2,
+   "invert": false,
+   "value": 0.285474,
+   "date": "2024-12-16",
+   "score": 18.3,
+   "phase": "bottom",
+   "changes": {
+    "7": 16.5,
+    "30": -19.7,
+    "90": -34.8,
+    "365": null
+   },
+   "lag_days": 1,
+   "stale": false,
+   "composite": false,
+   "exclusion": {
+    "reason": "duplicate",
+    "of": "weekly-ratio",
+    "note": "1 - 1/ratio is a rescaling of the ratio."
+   },
+   "first_date": "2024-06-01",
+   "observations": 30,
+   "history": {
+    "scores": [
+     25.0,
+     4.5,
+     12.5,
+     57.7,
+     75.0,
+     63.3,
+     53.1,
+     26.5,
+     91.7,
+     71.1,
+     52.5,
+     88.1,
+     93.2,
+     41.3,
+     93.8,
+     38.0,
+     1.9,
+     1.9,
+     1.8,
+     18.3
+    ],
+    "values": [
+     0.2958,
+     0.2835,
+     0.2895,
+     0.3037,
+     0.3259,
+     0.3246,
+     0.3232,
+     0.2948,
+     0.3302,
+     0.3255,
+     0.3237,
+     0.3294,
+     0.3332,
+     0.3204,
+     0.3347,
+     0.3109,
+     0.2826,
+     0.2652,
+     0.2537,
+     0.2855
+    ]
+   }
+  },
+  {
+   "id": "band",
+   "chart_id": "band-chart",
+   "label": "Band position",
+   "category": "Trend",
+   "source": "native",
+   "unit": "band_position",
+   "decimals": 0,
+   "invert": false,
+   "value": 0.795725,
+   "date": "2024-12-17",
+   "score": 29.4,
+   "phase": "bearish",
+   "changes": {
+    "7": 25.5,
+    "30": -34.2,
+    "90": 3.5,
+    "365": null
+   },
+   "lag_days": 0,
+   "stale": false,
+   "composite": false,
+   "exclusion": {
+    "reason": "short_horizon",
+    "note": "Fixture exclusion."
+   },
+   "first_date": "2024-06-01",
+   "observations": 199,
+   "history": {
+    "scores": [
+     53.0,
+     6.1,
+     58.6,
+     92.6,
+     33.2,
+     57.4,
+     55.5,
+     29.7,
+     90.6,
+     86.4,
+     96.0,
+     96.2,
+     49.7,
+     40.4,
+     37.5,
+     43.6,
+     0.3,
+     1.9,
+     3.9,
+     29.4
+    ],
+    "values": [
+     0.9031,
+     0.6604,
+     0.9245,
+     1.169,
+     0.8102,
+     0.9521,
+     0.9544,
+     0.7989,
+     1.163,
+     1.139,
+     1.216,
+     1.225,
+     0.9833,
+     0.9305,
+     0.9217,
+     0.9471,
+     0.5717,
+     0.3849,
+     0.4497,
+     0.7957
+    ]
+   }
+  },
+  {
+   "id": "inverted",
+   "chart_id": "ath-chart",
+   "label": "Inverted days",
+   "category": "Cycle",
+   "source": "native",
+   "unit": "days",
+   "decimals": 0,
+   "invert": true,
+   "value": 186.0,
+   "date": "2024-12-17",
+   "score": 0.3,
+   "phase": "bottom",
+   "changes": {
+    "7": 0.0,
+    "30": 0.0,
+    "90": -0.2,
+    "365": null
+   },
+   "lag_days": 0,
+   "stale": false,
+   "composite": true,
+   "exclusion": null,
+   "first_date": "2024-06-01",
+   "observations": 200,
+   "history": {
+    "scores": [
+     0.7,
+     0.7,
+     0.6,
+     0.6,
+     0.5,
+     0.5,
+     0.5,
+     0.4,
+     0.4,
+     0.4,
+     0.4,
+     0.3,
+     0.3,
+     0.3,
+     0.3,
+     0.3,
+     0.3,
+     0.3,
+     0.3,
+     0.3
+    ],
+    "values": [
+     53.0,
+     60.0,
+     67.0,
+     74.0,
+     81.0,
+     88.0,
+     95.0,
+     102.0,
+     109.0,
+     116.0,
+     123.0,
+     130.0,
+     137.0,
+     144.0,
+     151.0,
+     158.0,
+     165.0,
+     172.0,
+     179.0,
+     186.0
+    ]
+   }
+  },
+  {
+   "id": "young",
+   "chart_id": "young-chart",
+   "label": "Young metric",
+   "category": "Risk",
+   "source": "native",
+   "unit": "percent",
+   "decimals": 1,
+   "invert": false,
+   "value": 23.31,
+   "date": "2024-12-17",
+   "score": 9.0,
+   "phase": "bottom",
+   "changes": {
+    "7": 6.3,
+    "30": -40.3,
+    "90": null,
+    "365": null
+   },
+   "lag_days": 0,
+   "stale": false,
+   "composite": true,
+   "exclusion": null,
+   "first_date": "2024-09-09",
+   "observations": 100,
+   "history": {
+    "scores": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     66.9,
+     57.6,
+     14.6,
+     0.6,
+     2.7,
+     9.0
+    ],
+    "values": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     41.45,
+     35.56,
+     33.75,
+     34.24,
+     35.44,
+     39.37,
+     38.75,
+     36.43,
+     35.65,
+     36.88,
+     36.27,
+     33.05,
+     24.33,
+     23.31,
+     23.31
+    ]
+   }
+  },
+  {
+   "id": "lagging",
+   "chart_id": "lagging-chart",
+   "label": "Lagging metric",
+   "category": "Mining",
+   "source": "native",
+   "unit": "usd",
+   "decimals": 2,
+   "invert": false,
+   "value": 0.04994,
+   "date": "2024-12-12",
+   "score": 65.9,
+   "phase": "bullish",
+   "changes": {
+    "7": 17.2,
+    "30": 32.9,
+    "90": 60.7,
+    "365": null
+   },
+   "lag_days": 5,
+   "stale": true,
+   "composite": true,
+   "exclusion": null,
+   "first_date": "2024-06-01",
+   "observations": 195,
+   "history": {
+    "scores": [
+     36.6,
+     7.4,
+     36.4,
+     39.2,
+     48.9,
+     2.5,
+     39.0,
+     92.7,
+     97.2,
+     98.8,
+     90.9,
+     72.6,
+     34.1,
+     2.2,
+     33.0,
+     23.0,
+     24.9,
+     41.1,
+     61.9,
+     65.9
+    ],
+    "values": [
+     0.04727,
+     0.04424,
+     0.04671,
+     0.04658,
+     0.04787,
+     0.04305,
+     0.04618,
+     0.05281,
+     0.05756,
+     0.05905,
+     0.05783,
+     0.05232,
+     0.04691,
+     0.04255,
+     0.0461,
+     0.04494,
+     0.04489,
+     0.04657,
+     0.04967,
+     0.04994
+    ]
+   }
+  },
+  {
+   "id": "abandoned",
+   "chart_id": "abandoned-chart",
+   "label": "Abandoned metric",
+   "category": "Mining",
+   "source": "native",
+   "unit": "sat_per_vbyte",
+   "decimals": 2,
+   "invert": false,
+   "value": 2.0095,
+   "date": "2024-11-07",
+   "score": 14.1,
+   "phase": "bottom",
+   "changes": {
+    "7": -23.5,
+    "30": -18.6,
+    "90": 9.1,
+    "365": null
+   },
+   "lag_days": 40,
+   "stale": true,
+   "composite": true,
+   "exclusion": null,
+   "first_date": "2024-06-01",
+   "observations": 160,
+   "history": {
+    "scores": [
+     6.7,
+     16.9,
+     0.6,
+     1.7,
+     4.7,
+     4.4,
+     7.8,
+     31.5,
+     51.6,
+     32.7,
+     47.1,
+     51.7,
+     30.1,
+     29.4,
+     14.1,
+     14.1,
+     null,
+     null,
+     null,
+     null
+    ],
+    "values": [
+     2.392,
+     2.466,
+     2.1,
+     1.82,
+     1.854,
+     1.829,
+     1.841,
+     2.201,
+     2.655,
+     2.258,
+     2.482,
+     2.541,
+     2.257,
+     2.227,
+     2.01,
+     2.01,
+     null,
+     null,
+     null,
+     null
+    ]
+   }
+  }
+ ],
+ "unavailable": [
+  {
+   "id": "too-short",
+   "chart_id": "short-chart",
+   "label": "Too short",
+   "composite": true,
+   "reason": "history is shorter than the scoring minimum"
+  },
+  {
+   "id": "renamed",
+   "chart_id": "plain-chart",
+   "label": "Renamed upstream series",
+   "composite": false,
+   "reason": "series 'Old metric name' is missing from chart 'plain-chart'"
+  },
+  {
+   "id": "no-chart",
+   "chart_id": "absent-chart",
+   "label": "Chart not generated",
+   "composite": false,
+   "reason": "chart data for 'absent-chart' is unavailable"
+  }
+ ]
+}

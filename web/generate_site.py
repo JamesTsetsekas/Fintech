@@ -56,6 +56,7 @@ from Bitcoin.bitcoin_chart_utils import (  # noqa: E402
 from Bitcoin.run_all_reports import REPORTS as BITCOIN_REPORTS  # noqa: E402
 from model_projection import apply_price_models, build_projection_frame, load_daily_fees, load_price_history  # noqa: E402
 from blockhorizon_data import import_reference_charts  # noqa: E402
+from signals_artifact import ARTIFACT_NAME as SIGNALS_ARTIFACT_NAME, write_signals_artifact  # noqa: E402
 
 
 SECTION_ORDER = [
@@ -2688,6 +2689,30 @@ def generate_stock_interactive_data(charts) -> None:
         print(f"Generated stock interactive data: {chart['id']}")
 
 
+def generate_signals_artifact(data_dir: Path = BITCOIN_SITE_DATA_DIR) -> bool:
+    """Publish the compact cycle-signal artifact next to the manifest.
+
+    The pages fall back to scoring individual chart payloads when the artifact
+    is absent, so a failure here must not block chart publication. A stale
+    artifact is removed rather than left to describe older data.
+    """
+    try:
+        artifact = write_signals_artifact(data_dir)
+    except Exception as error:  # noqa: BLE001 - never block the chart build
+        (data_dir / SIGNALS_ARTIFACT_NAME).unlink(missing_ok=True)
+        print(f"WARNING: signal artifact was not generated; pages will score charts in the browser: {error}")
+        return False
+    composite = artifact.get("composite") or {}
+    print(
+        f"Generated signal artifact: {len(artifact['signals'])} signals, "
+        f"Cycle Index {composite.get('score')} ({composite.get('members_used')}/{composite.get('members_total')} members), "
+        f"data through {artifact['data_through']}"
+    )
+    for entry in artifact["unavailable"]:
+        print(f"WARNING: signal unavailable: {entry['id']} ({entry['reason']})")
+    return True
+
+
 def main() -> int:
     print("Generating static website data...")
     (BITCOIN_SITE_DATA_DIR / "price-prediction-ml.json").unlink(missing_ok=True)
@@ -2695,6 +2720,7 @@ def main() -> int:
     generate_interactive_data()
     reference_charts = import_reference_charts(BITCOIN_SITE_DATA_DIR, section_name)
     print(f"Generated {len(reference_charts)} imported BlockHorizon charts")
+    generate_signals_artifact()
     bitcoin_manifest = build_bitcoin_manifest(reference_charts)
     write_json(WEB_DATA_DIR / "site-manifest.json", bitcoin_manifest)
     write_json(WEB_DATA_DIR / "bitcoin" / "site-manifest.json", bitcoin_manifest)
