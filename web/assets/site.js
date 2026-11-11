@@ -721,7 +721,10 @@ function bindChartToolbar() {
     button.addEventListener("click", () => handleChartAction(button.dataset.chartAction, button));
   });
   document.querySelectorAll("[data-range]").forEach((button) => {
-    button.addEventListener("click", () => setChartRange(button.dataset.range));
+    const unavailable = () => button.getAttribute("aria-disabled") === "true";
+    button.addEventListener("click", () => (unavailable() ? explainUnavailableRange(button) : setChartRange(button.dataset.range)));
+    button.addEventListener("focus", () => { if (unavailable()) showRangeNote(true); });
+    button.addEventListener("blur", () => showRangeNote(false));
   });
   document.querySelector("#scale-toggle")?.addEventListener("click", toggleChartScale);
   document.querySelectorAll("[data-touch-mode]").forEach((button) => {
@@ -776,6 +779,7 @@ async function selectTerminalChart(chartId, options = {}) {
   target.classList.add("loading-block");
 
   if (!chart.data_path) {
+    updateResolutionControls(null);
     renderImageChart(chart, target);
     syncTerminalUrl();
     announceChartStatus();
@@ -839,6 +843,156 @@ function updateChartControls(payload) {
   if (movingAverage) movingAverage.disabled = !hasNumericLine;
   if (halvings) halvings.disabled = payload.x_value_type !== "date";
   if (rangeOptions) rangeOptions.hidden = payload.show_range_selector === false || payload.x_value_type !== "date";
+  updateResolutionControls(payload);
+}
+
+// Ranges holding fewer than this many observations show an almost empty
+// chart. Series shorter than RANGE_MIN_SERIES_POINTS impose no limit at all.
+const RANGE_MIN_OBSERVATIONS = 8;
+const RANGE_MIN_SERIES_POINTS = RANGE_MIN_OBSERVATIONS * 3;
+const NATIVE_RESOLUTION_DAYS = { daily: 1, weekly: 7, monthly: 30.44, quarterly: 91.31, yearly: 365.25 };
+const RANGE_BUTTON_LABELS = { "1m": "1M", "3m": "3M", "6m": "6M", ytd: "YTD", "1y": "1Y", "4y": "4Y" };
+const rangeObservationCache = new WeakMap();
+
+// Observation cadence in days, used for the resolution label: the payload's
+// declared `native_resolution`, or the median spacing of its densest long
+// date series.
+function payloadCadenceDays(payload) {
+  if (payload?.x_value_type !== "date") return null;
+  const declared = NATIVE_RESOLUTION_DAYS[payload.native_resolution];
+  if (declared) return declared;
+  let finest = Infinity;
+  rangeObservationTimes(payload).forEach((times) => {
+    const gaps = Array.from(times.slice(1), (time, index) => time - times[index]).filter((gap) => gap > 0).sort((a, b) => a - b);
+    if (gaps.length >= 2) finest = Math.min(finest, gaps[Math.floor(gaps.length / 2)] / 86400000);
+  });
+  return Number.isFinite(finest) ? finest : null;
+}
+
+function resolutionLabel(cadenceDays) {
+  if (!(cadenceDays > 1.5)) return "";
+  if (cadenceDays <= 10) return "Weekly data";
+  if (cadenceDays <= 45) return "Monthly data";
+  if (cadenceDays <= 120) return "Quarterly data";
+  return "Yearly data";
+}
+
+// Sorted times of each series' valid observations (a parseable date and a
+// finite value), for series with at least RANGE_MIN_SERIES_POINTS of them.
+function rangeObservationTimes(payload) {
+  if (!payload || typeof payload !== "object") return [];
+  if (rangeObservationCache.has(payload)) return rangeObservationCache.get(payload);
+  const result = (payload.series || []).flatMap((series) => {
+    if (!Array.isArray(series?.x)) return [];
+    const values = series.type === "heatmap" ? null : seriesValueArray(series);
+    const times = [];
+    series.x.forEach((value, index) => {
+      const time = typeof value === "string" ? new Date(value).getTime() : NaN;
+      if (Number.isFinite(time) && (!values || Number.isFinite(toFiniteNumber(values[index])))) times.push(time);
+    });
+    return times.length >= RANGE_MIN_SERIES_POINTS ? [Float64Array.from(times).sort()] : [];
+  });
+  rangeObservationCache.set(payload, result);
+  return result;
+}
+
+function countTimesBetween(times, start, end) {
+  const bound = (value, inclusive) => {
+    let low = 0;
+    let high = times.length;
+    while (low < high) {
+      const middle = (low + high) >> 1;
+      if (inclusive ? times[middle] <= value : times[middle] < value) low = middle + 1;
+      else high = middle;
+    }
+    return low;
+  };
+  return bound(end, true) - bound(start, false);
+}
+
+// Most valid observations any long series has inside the shortcut's window
+// (inclusive at both ends), or Infinity when the shortcut has no window.
+function rangeShortcutObservations(payload, range) {
+  const window = range === "all" ? null : shortcutRange(payload, range);
+  const series = rangeObservationTimes(payload);
+  if (!window || !series.length) return Infinity;
+  const [start, end] = window.map((value) => new Date(value).getTime());
+  return Math.max(...series.map((times) => countTimesBetween(times, start, end)));
+}
+
+function rangeShortcutUnavailable(payload, range) {
+  return payload?.x_value_type === "date" && rangeShortcutObservations(payload, range) < RANGE_MIN_OBSERVATIONS;
+}
+
+// The requested shortcut, or the shortest longer one the data can fill.
+function availableRangeShortcut(payload, range) {
+  if (!rangeShortcutUnavailable(payload, range)) return range;
+  const longer = TERMINAL_RANGES.slice(Math.max(0, TERMINAL_RANGES.indexOf(range)) + 1);
+  return longer.find((candidate) => !rangeShortcutUnavailable(payload, candidate)) || "all";
+}
+
+function joinLabels(labels) {
+  return labels.length < 3 ? labels.join(" and ") : `${labels.slice(0, -1).join(", ")} and ${labels.at(-1)}`;
+}
+
+// Unavailable shortcuts stay focusable (aria-disabled) and are described by a
+// short note, so keyboard, screen reader and touch users all learn why.
+function updateResolutionControls(payload) {
+  const label = resolutionLabel(payloadCadenceDays(payload));
+  const unit = label ? `${label.split(" ")[0].toLowerCase()} ` : "";
+  const unavailable = [];
+  const buttons = [...document.querySelectorAll("[data-range]")];
+  buttons.forEach((button) => {
+    const blocked = rangeShortcutUnavailable(payload, button.dataset.range);
+    button.disabled = false;
+    button.classList?.toggle?.("range-unavailable", blocked);
+    if (blocked) {
+      unavailable.push(RANGE_BUTTON_LABELS[button.dataset.range] || button.dataset.range);
+      button.setAttribute?.("aria-disabled", "true");
+      button.setAttribute?.("aria-describedby", "chart-range-note");
+    } else {
+      button.removeAttribute?.("aria-disabled");
+      button.removeAttribute?.("aria-describedby");
+      button.removeAttribute?.("title");
+    }
+  });
+  const reason = unavailable.length
+    ? `${joinLabels(unavailable)} ${unavailable.length > 1 ? "need" : "needs"} at least ${RANGE_MIN_OBSERVATIONS} ${unit}points`
+    : "";
+  buttons.filter((button) => rangeShortcutUnavailable(payload, button.dataset.range)).forEach((button) => { button.title = reason; });
+  const chip = document.querySelector("#chart-resolution");
+  if (chip) {
+    chip.textContent = label;
+    chip.title = label ? `This chart's source publishes ${unit}observations` : "";
+  }
+  const note = document.querySelector("#chart-range-note");
+  if (note) note.textContent = reason;
+  showRangeNote(false);
+}
+
+let rangeNoteTimer = 0;
+
+function showRangeNote(visible) {
+  const note = queryNode("#chart-range-note");
+  const chip = queryNode("#chart-resolution");
+  if (rangeNoteTimer && typeof window.clearTimeout === "function") window.clearTimeout(rangeNoteTimer);
+  rangeNoteTimer = 0;
+  const show = Boolean(visible && note?.textContent);
+  if (note) note.hidden = !show;
+  if (chip) chip.hidden = show || !chip.textContent;
+}
+
+// Activating an unavailable shortcut explains itself instead of zooming.
+function explainUnavailableRange(button) {
+  const note = queryNode("#chart-range-note");
+  if (!note?.textContent) return;
+  showRangeNote(true);
+  announceStatus(note.textContent);
+  if (typeof window.setTimeout === "function") {
+    rangeNoteTimer = window.setTimeout(() => {
+      if (document.activeElement !== button) showRangeNote(false);
+    }, 4000);
+  }
 }
 
 function updateChartHeadings(chart) {
@@ -1636,9 +1790,11 @@ function shortcutRange(payload, range) {
   return [start.toISOString(), end.toISOString()];
 }
 
-function setChartRange(range) {
+function setChartRange(requested) {
   if (!appState.currentPayload || !window.Plotly) return;
   const payload = appState.currentPayload;
+  // A shared ?range=1m on weekly data opens the shortest range it can fill.
+  const range = availableRangeShortcut(payload, requested);
   const selectedRange = shortcutRange(payload, range);
   appState.chartOptions.range = selectedRange ? range : "all";
   appState.chartOptions.customRange = null;

@@ -893,6 +893,38 @@ button { color: inherit; }
   color: var(--ink);
 }
 
+.chart-resolution {
+  margin-left: auto;
+  padding: 0 8px;
+  color: var(--muted);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.66rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.chart-range-note {
+  flex: 0 1 13rem;
+  margin-left: auto;
+  padding: 0 8px;
+  color: var(--ink);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.66rem;
+  font-weight: 600;
+  line-height: 1.25;
+  text-align: right;
+}
+
+.chart-resolution[hidden],
+.chart-range-note[hidden] {
+  display: none;
+}
+
+.range-options button[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.38;
+}
+
 .toolbar-button:disabled,
 .range-options button:disabled,
 .scale-toggle:disabled {
