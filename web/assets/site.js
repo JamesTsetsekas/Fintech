@@ -3658,22 +3658,13 @@ async function renderPlot(target, payload, options = {}) {
   const displaySeries = sourceSeries
     .slice(0, options.compact ? 4 : sourceSeries.length)
     .flatMap(expandGradientLine);
-  const traces = displaySeries.map((series) => {
+  const traces = installLevelOfDetail(target, displaySeries.map((series) => {
     const { axis, ...trace } = series;
     let next = { ...trace, yaxis: axis || trace.yaxis || "y" };
     if (options.maxPoints && !trace.signal_metric_values && !trace.meta?.fintechHelper
         && Array.isArray(trace.x) && !trace.x.includes(null)) {
-      const step = Math.max(1, Math.ceil(trace.x.length / options.maxPoints));
-      const sourceLength = trace.x.length;
-      ["x", "y", "open", "high", "low", "close", "text"].forEach((key) => {
-        if (Array.isArray(next[key])) next[key] = next[key].filter((_, index) => index % step === 0 || index === next[key].length - 1);
-      });
-      if (Array.isArray(next.marker?.color) && next.marker.color.length === sourceLength) {
-        next.marker = {
-          ...next.marker,
-          color: next.marker.color.filter((_, index) => index % step === 0 || index === sourceLength - 1),
-        };
-      }
+      // Reduced per viewport by installLevelOfDetail once colors are mapped.
+      next.lod_eligible = true;
     }
     next = mapSeriesColors(next, themeColor);
     if (next.type === "heatmap" && !dark) {
@@ -3694,7 +3685,7 @@ async function renderPlot(target, payload, options = {}) {
       applyReadableHover(next);
     }
     return next;
-  }).flatMap(withFinancialHover);
+  }), options.maxPoints).flatMap(withFinancialHover);
   const baseLayout = {
     autosize: true,
     dragmode: "zoom",
@@ -3851,6 +3842,339 @@ function withFinancialHover(trace, index) {
   return [candle, hover];
 }
 
+// Viewport level of detail. A render keeps every color-mapped trace in memory
+// and draws at most `maxPoints` per trace. Once a zoom, pan, range shortcut or
+// restored view settles, the visible window is redrawn at native resolution
+// with coarser context around it. Lines keep each bucket's first, last, lowest
+// and highest observation, so spikes survive; candles merge into calendar
+// buckets instead of being dropped; stacked or filled traces share x-only
+// buckets so their geometry stays aligned.
+const LOD_MIN_VISIBLE_POINTS = 8;
+const LOD_SPARSE_MARKER_POINTS = 60;
+const LOD_DAY = 86400000;
+const LOD_ARRAY_KEYS = ["x", "y", "open", "high", "low", "close", "text", "hovertext", "customdata", "width"];
+const LOD_MARKER_KEYS = ["color", "size", "symbol", "opacity"];
+const LOD_CANDLE_UNITS = [["day", 1], ["week", 7], ["month", 30.44], ["quarter", 91.31], ["year", 365.25]];
+const LOD_SHARES = { visible: 0.7, padding: 0.075, context: 0.075 };
+const levelOfDetailCache = new WeakMap();
+const levelOfDetailHoverCache = new WeakMap();
+
+function levelOfDetailTime(value) {
+  if (typeof value === "number") return Number.isFinite(value) ? value : NaN;
+  if (value instanceof Date) return value.getTime();
+  if (typeof value !== "string") return NaN;
+  // Plotly reads zone-less date strings as UTC; Date.parse would use local time.
+  const naive = /^(\d{4}-\d{2}-\d{2})(?:[ T](\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?))?$/.exec(value.trim());
+  return naive ? Date.parse(`${naive[1]}T${naive[2] || "00:00"}Z`) : Date.parse(value);
+}
+
+// Sorted numeric x positions and median spacing for a trace, or null when its
+// x values are not ascending dates or numbers (categories keep stride-free
+// rendering of every point).
+function levelOfDetailAxis(trace) {
+  if (!trace || typeof trace !== "object") return null;
+  if (levelOfDetailCache.has(trace)) return levelOfDetailCache.get(trace);
+  let info = null;
+  if (Array.isArray(trace.x) && trace.x.length > 1) {
+    const times = new Float64Array(trace.x.length);
+    let valid = true;
+    for (let index = 0; index < times.length; index += 1) {
+      times[index] = levelOfDetailTime(trace.x[index]);
+      if (!Number.isFinite(times[index]) || (index && times[index] < times[index - 1])) {
+        valid = false;
+        break;
+      }
+    }
+    if (valid) {
+      const gaps = Float64Array.from({ length: times.length - 1 }, (_, index) => times[index + 1] - times[index]).sort();
+      info = { times, cadence: gaps[Math.floor(gaps.length / 2)] };
+    }
+  }
+  levelOfDetailCache.set(trace, info);
+  return info;
+}
+
+function levelOfDetailBound(times, value, inclusive = false) {
+  let low = 0;
+  let high = times.length;
+  while (low < high) {
+    const middle = (low + high) >> 1;
+    if (inclusive ? times[middle] <= value : times[middle] < value) low = middle + 1;
+    else high = middle;
+  }
+  return low;
+}
+
+// Indices kept for [start, end] within `budget` points. With `extremes` each
+// bucket keeps its first, last, minimum and maximum values; without it, only
+// the bucket edges, which depend on x alone and so match across stacked traces.
+function levelOfDetailIndices(values, start, end, budget, extremes = true) {
+  const count = end - start + 1;
+  if (count <= 0 || budget <= 0) return [];
+  if (count <= budget) return Array.from({ length: count }, (_, offset) => start + offset);
+  const buckets = Math.max(1, Math.floor(budget / (extremes ? 4 : 2)));
+  const kept = [];
+  for (let bucket = 0; bucket < buckets; bucket += 1) {
+    const from = start + Math.floor(bucket * count / buckets);
+    const to = start + Math.floor((bucket + 1) * count / buckets) - 1;
+    if (to < from) continue;
+    const picks = [from, to];
+    if (extremes && Array.isArray(values)) {
+      let low = -1;
+      let high = -1;
+      for (let index = from; index <= to; index += 1) {
+        const value = toFiniteNumber(values[index]);
+        if (!Number.isFinite(value)) continue;
+        if (low < 0 || value < toFiniteNumber(values[low])) low = index;
+        if (high < 0 || value > toFiniteNumber(values[high])) high = index;
+      }
+      if (low >= 0) picks.push(low, high);
+    }
+    picks.sort((left, right) => left - right).forEach((index) => {
+      if (kept[kept.length - 1] !== index) kept.push(index);
+    });
+  }
+  return kept;
+}
+
+function levelOfDetailBucketStart(time, unit) {
+  const date = new Date(time);
+  const year = date.getUTCFullYear();
+  const month = date.getUTCMonth();
+  const day = Date.UTC(year, month, date.getUTCDate());
+  if (unit === "day") return day;
+  if (unit === "week") return day - ((date.getUTCDay() + 6) % 7) * LOD_DAY;
+  if (unit === "month") return Date.UTC(year, month, 1);
+  if (unit === "quarter") return Date.UTC(year, month - (month % 3), 1);
+  return Date.UTC(year, 0, 1);
+}
+
+// Merge candles in [start, end] into the finest calendar unit (Monday weeks,
+// months, quarters, years) that fits `budget`. Returns null when every native
+// candle already fits. Each merged candle is labelled with its first
+// observation's own date: Plotly sizes every candle from the closest pair, and
+// native dates can never sit closer together than the native cadence.
+function levelOfDetailCandles(trace, axis, start, end, budget) {
+  if (end < start || end - start + 1 <= budget) return null;
+  const span = axis.times[end] - axis.times[start];
+  const unit = (LOD_CANDLE_UNITS.find(([, days]) => days * LOD_DAY >= axis.cadence * 1.5
+    && span / (days * LOD_DAY) + 2 <= budget) || LOD_CANDLE_UNITS[LOD_CANDLE_UNITS.length - 1])[0];
+  const merged = { x: [], open: [], high: [], low: [], close: [] };
+  let bucket = null;
+  for (let index = start; index <= end; index += 1) {
+    const key = levelOfDetailBucketStart(axis.times[index], unit);
+    const high = toFiniteNumber(trace.high?.[index]);
+    const low = toFiniteNumber(trace.low?.[index]);
+    if (key !== bucket) {
+      bucket = key;
+      merged.x.push(trace.x[index]);
+      merged.open.push(trace.open?.[index]);
+      merged.high.push(Number.isFinite(high) ? high : null);
+      merged.low.push(Number.isFinite(low) ? low : null);
+      merged.close.push(trace.close?.[index]);
+      continue;
+    }
+    const last = merged.x.length - 1;
+    if (Number.isFinite(high) && !(merged.high[last] >= high)) merged.high[last] = high;
+    if (Number.isFinite(low) && !(merged.low[last] <= low)) merged.low[last] = low;
+    merged.close[last] = trace.close?.[index];
+  }
+  return merged;
+}
+
+function levelOfDetailSlice(trace, indices) {
+  const length = trace.x.length;
+  const next = { ...trace };
+  LOD_ARRAY_KEYS.forEach((key) => {
+    if (Array.isArray(trace[key]) && trace[key].length === length) next[key] = indices.map((index) => trace[key][index]);
+  });
+  LOD_MARKER_KEYS.forEach((key) => {
+    const values = trace.marker?.[key];
+    if (Array.isArray(values) && values.length === length) {
+      next.marker = { ...next.marker, [key]: indices.map((index) => values[index]) };
+    }
+  });
+  if (trace.lod_hover_template !== undefined) {
+    // Readable hover labels are formatted once per drawn point and memoized.
+    const values = trace.orientation === "h" ? trace.x : trace.y;
+    let labels = levelOfDetailHoverCache.get(trace);
+    if (!labels) levelOfDetailHoverCache.set(trace, labels = new Array(length));
+    next.hovertext = indices.map((index) => {
+      if (labels[index] === undefined) labels[index] = readableHoverText(trace, values?.[index], index, trace.lod_hover_template);
+      return labels[index];
+    });
+  }
+  return next;
+}
+
+function levelOfDetailAll(trace) {
+  return trace.lod_hover_template === undefined || !Array.isArray(trace.x)
+    ? trace : levelOfDetailSlice(trace, Array.from({ length: trace.x.length }, (_, index) => index));
+}
+
+// Plain lines gain small markers while fewer than LOD_SPARSE_MARKER_POINTS are
+// in view, so sparse (for example weekly) data stays legible when zoomed in.
+function levelOfDetailSparseStyle(trace, visibleCount) {
+  const plainLine = [undefined, "scatter", "scattergl"].includes(trace.type) && (trace.mode || "lines") === "lines"
+    && !trace.fill && !trace.stackgroup && !trace.value_colored_line && trace.visible !== false;
+  if (!plainLine || visibleCount >= LOD_SPARSE_MARKER_POINTS) return trace;
+  return {
+    ...trace,
+    mode: "lines+markers",
+    marker: { ...trace.marker, size: trace.marker?.size ?? 5, color: trace.marker?.color ?? trace.line?.color },
+  };
+}
+
+// The traces to draw for `range` ([start, end] in axis units, or null for the
+// complete history). Ineligible traces are returned unchanged (same object).
+function levelOfDetailWindow(traces, range, maxPoints) {
+  const bounds = Array.isArray(range) && range.length === 2 && range.every(Number.isFinite)
+    ? [Math.min(...range), Math.max(...range)] : null;
+  return traces.map((trace) => {
+    if (!trace?.lod_eligible || !(maxPoints > 0)) return trace;
+    const axis = levelOfDetailAxis(trace);
+    if (!axis) return levelOfDetailAll(trace);
+    const last = axis.times.length - 1;
+    let segments = [[0, last, maxPoints]];
+    if (bounds) {
+      const span = Math.max(bounds[1] - bounds[0], axis.cadence);
+      const visibleStart = Math.max(0, levelOfDetailBound(axis.times, bounds[0]) - 1);
+      const visibleEnd = Math.min(last, levelOfDetailBound(axis.times, bounds[1], true));
+      const padStart = Math.min(visibleStart, levelOfDetailBound(axis.times, bounds[0] - span));
+      const padEnd = Math.max(visibleEnd, Math.min(last, levelOfDetailBound(axis.times, bounds[1] + span, true)));
+      const share = (part) => Math.max(2, Math.floor(maxPoints * LOD_SHARES[part]));
+      segments = [
+        [0, padStart - 1, share("context")],
+        [padStart, visibleStart - 1, share("padding")],
+        [visibleStart, visibleEnd, Math.max(2, maxPoints - 2 * share("padding") - 2 * share("context"))],
+        [visibleEnd + 1, padEnd, share("padding")],
+        [padEnd + 1, last, share("context")],
+      ].filter(([start, end]) => end >= start);
+    } else if (axis.times.length <= maxPoints) {
+      return levelOfDetailSparseStyle(levelOfDetailAll(trace), axis.times.length);
+    }
+    let next;
+    if (["candlestick", "ohlc"].includes(trace.type)) {
+      next = { ...trace, x: [], open: [], high: [], low: [], close: [] };
+      segments.forEach(([start, end, budget]) => {
+        const part = levelOfDetailCandles(trace, axis, start, end, budget)
+          || levelOfDetailSlice(trace, Array.from({ length: end - start + 1 }, (_, offset) => start + offset));
+        ["x", "open", "high", "low", "close"].forEach((key) => next[key].push(...(part[key] || [])));
+      });
+      delete next.text;
+      delete next.hovertext;
+    } else {
+      const extremes = !trace.stackgroup && !trace.fill;
+      const indices = segments.flatMap(([start, end, budget]) => levelOfDetailIndices(trace.y, start, end, budget, extremes));
+      next = levelOfDetailSlice(trace, indices);
+    }
+    const visible = bounds
+      ? next.x.filter((value) => {
+        const time = levelOfDetailTime(value);
+        return time >= bounds[0] && time <= bounds[1];
+      }).length
+      : next.x.length;
+    return levelOfDetailSparseStyle(next, visible);
+  });
+}
+
+// Called by renderPlot with its fully mapped traces; returns the first draw.
+function installLevelOfDetail(target, traces, maxPoints) {
+  const previous = target?._fintechLod;
+  if (previous?.timer) clearTimeout(previous.timer);
+  const enabled = Boolean(target) && maxPoints > 0 && traces.some((trace) => trace?.lod_eligible);
+  if (target) {
+    target._fintechLod = enabled
+      ? { source: traces, maxPoints, key: null, timer: null, minimumSpan: null, refreshes: 0, lastRefreshMs: null, pending: Promise.resolve(false) }
+      : null;
+  }
+  return enabled ? levelOfDetailWindow(traces, null, maxPoints) : traces;
+}
+
+// Smallest x span that still shows LOD_MIN_VISIBLE_POINTS samples of the
+// densest visible series, so zooming can never land between two observations.
+// Very short series (fewer than three such windows) keep the plain floor.
+function levelOfDetailMinimumSpan(target) {
+  const lod = target?._fintechLod;
+  if (lod && lod.minimumSpan !== null) return lod.minimumSpan;
+  let cadence = Infinity;
+  (lod ? lod.source : target?.data || []).forEach((trace) => {
+    if (!trace || trace.visible === false || trace.meta?.fintechHelper || trace.type === "heatmap") return;
+    const axis = levelOfDetailAxis(trace);
+    if (axis?.cadence > 0 && axis.times.length >= LOD_MIN_VISIBLE_POINTS * 3) cadence = Math.min(cadence, axis.cadence);
+  });
+  const span = Number.isFinite(cadence) ? cadence * LOD_MIN_VISIBLE_POINTS : 0;
+  if (lod) lod.minimumSpan = span;
+  return span;
+}
+
+function scheduleLevelOfDetail(target, { fit = true } = {}) {
+  const lod = target?._fintechLod;
+  if (!lod || typeof window === "undefined" || !window.Plotly?.restyle) return;
+  if (lod.timer) clearTimeout(lod.timer);
+  lod.fit = fit;
+  lod.timer = setTimeout(() => {
+    lod.timer = null;
+    lod.pending = refreshLevelOfDetail(target, lod).catch((error) => {
+      console.warn("Chart detail update failed", error);
+      return false;
+    });
+  }, 0);
+}
+
+async function refreshLevelOfDetail(target, lod = target?._fintechLod) {
+  const axis = target?._fullLayout?.xaxis;
+  if (!lod || target._fintechLod !== lod || !Array.isArray(axis?.range) || !window.Plotly) return false;
+  // Never restyle under a running zoom animation; its settle reschedules us.
+  if (target._transitioning) {
+    scheduleLevelOfDetail(target, { fit: lod.fit });
+    return false;
+  }
+  const renderId = target._fintechRenderId;
+  const started = performance.now();
+  const range = axis.range.map((value) => (typeof axis.r2l === "function" ? axis.r2l(value) : levelOfDetailTime(value)));
+  const key = range.join(":");
+  if (!range.every(Number.isFinite) || lod.key === key) return false;
+  const next = levelOfDetailWindow(lod.source, range, lod.maxPoints).flatMap(withFinancialHover);
+  const data = target.data || [];
+  if (next.length !== data.length) return false;
+  const keys = [...LOD_ARRAY_KEYS, "mode", ...LOD_MARKER_KEYS.map((name) => `marker.${name}`)];
+  const read = (trace, name) => (name.startsWith("marker.") ? trace?.marker?.[name.slice(7)] : trace?.[name]);
+  const indices = next.map((trace, index) => index).filter((index) => (
+    next[index] !== data[index] && keys.some((name) => read(next[index], name) !== read(data[index], name))
+  ));
+  if (!indices.length) {
+    lod.key = key;
+    return false;
+  }
+  // `undefined` leaves an attribute untouched for that trace, so restyle keeps
+  // everything else (theme-adapted colors, legend visibility) as drawn.
+  const update = Object.fromEntries(keys.map((name) => [name, indices.map((index) => read(next[index], name))])
+    .filter(([, values]) => values.some((value) => value !== undefined)));
+  await Plotly.restyle(target, update, indices);
+  if (target._fintechRenderId !== renderId || target._fintechLod !== lod) return false;
+  lod.key = key;
+  lod.refreshes += 1;
+  lod.lastRefreshMs = performance.now() - started;
+  if (!lod.fit) return true;
+  // A narrow spike drawn only at full resolution can exceed the coarse fit.
+  const xRange = target._fullLayout.xaxis.range;
+  const fitted = visibleChartYRanges(target, xRange);
+  const changed = Object.entries(fitted).filter(([name, values]) => {
+    const current = target._fullLayout[name]?.range;
+    const tolerance = Array.isArray(current) ? Math.abs(current[1] - current[0]) * 0.005 : 0;
+    return !Array.isArray(current) || values.some((value, index) => Math.abs(value - current[index]) > tolerance);
+  });
+  if (changed.length) {
+    const ranges = Object.fromEntries(changed);
+    await Plotly.relayout(target, {
+      ...Object.fromEntries(changed.map(([name, values]) => [`${name}.range`, values])),
+      ...priceAxisTickUpdates(target, ranges),
+    });
+  }
+  return true;
+}
+
 function installChartNavigation(target, options = {}) {
   const layout = target?._fullLayout;
   if (!layout?.xaxis || !target.addEventListener || !["date", "linear", "log"].includes(layout.xaxis.type)) return;
@@ -3884,8 +4208,10 @@ function installChartNavigation(target, options = {}) {
     return range?.some((value, index) => Math.abs(axisNumber(value) - axisNumber(initial.xaxis[index])) > tolerance);
   };
   const notifyViewport = (source) => {
-    if (closed || typeof options.onViewportChange !== "function") return;
+    if (closed) return;
     const range = target._fullLayout?.xaxis?.range?.slice();
+    scheduleLevelOfDetail(target, { fit: Boolean(rangeChanged(range)) });
+    if (typeof options.onViewportChange !== "function") return;
     try {
       options.onViewportChange({source, range, full: !rangeChanged(range)});
     } catch (error) {
@@ -3922,7 +4248,8 @@ function installChartNavigation(target, options = {}) {
   const zoomTo = (range, source = "user") => {
     const limits = initial.xaxis.map(axisNumber);
     let [start, end] = range.map(axisNumber).sort((left, right) => left - right);
-    const minimum = target._fullLayout.xaxis.type === "date" ? 86400000 : Math.abs(limits[1] - limits[0]) / 100000;
+    const minimum = Math.max(levelOfDetailMinimumSpan(target),
+      target._fullLayout.xaxis.type === "date" ? 86400000 : Math.abs(limits[1] - limits[0]) / 100000);
     if (end - start < minimum) {
       const center = (start + end) / 2;
       start = center - minimum / 2;
@@ -4019,6 +4346,11 @@ function installChartNavigation(target, options = {}) {
       return;
     }
     const range = target._fullLayout.xaxis.range.slice();
+    // Native zooms (touch, modebar) obey the same data-density floor as zoomTo.
+    if (Math.abs(axisNumber(range[1]) - axisNumber(range[0])) < levelOfDetailMinimumSpan(target) * 0.999) {
+      zoomTo(range).catch(() => {});
+      return;
+    }
     const fitted = visibleChartYRanges(target, range);
     resetButton.hidden = !rangeChanged(range);
     ownUpdate = true;
@@ -4315,13 +4647,20 @@ function applyReadableHover(series) {
   if (!["scatter", "scattergl", "bar"].includes(series.type)) return;
   const values = series.orientation === "h" ? series.x : series.y;
   if (!Array.isArray(values)) return;
-  series.hovertext = values.map((value, index) => {
-    const reading = formatHoverMetricValue(series.name, value, sourceTemplate);
-    if (!series.signal_metric_name) return reading;
-    const metricValue = series.signal_metric_values?.[index];
-    return `${reading}<br>${escapeHtml(series.signal_metric_name)}: ${formatHoverMetricValue(series.signal_metric_name, metricValue)}`;
-  });
   series.hovertemplate = "%{hovertext}<extra>%{fullData.name}</extra>";
+  // Level-of-detail traces format only the points they draw (levelOfDetailSlice).
+  if (series.lod_eligible) {
+    series.lod_hover_template = sourceTemplate;
+    return;
+  }
+  series.hovertext = values.map((value, index) => readableHoverText(series, value, index, sourceTemplate));
+}
+
+function readableHoverText(series, value, index, sourceTemplate) {
+  const reading = formatHoverMetricValue(series.name, value, sourceTemplate);
+  if (!series.signal_metric_name) return reading;
+  const metricValue = series.signal_metric_values?.[index];
+  return `${reading}<br>${escapeHtml(series.signal_metric_name)}: ${formatHoverMetricValue(series.signal_metric_name, metricValue)}`;
 }
 
 function updateHoveredSeriesDetails(payload, xValue) {
