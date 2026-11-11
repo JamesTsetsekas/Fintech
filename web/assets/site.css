@@ -893,6 +893,20 @@ button { color: inherit; }
   color: var(--ink);
 }
 
+.chart-resolution {
+  margin-left: auto;
+  padding: 0 8px;
+  color: var(--muted);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.66rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.chart-resolution[hidden] {
+  display: none;
+}
+
 .toolbar-button:disabled,
 .range-options button:disabled,
 .scale-toggle:disabled {

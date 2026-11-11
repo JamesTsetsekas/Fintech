@@ -453,6 +453,53 @@ def _signal_view_config(chart: dict) -> dict | None:
     return {"mode": mode, "series_key": key, "min": lower, "max": upper}
 
 
+def _day_gaps(dates: list) -> list[int]:
+    parsed = [datetime.strptime(value, "%Y-%m-%d") for value in dates if isinstance(value, str)]
+    return [(later - earlier).days for earlier, later in zip(parsed, parsed[1:])]
+
+
+def _median(values: list[float]) -> float:
+    ordered = sorted(values)
+    return ordered[len(ordered) // 2]
+
+
+def _without_partial_period(columns: dict[str, list]) -> dict[str, list]:
+    """Drop a trailing period that is shorter than the series' own cadence.
+
+    The downsampled bundle closes each weekly candle on its last day and then
+    appends the current week-to-date as one more candle, often a day or two
+    after the previous one. Plotly sizes every candle from the closest pair of
+    dates, so that single short gap drew the whole weekly history about seven
+    times too thin. Complete periods are kept unchanged.
+    """
+    gaps = _day_gaps(columns["x"])
+    if len(gaps) < 2:
+        return columns
+    typical = _median(gaps[:-1])
+    if typical > 1 and gaps[-1] < typical * 0.9:
+        return {key: values[:-1] for key, values in columns.items()}
+    return columns
+
+
+def _native_resolution(traces: list[dict]) -> str | None:
+    """Name the finest observation cadence among a payload's date series."""
+    finest = None
+    for trace in traces:
+        try:
+            gaps = [gap for gap in _day_gaps(trace.get("x") or []) if gap > 0]
+        except ValueError:
+            continue
+        if len(gaps) >= 2:
+            step = _median(gaps)
+            finest = step if finest is None else min(finest, step)
+    if finest is None:
+        return None
+    for limit, label in ((1, "daily"), (10, "weekly"), (45, "monthly"), (120, "quarterly")):
+        if finest <= limit:
+            return label
+    return "yearly"
+
+
 def _ohlc_trace(chart: dict) -> list[dict]:
     by_key = {series.get("series_key"): series for series in chart.get("series") or []}
     required = ("open", "high", "low", "close")
@@ -460,15 +507,18 @@ def _ohlc_trace(chart: dict) -> list[dict]:
         return []
     dates, opens = _decode_series(by_key["open"])
     decoded = {key: _decode_series(by_key[key])[1] for key in required}
-    return [{
-        "name": "BTC OHLC",
-        "source_key": "ohlc",
-        "type": "candlestick",
+    candles = _without_partial_period({
         "x": dates,
         "open": opens,
         "high": decoded["high"],
         "low": decoded["low"],
         "close": decoded["close"],
+    })
+    return [{
+        "name": "BTC OHLC",
+        "source_key": "ohlc",
+        "type": "candlestick",
+        **candles,
         "increasing": {"line": {"color": "#16844d", "width": 1}},
         "decreasing": {"line": {"color": "#c91f50", "width": 1}},
     }]
@@ -685,6 +735,8 @@ def _build_payload(chart: dict, price_chart: dict, built_at: str | None) -> dict
         "default_scale": "log" if (price_trace or default_log) else "linear",
         "scale_axes": ["y"],
         "x_value_type": "date",
+        # Lets the chart label sparse data and offer only ranges it can fill.
+        "native_resolution": _native_resolution(traces),
         "show_range_selector": bool((chart.get("toolbar_config") or {}).get("has_date", True)),
         "show_halvings_default": bool(chart.get("show_halvings")),
         "main_series_key": main_series_key,

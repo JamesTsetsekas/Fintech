@@ -146,6 +146,48 @@ class CatalogImportTests(unittest.TestCase):
         self.assertEqual(payload["layout"]["yaxis3"]["ticksuffix"], " pp")
         self.assertIn(" pp", by_key["lts_minus_sts_pp"]["hovertemplate"])
 
+    def test_weekly_candles_drop_the_trailing_week_to_date_candle(self):
+        # Weekly candles close on Sundays; the bundle then appends the current
+        # week-to-date two days later, which made every candle seven times thinner.
+        weekly_days = [0] + [7] * 9 + [2]
+
+        def series(key, base):
+            return {"series_key": key, "pd": {"t0": 1767225600000, "d": weekly_days, "v": [base + i for i in range(11)]}}
+
+        ohlc = {"slug": "ohlc", "name": "Price OHLC", "style_config": {"ohlcChart": True},
+                "series": [series("open", 100), series("high", 110), series("low", 90), series("close", 105)]}
+        payload = data._build_payload(ohlc, chart("price", "Price"), "2026-11-11T00:12:20+00:00")
+        candles = payload["series"][0]
+        self.assertEqual(len(candles["x"]), 10)
+        self.assertEqual({len(candles[key]) for key in ("open", "high", "low", "close")}, {10})
+        self.assertEqual(candles["close"][-1], 114, "the last complete week is kept")
+        self.assertEqual(set(data._day_gaps(candles["x"])), {7}, "candles are evenly spaced")
+        self.assertEqual(payload["native_resolution"], "weekly")
+
+    def test_complete_periods_and_daily_series_are_unchanged(self):
+        columns = {"x": ["2026-01-04", "2026-01-11", "2026-01-18", "2026-01-25"], "open": [1, 2, 3, 4]}
+        self.assertEqual(data._without_partial_period(columns), columns)
+        daily = {"x": ["2026-01-01", "2026-01-02", "2026-01-03"], "open": [1, 2, 3]}
+        self.assertEqual(data._without_partial_period(daily), daily)
+        self.assertEqual(data._without_partial_period({"x": ["2026-01-01"], "open": [1]}), {"x": ["2026-01-01"], "open": [1]})
+
+    def test_native_resolution_names_the_finest_date_cadence(self):
+        def trace(step, count=12):
+            start = data.datetime(2020, 1, 1)
+            return {"x": [(start + data.timedelta(days=step * index)).strftime("%Y-%m-%d") for index in range(count)]}
+
+        self.assertEqual(data._native_resolution([trace(7)]), "weekly")
+        self.assertEqual(data._native_resolution([trace(7), trace(1)]), "daily")
+        self.assertEqual(data._native_resolution([trace(31)]), "monthly")
+        self.assertEqual(data._native_resolution([trace(91)]), "quarterly")
+        self.assertEqual(data._native_resolution([trace(365)]), "yearly")
+        self.assertIsNone(data._native_resolution([{"x": ["2020-01-01"]}, {"x": ["Q1", "Q2", "Q3"]}]))
+        # Every imported payload declares it, deterministically and without wall-clock time.
+        first = data._build_payload(chart("mvrv", "MVRV"), chart("price", "Price"), None)
+        second = data._build_payload(chart("mvrv", "MVRV"), chart("price", "Price"), None)
+        self.assertEqual(json.dumps(first, sort_keys=True), json.dumps(second, sort_keys=True))
+        self.assertIn("native_resolution", first)
+
     @unittest.skipUnless(os.environ.get("FINTECH_LIVE_TESTS") == "1", "opt-in upstream integration check")
     def test_current_bundle_rebuilds_the_entire_reviewed_catalog(self):
         with tempfile.TemporaryDirectory() as temporary:

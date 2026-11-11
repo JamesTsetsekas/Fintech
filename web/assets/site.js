@@ -776,6 +776,7 @@ async function selectTerminalChart(chartId, options = {}) {
   target.classList.add("loading-block");
 
   if (!chart.data_path) {
+    updateResolutionControls(null);
     renderImageChart(chart, target);
     syncTerminalUrl();
     announceChartStatus();
@@ -839,6 +840,75 @@ function updateChartControls(payload) {
   if (movingAverage) movingAverage.disabled = !hasNumericLine;
   if (halvings) halvings.disabled = payload.x_value_type !== "date";
   if (rangeOptions) rangeOptions.hidden = payload.show_range_selector === false || payload.x_value_type !== "date";
+  updateResolutionControls(payload);
+}
+
+// Ranges shorter than this many observations show an almost empty chart.
+const RANGE_MIN_OBSERVATIONS = 8;
+const NATIVE_RESOLUTION_DAYS = { daily: 1, weekly: 7, monthly: 30.44, quarterly: 91.31, yearly: 365.25 };
+
+// Observation cadence in days: the payload's declared `native_resolution`, or
+// the median spacing of its densest date series (only series long enough to
+// hold several such windows count; very short series impose no limit).
+function payloadCadenceDays(payload) {
+  if (payload?.x_value_type !== "date") return null;
+  const declared = NATIVE_RESOLUTION_DAYS[payload.native_resolution];
+  if (declared) return declared;
+  let finest = Infinity;
+  (payload.series || []).forEach((series) => {
+    if (!Array.isArray(series?.x) || series.x.length < RANGE_MIN_OBSERVATIONS * 3) return;
+    const times = series.x.map((value) => (typeof value === "string" ? new Date(value).getTime() : NaN)).filter(Number.isFinite);
+    const gaps = times.slice(1).map((time, index) => time - times[index]).filter((gap) => gap > 0).sort((a, b) => a - b);
+    if (gaps.length >= 2) finest = Math.min(finest, gaps[Math.floor(gaps.length / 2)] / 86400000);
+  });
+  return Number.isFinite(finest) ? finest : null;
+}
+
+function resolutionLabel(cadenceDays) {
+  if (!(cadenceDays > 1.5)) return "";
+  if (cadenceDays <= 10) return "Weekly data";
+  if (cadenceDays <= 45) return "Monthly data";
+  if (cadenceDays <= 120) return "Quarterly data";
+  return "Yearly data";
+}
+
+// A shortcut is unavailable when its window would hold fewer than
+// RANGE_MIN_OBSERVATIONS samples (for example 1M on weekly data).
+function rangeShortcutUnavailable(payload, range) {
+  if (range === "all") return false;
+  const cadence = payloadCadenceDays(payload);
+  const window = cadence ? shortcutRange(payload, range) : null;
+  if (!window) return false;
+  return (new Date(window[1]).getTime() - new Date(window[0]).getTime()) / 86400000 < RANGE_MIN_OBSERVATIONS * cadence;
+}
+
+// The requested shortcut, or the shortest longer one the data can fill.
+function availableRangeShortcut(payload, range) {
+  if (!rangeShortcutUnavailable(payload, range)) return range;
+  const longer = TERMINAL_RANGES.slice(Math.max(0, TERMINAL_RANGES.indexOf(range)) + 1);
+  return longer.find((candidate) => !rangeShortcutUnavailable(payload, candidate)) || "all";
+}
+
+function updateResolutionControls(payload) {
+  const cadence = payloadCadenceDays(payload);
+  const label = resolutionLabel(cadence);
+  const node = document.querySelector("#chart-resolution");
+  if (node) {
+    node.textContent = label;
+    node.hidden = !label;
+    node.title = label ? `This chart's source publishes ${label.split(" ")[0].toLowerCase()} observations` : "";
+  }
+  document.querySelectorAll("[data-range]").forEach((button) => {
+    const unavailable = rangeShortcutUnavailable(payload, button.dataset.range);
+    button.disabled = unavailable;
+    if (unavailable) {
+      button.setAttribute?.("aria-disabled", "true");
+      button.title = `${label || "This data"} has fewer than ${RANGE_MIN_OBSERVATIONS} points in this range`;
+    } else {
+      button.removeAttribute?.("aria-disabled");
+      button.removeAttribute?.("title");
+    }
+  });
 }
 
 function updateChartHeadings(chart) {
@@ -1636,9 +1706,11 @@ function shortcutRange(payload, range) {
   return [start.toISOString(), end.toISOString()];
 }
 
-function setChartRange(range) {
+function setChartRange(requested) {
   if (!appState.currentPayload || !window.Plotly) return;
   const payload = appState.currentPayload;
+  // A shared ?range=1m on weekly data opens the shortest range it can fill.
+  const range = availableRangeShortcut(payload, requested);
   const selectedRange = shortcutRange(payload, range);
   appState.chartOptions.range = selectedRange ? range : "all";
   appState.chartOptions.customRange = null;
