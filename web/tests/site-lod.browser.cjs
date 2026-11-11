@@ -197,6 +197,37 @@ const large = {
       console.log(JSON.stringify({label, candles: {overview: candles.drawn, zoomedVisible: zoomed.visibleCount, halfWidthDays: Number((state.bdPos / DAY).toFixed(2))}}));
     }
 
+    // Traces relying on Plotly's default mode lose the sparse markers on reset,
+    // and a missing observation stays a visible gap in the drawn line.
+    const gapIndex = 6245 - 400;
+    const defaultMode = {
+      title: 'LOD default mode', x_value_type: 'date',
+      series: [{type: 'scatter', name: 'No mode', x: dailyX, y: dailyY.map((value, index) => (index === gapIndex ? null : value))}],
+      layout: {xaxis: {type: 'date'}, yaxis: {type: 'linear'}},
+    };
+    for (const [compact, maxPoints] of [[false, 2200], [true, 600]]) {
+      const label = compact ? 'dashboard' : 'terminal';
+      await page.evaluate(({payload, compact, maxPoints}) => renderPlot(document.querySelector('#plot'), payload, {compact, maxPoints}), {payload: defaultMode, compact, maxPoints});
+      const modes = () => page.evaluate(() => {
+        const target = document.querySelector('#plot');
+        return {data: target.data[0].mode, resolved: target._fullData[0].mode};
+      });
+      const before = await modes();
+      assert.equal(before.resolved, 'lines', `${label}: dense default-mode trace draws plain lines`);
+      const gapDate = dailyX[gapIndex];
+      const drawnGap = await page.evaluate(date => { const t = document.querySelector('#plot').data[0]; const i = t.x.indexOf(date); return i >= 0 ? t.y[i] : 'absent'; }, gapDate);
+      assert.equal(drawnGap, null, `${label}: overview keeps the missing observation as a gap`);
+      await page.evaluate(range => document.querySelector('#plot')._fintechNavigation.zoomTo(range), [new Date(end - 30 * DAY).toISOString(), new Date(end).toISOString()]);
+      await page.evaluate(() => window.settled());
+      const zoomed = await modes();
+      assert.equal(zoomed.resolved, 'lines+markers', `${label}: zoomed sparse view shows markers`);
+      await page.evaluate(() => document.querySelector('#plot')._fintechNavigation.reset());
+      await page.evaluate(() => window.settled());
+      const after = await modes();
+      assert.equal(after.resolved, before.resolved, `${label}: reset restores the original mode`);
+      assert.equal(after.data, 'lines', `${label}: restored mode is explicit`);
+    }
+
     // Performance on the largest payload shape.
     await page.evaluate(({payload}) => renderPlot(document.querySelector('#plot'), payload, {maxPoints: 2200}), {payload: large});
     const timings = [];

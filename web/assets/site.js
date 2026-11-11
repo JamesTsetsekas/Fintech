@@ -3908,10 +3908,32 @@ function levelOfDetailBound(times, value, inclusive = false) {
 // Indices kept for [start, end] within `budget` points. With `extremes` each
 // bucket keeps its first, last, minimum and maximum values; without it, only
 // the bucket edges, which depend on x alone and so match across stacked traces.
-function levelOfDetailIndices(values, start, end, budget, extremes = true) {
+// With `gaps`, a missing observation (null/NaN) is never bridged: each gap
+// keeps one separator and the valid runs around it are reduced independently.
+// Only data with more gaps than the budget can exceed it.
+function levelOfDetailIndices(values, start, end, budget, extremes = true, gaps = extremes) {
   const count = end - start + 1;
   if (count <= 0 || budget <= 0) return [];
   if (count <= budget) return Array.from({ length: count }, (_, offset) => start + offset);
+  if (gaps && Array.isArray(values)) {
+    const runs = [];
+    for (let index = start; index <= end; index += 1) {
+      const valid = Number.isFinite(toFiniteNumber(values[index]));
+      const run = runs[runs.length - 1];
+      if (run && run.valid === valid) run.to = index;
+      else runs.push({ from: index, to: index, valid });
+    }
+    if (runs.some((run) => !run.valid)) {
+      const validCount = runs.reduce((total, run) => total + (run.valid ? run.to - run.from + 1 : 0), 0);
+      const spare = Math.max(0, budget - (runs.length - runs.filter((run) => run.valid).length));
+      return runs.flatMap((run) => {
+        if (!run.valid) return [run.from];
+        const length = run.to - run.from + 1;
+        const share = Math.max(Math.min(2, length), Math.floor(spare * length / validCount));
+        return levelOfDetailIndices(values, run.from, run.to, share, extremes, false);
+      });
+    }
+  }
   const buckets = Math.max(1, Math.floor(budget / (extremes ? 4 : 2)));
   const kept = [];
   for (let bucket = 0; bucket < buckets; bucket += 1) {
@@ -3961,23 +3983,26 @@ function levelOfDetailCandles(trace, axis, start, end, budget) {
     && span / (days * LOD_DAY) + 2 <= budget) || LOD_CANDLE_UNITS[LOD_CANDLE_UNITS.length - 1])[0];
   const merged = { x: [], open: [], high: [], low: [], close: [] };
   let bucket = null;
+  const finite = (value) => (Number.isFinite(value) ? value : null);
   for (let index = start; index <= end; index += 1) {
     const key = levelOfDetailBucketStart(axis.times[index], unit);
-    const high = toFiniteNumber(trace.high?.[index]);
-    const low = toFiniteNumber(trace.low?.[index]);
+    const [open, high, low, close] = ["open", "high", "low", "close"].map((name) => toFiniteNumber(trace[name]?.[index]));
     if (key !== bucket) {
       bucket = key;
       merged.x.push(trace.x[index]);
-      merged.open.push(trace.open?.[index]);
-      merged.high.push(Number.isFinite(high) ? high : null);
-      merged.low.push(Number.isFinite(low) ? low : null);
-      merged.close.push(trace.close?.[index]);
+      merged.open.push(finite(open));
+      merged.high.push(finite(high));
+      merged.low.push(finite(low));
+      merged.close.push(finite(close));
       continue;
     }
+    // A missing accumulator (null) is replaced, never compared: in JS
+    // `null <= 5` is true and would keep the missing low forever.
     const last = merged.x.length - 1;
-    if (Number.isFinite(high) && !(merged.high[last] >= high)) merged.high[last] = high;
-    if (Number.isFinite(low) && !(merged.low[last] <= low)) merged.low[last] = low;
-    merged.close[last] = trace.close?.[index];
+    if (merged.open[last] === null && Number.isFinite(open)) merged.open[last] = open;
+    if (Number.isFinite(high) && (merged.high[last] === null || high > merged.high[last])) merged.high[last] = high;
+    if (Number.isFinite(low) && (merged.low[last] === null || low < merged.low[last])) merged.low[last] = low;
+    if (Number.isFinite(close)) merged.close[last] = close;
   }
   return merged;
 }
@@ -4017,7 +4042,11 @@ function levelOfDetailAll(trace) {
 function levelOfDetailSparseStyle(trace, visibleCount) {
   const plainLine = [undefined, "scatter", "scattergl"].includes(trace.type) && (trace.mode || "lines") === "lines"
     && !trace.fill && !trace.stackgroup && !trace.value_colored_line && trace.visible !== false;
-  if (!plainLine || visibleCount >= LOD_SPARSE_MARKER_POINTS) return trace;
+  if (!plainLine) return trace;
+  // Restyle leaves undefined attributes untouched, so a trace relying on
+  // Plotly's default mode must name it to drop markers again. Dense views
+  // always have more than Plotly's 20-point threshold for that default.
+  if (visibleCount >= LOD_SPARSE_MARKER_POINTS) return trace.mode === undefined ? { ...trace, mode: "lines" } : trace;
   return {
     ...trace,
     mode: "lines+markers",
@@ -4064,8 +4093,11 @@ function levelOfDetailWindow(traces, range, maxPoints) {
       delete next.text;
       delete next.hovertext;
     } else {
+      // Stack groups share x-only buckets (Plotly fills their gaps itself);
+      // every other line keeps its missing-data gaps.
       const extremes = !trace.stackgroup && !trace.fill;
-      const indices = segments.flatMap(([start, end, budget]) => levelOfDetailIndices(trace.y, start, end, budget, extremes));
+      const gaps = !trace.stackgroup;
+      const indices = segments.flatMap(([start, end, budget]) => levelOfDetailIndices(trace.y, start, end, budget, extremes, gaps));
       next = levelOfDetailSlice(trace, indices);
     }
     const visible = bounds

@@ -197,3 +197,69 @@ test("installLevelOfDetail keeps the full source and draws within the budget", (
   assert.equal(site.installLevelOfDetail(target, source, undefined), source, "no budget, no reduction");
   assert.equal(target._fintechLod, null);
 });
+
+test("missing observations keep their gap instead of being bridged", () => {
+  // Reviewer reproducer: 100 constant samples, one missing, budget 8.
+  const values = Array(100).fill(5);
+  values[26] = null;
+  const kept = [...site.levelOfDetailIndices(values, 0, 99, 8)];
+  assert.ok(kept.includes(26), "the missing observation stays as a separator");
+  assert.deepEqual(kept, [0, 25, 26, 27, 99]);
+  // Several gaps, including leading and trailing runs of missing values.
+  const many = Array.from({ length: 2000 }, (_, index) => Math.sin(index / 40) * 100);
+  for (const index of [0, 1, 2, 500, 501, 1200, 1997, 1998, 1999]) many[index] = index % 2 ? Number.NaN : null;
+  const indices = [...site.levelOfDetailIndices(many, 0, 1999, 200)];
+  assert.ok(indices.length <= 200, "still within budget");
+  assert.deepEqual(indices.filter((index) => !Number.isFinite(site.toFiniteNumber(many[index]))), [0, 500, 1200, 1997],
+    "exactly one separator per gap");
+  // Every pair of consecutive drawn points that are both valid has no missing value between them.
+  for (let position = 1; position < indices.length; position += 1) {
+    const [from, to] = [indices[position - 1], indices[position]];
+    if (![from, to].every((index) => Number.isFinite(site.toFiniteNumber(many[index])))) continue;
+    for (let index = from + 1; index < to; index += 1) assert.ok(Number.isFinite(site.toFiniteNumber(many[index])), `no gap bridged between ${from} and ${to}`);
+  }
+  // The windowed trace carries the null through to Plotly, for plain and filled lines.
+  for (const extra of [{}, { fill: "tonexty" }]) {
+    const trace = daily(6245, extra);
+    trace.y = trace.y.slice();
+    trace.y[1000] = null;
+    const [drawn] = site.levelOfDetailWindow([trace], null, 600);
+    const position = drawn.x.indexOf(trace.x[1000]);
+    assert.ok(position > 0 && drawn.y[position] === null, `null drawn at its own date (${JSON.stringify(extra)})`);
+  }
+});
+
+test("aggregated candles ignore missing values instead of keeping them", () => {
+  const x = dates(60, Date.UTC(2026, 0, 1));
+  const constant = (value) => x.map(() => value);
+  const candles = { type: "candlestick", lod_eligible: true, x, open: constant(10), high: constant(20), low: constant(5), close: constant(15) };
+  candles.low = candles.low.slice(); candles.low[0] = null; // missing first low in January
+  candles.high = candles.high.slice(); candles.high[0] = null; candles.high[3] = 30;
+  candles.open = candles.open.slice(); candles.open[0] = null; candles.open[1] = 11;
+  candles.close = candles.close.slice(); candles.close[30] = null; candles.close[29] = 17; // Jan 30 then a missing Jan 31
+  const merged = site.levelOfDetailCandles(candles, site.levelOfDetailAxis(candles), 0, 59, 10);
+  assert.equal(merged.x[0].slice(0, 7), "2026-01");
+  const january = merged.x.findIndex((value) => value.startsWith("2026-01"));
+  const months = merged.x.length;
+  assert.ok(months < 60, "daily candles merged");
+  assert.equal(merged.low[january], 5, "a missing first low does not invalidate the bucket");
+  assert.equal(merged.high[january], 30, "a missing first high does not invalidate the bucket");
+  assert.equal(merged.open[january], 11, "open is the first finite open");
+  const lastJanuary = x.reduce((last, value, index) => (value.startsWith("2026-01") ? index : last), -1);
+  assert.equal(lastJanuary, 30);
+  assert.equal(merged.close[january], 17, "close is the last finite close");
+  const allMissing = { ...candles, high: constant(null), low: constant(null) };
+  const empty = site.levelOfDetailCandles(allMissing, site.levelOfDetailAxis(allMissing), 0, 59, 10);
+  assert.ok(empty.high.every((value) => value === null) && empty.low.every((value) => value === null), "no invented values");
+});
+
+test("dense views name the mode of traces that rely on Plotly's default", () => {
+  const trace = daily(900);
+  delete trace.mode;
+  const [zoomed] = site.levelOfDetailWindow([trace], lastDays(trace, 30), 2200);
+  assert.equal(zoomed.mode, "lines+markers");
+  const [full] = site.levelOfDetailWindow([trace], null, 2200);
+  assert.equal(full.mode, "lines", "an explicit mode lets restyle turn the markers off again");
+  const explicit = { ...daily(900), mode: "lines" };
+  assert.equal(site.levelOfDetailWindow([explicit], null, 2200)[0].mode, "lines");
+});
