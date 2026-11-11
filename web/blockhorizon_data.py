@@ -7,10 +7,14 @@ refresh the imported charts alongside the repository's native charts.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
+import os
+import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 
@@ -230,20 +234,116 @@ SOURCE_SERIES_OVERRIDES = {
 SOURCE_LOG_SCALE_OVERRIDES = {"pb-s2f"}
 
 
-def _fetch_bundle(timeout: int = 90) -> tuple[list[dict], str | None]:
-    request = Request(
-        SOURCE_BUNDLE_URL,
-        headers={
-            "Accept": "application/json",
-            "User-Agent": "Fintech-Charts/1.0 (+https://github.com/JamesTsetsekas/Fintech)",
-        },
-    )
-    with urlopen(request, timeout=timeout) as response:
-        payload = json.load(response)
-        built_at = response.headers.get("X-Bundle-Built-At")
+# Local, gitignored runtime area holding the last complete bundle and its ETag.
+BUNDLE_CACHE_DIR = Path(__file__).resolve().parents[1] / "logs" / "blockhorizon-bundle"
+
+
+def _parse_bundle(raw: bytes) -> list[dict]:
+    payload = json.loads(raw)
     if not isinstance(payload, list):
         raise ValueError("BlockHorizon chart bundle did not contain a chart list")
+    return payload
+
+
+def _read_cached_bundle(cache_dir: Path) -> tuple[list[dict], str | None, str] | None:
+    """Return ``(bundle, built_at, etag)`` from a complete, verified cache, else None."""
+    try:
+        meta = json.loads((cache_dir / "bundle.meta.json").read_text(encoding="utf-8"))
+        raw = (cache_dir / "bundle.json").read_bytes()
+        etag = meta.get("etag")
+        if not isinstance(etag, str) or not etag:
+            return None
+        if hashlib.sha256(raw).hexdigest() != meta.get("sha256"):
+            return None
+        return _parse_bundle(raw), meta.get("built_at"), etag
+    except (OSError, ValueError, AttributeError):
+        return None
+
+
+def _write_cached_bundle(cache_dir: Path, raw: bytes, etag: str, built_at: str | None) -> None:
+    """Atomically store a fully downloaded, parsed bundle. Failures are non-fatal."""
+    try:
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        meta = {"etag": etag, "built_at": built_at, "sha256": hashlib.sha256(raw).hexdigest()}
+        (cache_dir / "bundle.meta.json").unlink(missing_ok=True)
+        tmp_bundle = cache_dir / f"bundle.{os.getpid()}.tmp"
+        tmp_bundle.write_bytes(raw)
+        os.replace(tmp_bundle, cache_dir / "bundle.json")
+        tmp_meta = cache_dir / f"bundle.meta.{os.getpid()}.tmp"
+        tmp_meta.write_text(json.dumps(meta), encoding="utf-8")
+        os.replace(tmp_meta, cache_dir / "bundle.meta.json")
+    except OSError:
+        pass
+
+
+def _fetch_bundle(timeout: int = 90, cache_dir: Path | None = None) -> tuple[list[dict], str | None]:
+    """Download the chart bundle, revalidating a cached copy with its ETag.
+
+    A 304 reuses the cached bundle. Any other failure raises, and a bundle is
+    cached only after it was fully read and parsed, so a partial download can
+    never be published or reused.
+    """
+    cache_dir = BUNDLE_CACHE_DIR if cache_dir is None else Path(cache_dir)
+    headers = {
+        "Accept": "application/json",
+        "User-Agent": "Fintech-Charts/1.0 (+https://github.com/JamesTsetsekas/Fintech)",
+    }
+    cached = _read_cached_bundle(cache_dir)
+    if cached:
+        headers["If-None-Match"] = cached[2]
+    request = Request(SOURCE_BUNDLE_URL, headers=headers)
+    try:
+        with urlopen(request, timeout=timeout) as response:
+            raw = response.read()
+            built_at = response.headers.get("X-Bundle-Built-At")
+            etag = response.headers.get("ETag")
+    except HTTPError as error:
+        if error.code == 304 and cached:
+            return cached[0], error.headers.get("X-Bundle-Built-At") or cached[1]
+        raise
+    payload = _parse_bundle(raw)
+    if etag:
+        _write_cached_bundle(cache_dir, raw, etag, built_at)
     return payload, built_at
+
+
+_NUMBER = r"[+-]?(?:\d+(?:\.\d*)?|\.\d+)"
+_COLOR_PATTERN = re.compile(
+    r"#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})"
+    rf"|rgba?\(\s*{_NUMBER}%?\s*,\s*{_NUMBER}%?\s*,\s*{_NUMBER}%?\s*(?:,\s*{_NUMBER}%?\s*)?\)"
+    rf"|hsla?\(\s*{_NUMBER}(?:deg)?\s*,\s*{_NUMBER}%\s*,\s*{_NUMBER}%\s*(?:,\s*{_NUMBER}%?\s*)?\)",
+    re.ASCII,
+)
+
+
+def _safe_color(value, fallback: str | None = None) -> str | None:
+    """Return ``value`` only if it is a plain CSS colour literal, else ``fallback``.
+
+    Upstream colours end up in chart payloads that the browser may place in
+    ``style`` attributes, so anything that is not a strict hex/rgb()/hsl()
+    literal (quotes, semicolons, url(), expressions, ...) is rejected here.
+    """
+    if isinstance(value, str):
+        candidate = value.strip()
+        if len(candidate) <= 64 and _COLOR_PATTERN.fullmatch(candidate):
+            return candidate
+    return fallback
+
+
+def _sanitize_color_fields(value):
+    """Recursively sanitise any ``*color*`` string fields of upstream metadata."""
+    if isinstance(value, dict):
+        return {
+            key: (
+                _safe_color(child, "#888888")
+                if "color" in str(key).lower() and isinstance(child, str)
+                else _sanitize_color_fields(child)
+            )
+            for key, child in value.items()
+        }
+    if isinstance(value, list):
+        return [_sanitize_color_fields(child) for child in value]
+    return value
 
 
 def _decode_series(source_series: dict) -> tuple[list[str], list[float | None]]:
@@ -271,8 +371,11 @@ def _point_colors(source_series: dict, length: int) -> list[str] | None:
     overrides = (source_series.get("pd") or {}).get("x") or {}
     if not overrides:
         return None
-    fallback = source_series.get("color") or PALETTE[0]
-    return [overrides.get(str(index), {}).get("color", fallback) for index in range(length)]
+    fallback = _safe_color(source_series.get("color"), PALETTE[0])
+    return [
+        _safe_color((overrides.get(str(index)) or {}).get("color"), fallback)
+        for index in range(length)
+    ]
 
 
 def _value_line_marker(source_series: dict, values: list[float | None]) -> dict | None:
@@ -297,9 +400,15 @@ def _line_trace(chart: dict, source_series: dict, index: int) -> dict | None:
         return None
     style = _series_style(chart, source_series)
     override = SOURCE_SERIES_OVERRIDES.get((chart.get("slug"), source_series.get("series_key")), {})
-    color = override.get("color") or style.get("color") or source_series.get("color") or PALETTE[index % len(PALETTE)]
+    default_color = PALETTE[index % len(PALETTE)]
     if (chart.get("gradient_config") or {}).get("default_series_key") == source_series.get("series_key"):
-        color = override.get("color") or style.get("color") or source_series.get("color") or "#c96442"
+        default_color = "#c96442"
+    color = (
+        override.get("color")
+        or _safe_color(style.get("color"))
+        or _safe_color(source_series.get("color"))
+        or default_color
+    )
     series_type = style.get("type", "line")
     base = {
         "name": str(source_series.get("name") or source_series.get("series_key") or f"Series {index + 1}").strip(),
@@ -315,7 +424,7 @@ def _line_trace(chart: dict, source_series: dict, index: int) -> dict | None:
     if series_type == "column":
         marker_color = color
         threshold = style.get("threshold")
-        negative_color = style.get("negativeColor")
+        negative_color = _safe_color(style.get("negativeColor"))
         if isinstance(threshold, (int, float)) and negative_color:
             marker_color = [negative_color if value is not None and value < threshold else color for value in values]
         return {
@@ -416,7 +525,14 @@ def _heatmap_trace(chart: dict) -> list[dict]:
             rows.append(values)
     if not rows:
         return []
-    stops = style.get("stops") or [[0, "#2863a7"], [0.5, "#fffefa"], [1, "#c91f50"]]
+    default_stops = [[0, "#2863a7"], [0.5, "#fffefa"], [1, "#c91f50"]]
+    stops = style.get("stops") or default_stops
+    try:
+        stops = [[float(position), _safe_color(color)] for position, color in stops]
+        if any(color is None for _, color in stops):
+            raise ValueError("unsafe colour stop")
+    except (TypeError, ValueError):
+        stops = default_stops
     return [{
         "name": "Distribution",
         "source_key": "distribution",
@@ -571,7 +687,12 @@ def _build_payload(chart: dict, price_chart: dict, built_at: str | None) -> dict
         if trace.get("x"):
             latest_date = trace["x"][-1]
             break
-    source_updated = built_at or chart.get("updated_at") or datetime.now(timezone.utc).isoformat()
+    # Deterministic fallback (newest observation) keeps regenerated output stable.
+    source_updated = (
+        built_at
+        or chart.get("updated_at")
+        or (f"{latest_date}T00:00:00+00:00" if latest_date else None)
+    )
     main_series_id = chart.get("main_series_id")
     main_series_key = next(
         (
@@ -606,7 +727,7 @@ def _build_payload(chart: dict, price_chart: dict, built_at: str | None) -> dict
         "show_halvings_default": bool(chart.get("show_halvings")),
         "main_series_key": main_series_key,
         "signal_view": _signal_view_config(chart),
-        "value_zones": style_config.get("valueZones") or [],
+        "value_zones": _sanitize_color_fields(style_config.get("valueZones") or []),
         "series": traces,
         "layout": layout,
     }

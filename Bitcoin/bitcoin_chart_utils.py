@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 
@@ -90,16 +91,86 @@ def load_intraday_price(data_dir):
     return data[["DateTime", "Date", "Price", "Log_Return"]]
 
 
+# Bump whenever the aggregation in load_daily_block_metrics (columns, formulas,
+# date bucketing) changes so caches written by older code are rebuilt.
+BLOCK_METRICS_CACHE_VERSION = 2
+BLOCK_METRICS_CACHE_NAME = "daily_block_metrics_cache.csv"
+BLOCK_METRICS_CACHE_META_NAME = "daily_block_metrics_cache.meta.json"
+BLOCK_METRICS_COLUMNS = [
+    "Date",
+    "Fees_BTC",
+    "Subsidy_BTC_Blocks",
+    "Reward_BTC",
+    "Tx_Count",
+    "Block_Count",
+    "Total_Weight",
+    "Total_Size",
+    "Avg_Difficulty",
+    "Last_Block_Height",
+    "Fee_Rate_Sats_VByte",
+    "Avg_Block_Weight",
+    "Estimated_Hashrate_EH_S",
+]
+
+
+def _block_source_inventory(block_csvs) -> list[list]:
+    """Describe the source files: name, size and mtime (ns) in sorted order."""
+    inventory = []
+    for csv_path in block_csvs:
+        info = csv_path.stat()
+        inventory.append([csv_path.name, info.st_size, info.st_mtime_ns])
+    return inventory
+
+
+def _read_block_metrics_cache(cache_path: Path, meta_path: Path, inventory):
+    """Return the cached frame only if it matches this code version and these inputs."""
+    try:
+        meta = json.loads(meta_path.read_text(encoding="utf-8"))
+        if (
+            not isinstance(meta, dict)
+            or meta.get("version") != BLOCK_METRICS_CACHE_VERSION
+            or meta.get("sources") != inventory
+        ):
+            return None
+        cached = pd.read_csv(cache_path)
+        if not set(BLOCK_METRICS_COLUMNS) <= set(cached.columns):
+            return None
+        cached["Date"] = pd.to_datetime(cached["Date"])
+        return cached
+    except Exception:
+        # Missing, truncated, or otherwise corrupt cache: rebuild from sources.
+        return None
+
+
+def _write_block_metrics_cache(grouped, cache_path: Path, meta_path: Path, inventory) -> None:
+    # Drop the old validity record first so a crash mid-write cannot pair a new
+    # CSV with a stale record.
+    meta_path.unlink(missing_ok=True)
+    tmp_cache_path = cache_path.with_name(f"{cache_path.stem}.{os.getpid()}.tmp")
+    grouped.to_csv(tmp_cache_path, index=False)
+    tmp_cache_path.replace(cache_path)
+    tmp_meta_path = meta_path.with_name(f"{meta_path.stem}.{os.getpid()}.tmp")
+    tmp_meta_path.write_text(
+        json.dumps({"version": BLOCK_METRICS_CACHE_VERSION, "sources": inventory}), encoding="utf-8"
+    )
+    tmp_meta_path.replace(meta_path)
+
+
 def load_daily_block_metrics(data_dir):
-    """Aggregate block CSVs into daily fee, revenue, difficulty, and activity metrics."""
+    """Aggregate block CSVs into daily fee, revenue, difficulty, and activity metrics.
+
+    The derived cache is reused only when its recorded calculation version and
+    source-file inventory (names, sizes, mtimes) match the current inputs, so
+    added, removed, or replaced source files and code changes invalidate it.
+    """
     data_dir = Path(data_dir)
-    cache_path = data_dir / "daily_block_metrics_cache.csv"
+    cache_path = data_dir / BLOCK_METRICS_CACHE_NAME
+    meta_path = data_dir / BLOCK_METRICS_CACHE_META_NAME
     block_csvs = sorted(data_dir.glob("block_data_*.csv"))
+    inventory = _block_source_inventory(block_csvs)
     if cache_path.exists() and block_csvs:
-        cache_mtime = cache_path.stat().st_mtime
-        if all(csv_path.stat().st_mtime <= cache_mtime for csv_path in block_csvs):
-            cached = pd.read_csv(cache_path)
-            cached["Date"] = pd.to_datetime(cached["Date"])
+        cached = _read_block_metrics_cache(cache_path, meta_path, inventory)
+        if cached is not None:
             return cached
 
     frames = []
@@ -127,23 +198,7 @@ def load_daily_block_metrics(data_dir):
         frames.append(block_data)
 
     if not frames:
-        return pd.DataFrame(
-            columns=[
-                "Date",
-                "Fees_BTC",
-                "Subsidy_BTC_Blocks",
-                "Reward_BTC",
-                "Tx_Count",
-                "Block_Count",
-                "Total_Weight",
-                "Total_Size",
-                "Avg_Difficulty",
-                "Last_Block_Height",
-                "Fee_Rate_Sats_VByte",
-                "Avg_Block_Weight",
-                "Estimated_Hashrate_EH_S",
-            ]
-        )
+        return pd.DataFrame(columns=BLOCK_METRICS_COLUMNS)
 
     combined = pd.concat(frames, ignore_index=True)
     grouped = (
@@ -171,9 +226,7 @@ def load_daily_block_metrics(data_dir):
     grouped["Estimated_Hashrate_EH_S"] = (
         grouped["Avg_Difficulty"] * (2**32) / SECONDS_PER_BLOCK_TARGET / 1e18
     )
-    tmp_cache_path = cache_path.with_name(f"{cache_path.stem}.{os.getpid()}.tmp")
-    grouped.to_csv(tmp_cache_path, index=False)
-    tmp_cache_path.replace(cache_path)
+    _write_block_metrics_cache(grouped, cache_path, meta_path, inventory)
     return grouped
 
 

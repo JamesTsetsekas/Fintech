@@ -492,6 +492,43 @@ def ohlc_frame(data, period):
     return grouped
 
 
+DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}")
+# Significant figures kept for floating-point chart values. Seven digits keeps
+# relative error below 5e-7 (well beneath one screen pixel or a printed price
+# tick) while dropping the noisy float tails that dominate payload size.
+PAYLOAD_SIGNIFICANT_DIGITS = 7
+# Keys whose floats identify positions or must round-trip exactly.
+PAYLOAD_EXACT_KEYS = {"x"}
+
+
+def latest_observation_timestamp(series) -> str | None:
+    """Deterministic ``updated_at``: the newest observation date in the data.
+
+    Using wall-clock time here made every regeneration look like a content
+    change, defeating the publish "unchanged" check.
+    """
+    newest = None
+    for item in series or []:
+        values = item.get("x") if isinstance(item, dict) else None
+        for value in values or []:
+            if isinstance(value, str) and DATE_PATTERN.match(value):
+                day = value[:10]
+                if newest is None or day > newest:
+                    newest = day
+    return f"{newest}T00:00:00+00:00" if newest else None
+
+
+def compact_floats(value, *, key=None):
+    """Round floats to PAYLOAD_SIGNIFICANT_DIGITS, leaving integers and x axes alone."""
+    if isinstance(value, dict):
+        return {k: compact_floats(v, key=k) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [compact_floats(v, key=key) for v in value]
+    if isinstance(value, float) and key not in PAYLOAD_EXACT_KEYS and math.isfinite(value):
+        return float(f"{value:.{PAYLOAD_SIGNIFICANT_DIGITS - 1}e}")
+    return value
+
+
 def base_payload(
     chart_id: str,
     title: str,
@@ -510,7 +547,7 @@ def base_payload(
         "id": chart_id,
         "title": title,
         "summary_text": summary_text,
-        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": latest_observation_timestamp(series),
         "allow_scale_toggle": allow_scale_toggle,
         "default_scale": default_scale,
         "axis_guards": axis_guards or {},
@@ -2102,7 +2139,11 @@ INTERACTIVE_BUILDERS = {
 
 def write_json(path: Path, payload) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2, separators=(",", ": ")) + "\n", encoding="utf-8")
+    # Compact, sorted output: smaller to ship and byte-stable between runs.
+    path.write_text(
+        json.dumps(compact_floats(payload), sort_keys=True, separators=(",", ":"), ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
 
 
 STOCK_PRICE_CACHE = {}

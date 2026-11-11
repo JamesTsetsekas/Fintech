@@ -43,11 +43,24 @@ log "Starting automated report generation"
 log "Mode: Bitcoin-only (stock and experimental ML reports disabled)"
 PUBLISH_ARGS=()
 CURRENT_HOUR="$(date -u '+%H')"
-if (( 10#$CURRENT_HOUR % 6 != 0 )); then
+SOURCE_HEAD="$(git -C "$SCRIPT_DIR" rev-parse HEAD 2>/dev/null || true)"
+# publish_pending.py reads logs/publish-pending.json (written by run.py after each
+# publish attempt). Besides the six-hour UTC windows it requests a publish when the
+# last attempt failed or the source HEAD changed since the last successful publish.
+# If the helper is unavailable, fall back to the original six-hour window rule.
+PUBLISH_DECISION="$(python3 "$SCRIPT_DIR/publish_pending.py" decide --hour "$((10#$CURRENT_HOUR))" --head "$SOURCE_HEAD" 2>/dev/null || true)"
+if [ -z "$PUBLISH_DECISION" ]; then
+    if (( 10#$CURRENT_HOUR % 6 == 0 )); then
+        PUBLISH_DECISION="publish scheduled-window"
+    else
+        PUBLISH_DECISION="defer deferred"
+    fi
+fi
+if [ "${PUBLISH_DECISION%% *}" != "publish" ]; then
     PUBLISH_ARGS=(--skip-publish)
-    log "GitHub Pages deployment deferred: hourly refresh will publish at the next six-hour UTC window."
+    log "GitHub Pages deployment deferred: hourly refresh will publish at the next six-hour UTC window, or sooner if a publish is pending."
 else
-    log "GitHub Pages deployment enabled for this six-hour UTC publish window."
+    log "GitHub Pages deployment enabled (${PUBLISH_DECISION#* })."
 fi
 log "============================================================"
 
