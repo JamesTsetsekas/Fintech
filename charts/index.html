@@ -44,19 +44,21 @@
           <span aria-hidden="true">⌕</span>
           <input id="sidebar-search" aria-label="Search charts" aria-controls="library-results" type="search" placeholder="Search charts (press /)" autocomplete="off">
         </label>
-        <p id="pin-status" class="pin-status" role="status"></p>
+        <p id="pin-status" class="pin-status"></p>
+        <p id="terminal-status" class="visually-hidden" role="status"></p>
         <div id="library-results" class="sidebar-scroll">
+          <div id="section-filters" class="section-filters" role="group" aria-label="Filter charts by section"></div>
           <section class="sidebar-group">
             <div class="sidebar-group-heading"><strong>Pinned</strong><span id="pinned-count">0</span></div>
-            <div id="pinned-list" class="sidebar-list" aria-live="polite"></div>
+            <div id="pinned-list" class="sidebar-list"></div>
           </section>
           <section class="sidebar-group">
             <div class="sidebar-group-heading"><strong>Popular charts</strong><span id="popular-count">—</span></div>
-            <div id="popular-list" class="sidebar-list skeleton-list" aria-live="polite"></div>
+            <div id="popular-list" class="sidebar-list skeleton-list"></div>
           </section>
           <section class="sidebar-group">
-            <div class="sidebar-group-heading"><strong>All charts</strong><span id="all-count">—</span></div>
-            <div id="all-chart-list" class="sidebar-list skeleton-list" aria-live="polite"></div>
+            <div class="sidebar-group-heading"><strong id="all-heading">All charts</strong><span id="all-count">—</span></div>
+            <div id="all-chart-list" class="sidebar-list skeleton-list"></div>
           </section>
         </div>
       </aside>
@@ -65,37 +67,46 @@
         <div class="chart-toolbar" aria-label="Chart controls">
           <div class="toolbar-group">
             <button type="button" class="toolbar-button" data-chart-action="signals" aria-pressed="false" title="Color Bitcoin price by this chart's metric" hidden>◉ Signal view</button>
-            <button type="button" class="toolbar-button" data-chart-action="moving-average" title="Overlay a 50-period moving average">＋ Moving average</button>
-            <button type="button" class="toolbar-button" data-chart-action="halvings" title="Show Bitcoin halving dates">⚑ Halvings</button>
-            <button type="button" class="toolbar-button" data-chart-action="grid" title="Toggle chart grid">▦ Grid</button>
+            <button type="button" class="toolbar-button" data-chart-action="moving-average" aria-pressed="false" title="Overlay a 50-period moving average">＋ Moving average</button>
+            <button type="button" class="toolbar-button" data-chart-action="halvings" aria-pressed="false" title="Show Bitcoin halving dates">⚑ Halvings</button>
+            <button type="button" class="toolbar-button active" data-chart-action="grid" aria-pressed="true" title="Toggle chart grid">▦ Grid</button>
           </div>
           <div class="toolbar-group toolbar-group-end">
-            <button type="button" class="toolbar-button" data-chart-action="table">▤ Sheet</button>
-            <button type="button" class="toolbar-button" data-chart-action="pin">⌖ Pin</button>
+            <button type="button" class="toolbar-button" data-chart-action="table" aria-pressed="false" title="Show the visible data as a table">▤ Sheet</button>
+            <button type="button" class="toolbar-button" data-chart-action="pin" aria-pressed="false">⌖ Pin</button>
+            <button type="button" class="toolbar-button" data-chart-action="copy-link" title="Copy a link to this chart view">⧉ Copy link</button>
             <a class="toolbar-button" id="chart-alert-link" href="../alerts/">♧ Alert</a>
             <button type="button" class="toolbar-button" data-chart-action="download">⇩ Download</button>
           </div>
         </div>
 
         <div class="chart-stage">
-          <section class="chart-canvas" aria-live="polite">
+          <section class="chart-canvas" aria-label="Chart">
             <div class="chart-mobile-heading">
               <p class="kicker" id="chart-mobile-section">Interactive chart</p>
               <h1 id="chart-mobile-title">Loading chart</h1>
             </div>
-            <div id="terminal-plot" class="terminal-plot loading-block"></div>
+            <p id="chart-notice" class="chart-notice" hidden></p>
+            <div class="chart-readout-bar">
+              <p id="chart-readout" class="chart-readout" aria-label="Chart value readout"></p>
+              <div id="chart-touch-mode" class="chart-touch-mode" role="group" aria-label="Touch gesture" hidden>
+                <button type="button" data-touch-mode="inspect" aria-pressed="true">Inspect</button>
+                <button type="button" data-touch-mode="zoom" aria-pressed="false">Zoom</button>
+              </div>
+            </div>
+            <div id="terminal-plot" class="terminal-plot loading-block" aria-label="Interactive chart. Use left and right arrow keys to step through data points, plus and minus to zoom, 0 to reset." role="group"></div>
             <div id="data-sheet" class="data-sheet" hidden></div>
             <div class="chart-rangebar" aria-label="Time range and scale">
               <div class="range-options">
-                <button type="button" data-range="1m">1M</button>
-                <button type="button" data-range="3m">3M</button>
-                <button type="button" data-range="6m">6M</button>
-                <button type="button" data-range="ytd">YTD</button>
-                <button type="button" data-range="1y">1Y</button>
-                <button type="button" data-range="4y">4Y</button>
-                <button type="button" data-range="all" class="active">All</button>
+                <button type="button" data-range="1m" aria-pressed="false">1M</button>
+                <button type="button" data-range="3m" aria-pressed="false">3M</button>
+                <button type="button" data-range="6m" aria-pressed="false">6M</button>
+                <button type="button" data-range="ytd" aria-pressed="false">YTD</button>
+                <button type="button" data-range="1y" aria-pressed="false">1Y</button>
+                <button type="button" data-range="4y" aria-pressed="false">4Y</button>
+                <button type="button" data-range="all" class="active" aria-pressed="true">All</button>
               </div>
-              <button type="button" id="scale-toggle" class="scale-toggle">log</button>
+              <button type="button" id="scale-toggle" class="scale-toggle" aria-pressed="false" title="Logarithmic price scale">log</button>
             </div>
           </section>
 
@@ -124,6 +135,10 @@
             <section id="time-spent-section" class="detail-section insight-section" hidden>
               <div class="detail-section-title"><strong>Time spent here</strong><span id="time-series-label">—</span></div>
               <div id="time-spent" class="sidebar-insight"></div>
+            </section>
+            <section id="related-section" class="detail-section" hidden>
+              <div class="detail-section-title"><strong id="related-heading">More in this section</strong><span id="related-count">—</span></div>
+              <nav id="related-list" class="related-list" aria-labelledby="related-heading"></nav>
             </section>
           </aside>
         </div>
