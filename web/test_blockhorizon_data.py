@@ -149,27 +149,55 @@ class CatalogImportTests(unittest.TestCase):
     def test_weekly_candles_drop_the_trailing_week_to_date_candle(self):
         # Weekly candles close on Sundays; the bundle then appends the current
         # week-to-date two days later, which made every candle seven times thinner.
-        weekly_days = [0] + [7] * 9 + [2]
+        weekly_days = [0] + [7] * 9 + [2]  # t0 is Sunday 2026-01-04
 
         def series(key, base):
-            return {"series_key": key, "pd": {"t0": 1767225600000, "d": weekly_days, "v": [base + i for i in range(11)]}}
+            return {"series_key": key, "pd": {"t0": 1767484800000, "d": weekly_days, "v": [base + i for i in range(11)]}}
 
         ohlc = {"slug": "ohlc", "name": "Price OHLC", "style_config": {"ohlcChart": True},
+                "axis_config": {"x": {"min": "2026-01-01"}},
                 "series": [series("open", 100), series("high", 110), series("low", 90), series("close", 105)]}
-        payload = data._build_payload(ohlc, chart("price", "Price"), "2026-11-11T00:12:20+00:00")
+        payload = data._build_payload(ohlc, chart("price", "Price"), "2026-03-11T00:12:20+00:00")
         candles = payload["series"][0]
+        self.assertEqual(candles["x"][-1], "2026-03-08")
         self.assertEqual(len(candles["x"]), 10)
         self.assertEqual({len(candles[key]) for key in ("open", "high", "low", "close")}, {10})
         self.assertEqual(candles["close"][-1], 114, "the last complete week is kept")
         self.assertEqual(set(data._day_gaps(candles["x"])), {7}, "candles are evenly spaced")
         self.assertEqual(payload["native_resolution"], "weekly")
+        # The viewport ends half a candle after the latest candle so its body is not clipped.
+        self.assertEqual(payload["layout"]["xaxis"]["range"], ["2026-01-01", "2026-03-12"])
 
-    def test_complete_periods_and_daily_series_are_unchanged(self):
-        columns = {"x": ["2026-01-04", "2026-01-11", "2026-01-18", "2026-01-25"], "open": [1, 2, 3, 4]}
-        self.assertEqual(data._without_partial_period(columns), columns)
-        daily = {"x": ["2026-01-01", "2026-01-02", "2026-01-03"], "open": [1, 2, 3]}
-        self.assertEqual(data._without_partial_period(daily), daily)
-        self.assertEqual(data._without_partial_period({"x": ["2026-01-01"], "open": [1]}), {"x": ["2026-01-01"], "open": [1]})
+    def test_partial_candle_detection_uses_the_sunday_week_and_build_date(self):
+        def keep(dates, built_at=None):
+            columns = {"x": dates, "open": list(range(len(dates)))}
+            return data._without_partial_period(columns, built_at)["x"]
+
+        # A missing week in the history does not make a completed Sunday look partial.
+        self.assertEqual(keep(["2026-01-04", "2026-01-18", "2026-01-25"]), ["2026-01-04", "2026-01-18", "2026-01-25"])
+        self.assertEqual(keep(["2025-12-07", "2025-12-14", "2026-01-04", "2026-01-18", "2026-01-25"], "2026-01-26T01:00:00+00:00"),
+                         ["2025-12-07", "2025-12-14", "2026-01-04", "2026-01-18", "2026-01-25"])
+        # Sunday then a Monday week-to-date: the Monday candle is partial even with one complete week.
+        self.assertEqual(keep(["2026-01-04", "2026-01-05"], "2026-01-05T06:00:00Z"), ["2026-01-04"])
+        # Ending mid-week is partial (with gaps in history too); ending on Sunday is complete.
+        self.assertEqual(keep(["2026-01-04", "2026-01-11", "2026-01-13"], "2026-01-13T09:00:00+00:00"), ["2026-01-04", "2026-01-11"])
+        self.assertEqual(keep(["2025-12-07", "2025-12-14", "2026-01-04", "2026-01-18", "2026-01-21"]),
+                         ["2025-12-07", "2025-12-14", "2026-01-04", "2026-01-18"])
+        # Without one consecutive week the cadence is unproven, so the candle is preserved.
+        self.assertEqual(keep(["2026-01-04", "2026-01-18", "2026-01-21"]), ["2026-01-04", "2026-01-18", "2026-01-21"])
+        self.assertEqual(keep(["2026-01-04", "2026-01-11", "2026-01-18"], "2026-01-19T00:00:00Z"), ["2026-01-04", "2026-01-11", "2026-01-18"])
+        # A single candle, or a week that had already ended at build time, is preserved.
+        self.assertEqual(keep(["2026-01-13"]), ["2026-01-13"])
+        self.assertEqual(keep(["2026-01-04", "2026-01-11", "2026-01-13"], "2026-01-20T00:00:00Z"), ["2026-01-04", "2026-01-11", "2026-01-13"])
+        # Series that do not follow the Sunday-ending weekly convention are preserved.
+        self.assertEqual(keep(["2026-01-07", "2026-01-14", "2026-01-16"]), ["2026-01-07", "2026-01-14", "2026-01-16"])
+        self.assertEqual(keep(["2026-01-01", "2026-01-02", "2026-01-03"]), ["2026-01-01", "2026-01-02", "2026-01-03"])
+        self.assertEqual(keep(["2025-11-30", "2026-01-04", "2026-02-01", "2026-02-03"]), ["2025-11-30", "2026-01-04", "2026-02-01", "2026-02-03"])
+        # Every column is trimmed together and unparseable input is left alone.
+        trimmed = data._without_partial_period({"x": ["2026-01-04", "2026-01-11", "2026-01-12"], "open": [1, 2, 3], "close": [4, 5, 6]})
+        self.assertEqual(trimmed, {"x": ["2026-01-04", "2026-01-11"], "open": [1, 2], "close": [4, 5]})
+        odd = {"x": ["2026-01-04", None], "open": [1, 2]}
+        self.assertEqual(data._without_partial_period(odd), odd)
 
     def test_native_resolution_names_the_finest_date_cadence(self):
         def trace(step, count=12):

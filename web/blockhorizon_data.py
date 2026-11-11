@@ -463,22 +463,70 @@ def _median(values: list[float]) -> float:
     return ordered[len(ordered) // 2]
 
 
-def _without_partial_period(columns: dict[str, list]) -> dict[str, list]:
-    """Drop a trailing period that is shorter than the series' own cadence.
+# The downsampled bundle closes weekly candles on Sundays (verified across the
+# reviewed catalog, 2026-11: >99.99% of non-final weekly samples) and labels
+# each candle with the last day it covers.
+SOURCE_WEEK_DAYS = 7
+SOURCE_WEEK_END_WEEKDAY = 6  # date.weekday(): Monday 0 ... Sunday 6
+SOURCE_WEEK_ANCHOR_SHARE = 0.9
 
-    The downsampled bundle closes each weekly candle on its last day and then
-    appends the current week-to-date as one more candle, often a day or two
-    after the previous one. Plotly sizes every candle from the closest pair of
-    dates, so that single short gap drew the whole weekly history about seven
-    times too thin. Complete periods are kept unchanged.
+
+def _week_end(day):
+    return day + timedelta(days=(SOURCE_WEEK_END_WEEKDAY - day.weekday()) % SOURCE_WEEK_DAYS)
+
+
+def _without_partial_period(columns: dict[str, list], built_at: str | None = None) -> dict[str, list]:
+    """Drop the trailing week-to-date candle, and only that.
+
+    After its last complete Sunday-ending week the bundle appends the current
+    week-to-date as one more candle, labelled with its latest day. Plotly sizes
+    every candle from the closest pair of dates, so that short final gap drew
+    the whole weekly history about seven times too thin.
+
+    The final candle is removed only when the earlier candles demonstrably
+    follow the Sunday-ending weekly convention and its own week ends after
+    both its last observation and the bundle build date (the week is still in
+    progress). Anything ambiguous -- a single candle, an unrecognised anchor,
+    a week that had already ended when the bundle was built -- is preserved.
     """
-    gaps = _day_gaps(columns["x"])
-    if len(gaps) < 2:
+    try:
+        days = [datetime.strptime(value, "%Y-%m-%d").date() for value in columns["x"]]
+    except (TypeError, ValueError):
         return columns
-    typical = _median(gaps[:-1])
-    if typical > 1 and gaps[-1] < typical * 0.9:
-        return {key: values[:-1] for key, values in columns.items()}
-    return columns
+    if len(days) < 2 or any(later <= earlier for earlier, later in zip(days, days[1:])):
+        return columns
+    earlier = days[:-1]
+    anchored = sum(day.weekday() == SOURCE_WEEK_END_WEEKDAY for day in earlier)
+    if anchored < SOURCE_WEEK_ANCHOR_SHARE * len(earlier):
+        return columns
+    gaps = [(later - day).days for day, later in zip(earlier, earlier[1:])]
+    # Missing weeks are fine (gaps stay whole weeks), but at least one
+    # consecutive pair must prove the cadence is weekly rather than monthly.
+    whole_weeks = sum(gap % SOURCE_WEEK_DAYS == 0 for gap in gaps)
+    if gaps and (whole_weeks < SOURCE_WEEK_ANCHOR_SHARE * len(gaps) or SOURCE_WEEK_DAYS not in gaps):
+        return columns
+    last = days[-1]
+    period_end = _week_end(last)
+    if period_end <= last:
+        return columns  # ends on its week's closing day: a complete candle
+    reference = last
+    if built_at:
+        try:
+            reference = max(reference, datetime.fromisoformat(str(built_at).replace("Z", "+00:00")).date())
+        except ValueError:
+            pass
+    if period_end <= reference:
+        return columns  # that week had already ended when the bundle was built
+    return {key: values[:-1] for key, values in columns.items()}
+
+
+def _candle_padded_end(upper_bound: str, traces: list[dict]) -> str:
+    """Extend a viewport end by half a candle period so the last body shows."""
+    gaps = [gap for trace in traces if trace.get("type") == "candlestick" for gap in _day_gaps(trace.get("x") or [])]
+    if not gaps:
+        return upper_bound
+    half = -(-_median(gaps) // 2)
+    return (datetime.strptime(upper_bound, "%Y-%m-%d") + timedelta(days=half)).strftime("%Y-%m-%d")
 
 
 def _native_resolution(traces: list[dict]) -> str | None:
@@ -500,7 +548,7 @@ def _native_resolution(traces: list[dict]) -> str | None:
     return "yearly"
 
 
-def _ohlc_trace(chart: dict) -> list[dict]:
+def _ohlc_trace(chart: dict, built_at: str | None = None) -> list[dict]:
     by_key = {series.get("series_key"): series for series in chart.get("series") or []}
     required = ("open", "high", "low", "close")
     if any(key not in by_key for key in required):
@@ -513,7 +561,7 @@ def _ohlc_trace(chart: dict) -> list[dict]:
         "high": decoded["high"],
         "low": decoded["low"],
         "close": decoded["close"],
-    })
+    }, built_at)
     return [{
         "name": "BTC OHLC",
         "source_key": "ohlc",
@@ -593,7 +641,7 @@ def _metric_axis_title(chart: dict) -> str:
 def _build_payload(chart: dict, price_chart: dict, built_at: str | None) -> dict:
     style_config = chart.get("style_config") or {}
     if style_config.get("ohlcChart"):
-        traces = _ohlc_trace(chart)
+        traces = _ohlc_trace(chart, built_at)
     elif style_config.get("heatmap"):
         traces = _heatmap_trace(chart)
     else:
@@ -652,6 +700,9 @@ def _build_payload(chart: dict, price_chart: dict, built_at: str | None) -> dict
     ]
     lower_bound = x_config.get("min") or (min(available_dates) if available_dates else None)
     upper_bound = x_config.get("max") or (max(available_dates) if available_dates else None)
+    if style_config.get("ohlcChart") and x_config.get("max") is None and upper_bound:
+        # A data-bounded viewport would cut the latest candle at its centre.
+        upper_bound = _candle_padded_end(upper_bound, traces)
     # Plotly requires both values for an explicit range.  A source-provided
     # one-sided limit therefore pairs with the available data boundary.
     if x_config.get("min") is not None or x_config.get("max") is not None:
