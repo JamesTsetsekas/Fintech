@@ -14,9 +14,13 @@ function fixture() {
   const listeners = new Map();
   const context = vm.createContext({URLSearchParams, CSS:{escape:x=>x}, console:{warn(){}}, window:{location:{search:'?chart=nupl'}}, document:{body:{dataset:{}},addEventListener:(name,fn)=>listeners.set(name,fn),querySelectorAll:()=>[],querySelector:selector=>selector.startsWith('[data-') || selector === '#sidebar-search' ? null : node(selector)}});
   vm.runInContext(fs.readFileSync(path.join(__dirname,'../assets/site.js'),'utf8'),context);
-  vm.runInContext(`appState.manifest = { generated_at:'2026-01-01', charts:['nupl','ohlc','unrelated'].map(id=>({id,title:id,kind:'interactive',data_path:id})) }; SIGNAL_DEFINITIONS.splice(0, SIGNAL_DEFINITIONS.length, {id:'nupl',chartId:'nupl'}, {id:'unrelated',chartId:'unrelated'}); renderSidebar = updateChartHeadings = updateChartControls = renderDataSheet = updateScaleButton = bindChartToolbar = () => {};`,context);
+  vm.runInContext(`appState.manifest = { generated_at:'2026-01-01', charts:['nupl','ohlc','unrelated'].map(id=>({id,title:id,kind:'interactive',data_path:id})) }; renderSidebar = updateChartHeadings = updateChartControls = renderDataSheet = updateScaleButton = bindChartToolbar = () => {};`,context);
+  // No signals.json is published here, so signals are scored from chart payloads.
+  const signal = id => ({id, chart_id:id, label:id, category:'Test', source:'native', composite:true, input:{type:'series',series:{name:'metric'}}});
+  const definitions = {method:{version:2, scoring:{min_history_days:0,min_observations:1}, phases:[{key:'bottom',label:'Bottom',below:25},{key:'top',label:'Top',below:null}], change_windows_days:[7], history:{step_days:7,carry_forward_days:14,value_significant_digits:4}, freshness:{sources:{native:{stale_after_days:2}}}, composite:{id:'cycle-index',label:'Cycle Index',min_members:1}}, signals:[signal('nupl'),signal('unrelated')]};
+  context.fetchJson = async file => { if (file.endsWith('signal-definitions.json')) return definitions; throw new Error('Could not load ' + file); };
   const pending = deferred();
-  const payloads = Object.fromEntries(['nupl','ohlc'].map(id=>[id,{id, updated_at:'2026-01-01',series:[{x:['2026-01-01','2026-01-02'],y:[1,2]}]}]));
+  const payloads = Object.fromEntries(['nupl','ohlc'].map(id=>[id,{id, updated_at:'2026-01-01',series:[{name:'metric',x:['2026-01-01','2026-01-02'],y:[1,2]}]}]));
   context.getPayload = id => id === 'unrelated' ? pending.promise : Promise.resolve(payloads[id]);
   const renders=[];
   context.renderTerminalPlot = async () => renders.push(vm.runInContext('appState.currentPayload.id',context));

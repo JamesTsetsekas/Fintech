@@ -110,13 +110,23 @@ test("signal rows share dates, carry prior observations, and leave uncovered per
 
 test("timeline cutoff keeps the prior observation at the first visible date", () => {
   const markup = renderHeatmap([
-    { label: "Metric", points: [{ date: "2025-12-01", score: 10 }, { date: "2026-01-05", score: 90 }] },
+    { label: "Metric", points: [{ date: "2025-12-25", score: 10 }, { date: "2026-01-05", score: 90 }] },
   ], 3, { startDate: "2026-01-01" });
   const row = heatmapRows(markup)[0];
   assert.equal(row.length, 3);
   assert.match(row[0].title, /Jan 1, 2026/);
   assert.match(row[0].classes, /phase-bottom/);
   assert.match(row[2].title, /Jan 5, 2026/);
+});
+
+test("an observation older than the carry-forward limit is not shown as current", () => {
+  const markup = renderHeatmap([
+    { label: "Metric", points: [{ date: "2025-12-01", score: 10 }, { date: "2026-01-05", score: 90 }] },
+  ], 3, { startDate: "2026-01-01" });
+  const row = heatmapRows(markup)[0];
+  assert.match(row[0].title, /Jan 1, 2026 · No data/);
+  assert.doesNotMatch(row[0].classes, /phase-/);
+  assert.match(row[2].classes, /phase-top/);
 });
 
 test("a short or empty signal history retains every grid column", () => {

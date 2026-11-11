@@ -10,8 +10,8 @@ The browser experience includes four linked workspaces:
 
 - `index.html` — dense market overview with live metrics, a 17-row cycle timeline, and eight featured charts.
 - `charts/` — full interactive Bitcoin chart terminal with ranges, overlays, sheet view, pinning, and PNG export.
-- `signals/` — normalized cycle scores across 16 on-chain and 12 repo-native indicators, with historical phases and momentum.
-- `alerts/` — device-local alert rules evaluated against the latest generated signal scores.
+- `signals/` — percentile-rank cycle scores for 28 indicators (16 on-chain, 12 repo-native), one de-duplicated Cycle Index, historical phases, momentum, and a "How scores work" panel.
+- `alerts/` — device-local alert rules checked against the latest signal scores whenever the site is opened.
 
 On smaller screens, **Browse charts** opens the searchable library; selecting a chart closes it and restores focus. **Pinned charts** keeps device-local favorites available alongside Popular and All charts. Sheet, Pin, Alert, and Download remain available in the mobile toolbar. Charts load while supporting cycle signals are prepared, and time windows survive chart redraws; selecting another chart starts from that chart's defaults.
 
@@ -20,6 +20,16 @@ Chart terminal links are shareable: the address keeps the chart plus any range (
 The scheduled Bitcoin library is the non-duplicating union of 46 repo-native charts and 149 charts adapted from BlockHorizon's chart bundle (195 total). The upstream catalog was reviewed on October 20, 2026, including the new weekly moving averages, loss percentages, old-versus-new coin loss comparison, and 2-/4-year realized prices. Imports use stable chart IDs so title changes preserve links and pins while refreshing data. Six charts removed upstream are retired locally; missing reviewed charts stop publication instead of silently reusing stale data. Source provenance remains recorded in each generated chart's metadata.
 
 Drag horizontally across a time-series chart to zoom into the selected dates. Dashboard and terminal charts animate the transition, refit numeric Y scales to the visible observations, and label dollar axes with readable values such as `$20K` and `$100K`. Bounded metric scales, such as NUPL and percentages, keep their meaningful limits. Double-click inside the plot or use **Reset zoom** to restore the original view. The terminal also provides zoom, fit, and reset buttons, plus independent price-axis dragging and wheel scaling. Transitions respect the device's reduced-motion preference.
+
+### Cycle signals
+
+`web/assets/signal-definitions.json` is the single source for the signal list, the scoring method (with its version) and the Cycle Index membership. The site build scores it into one compact `web/data/bitcoin/signals.json` (`web/signals_artifact.py`), which the dashboard, chart terminal, signals and alerts pages read instead of downloading a chart payload per signal; if that file is missing or invalid the browser scores the chart payloads itself with the same algorithm.
+
+- **Scoring:** each score is the percentile rank (0–100, ties at mid-rank) of a reading within that indicator's own history up to its date, so rescalings of one quantity (NUPL and MVRV) score identically and the timeline uses no hindsight. Scores start after two years of history. Phases are fixed buckets at 25/50/75.
+- **Cycle Index:** the equal-weight average of 16 signals, one per underlying quantity. Duplicates, structurally trending series (hashprice, fees, thermocap ratio), volatility and the 20-day Bollinger position stay visible but are not counted. Dashboard and signals page show the same index; filtered table averages are labelled "Average of N shown".
+- **Honesty about data:** `signals.json` carries each signal's observation date, `data_through`, stale flags (more than 2 days behind the newest data, 9 for weekly on-chain sources) and any definition that could not be resolved. A 7d/30d/90d/1y change is `null` unless scored history covers the window, and a weekly history sample is `null` (shown as "No data" on the timeline) when no observation within 14 days exists.
+- **Deterministic output:** `signals.json` contains no clock reading, so identical chart data always produces identical bytes. It carries a `source_fingerprint` of the definitions and input series; the site manifest repeats that fingerprint under `signals` and supplies the publication time (`generated_at`). Pages reject an artifact whose fingerprint does not match the manifest. Every published number is rounded with one rule, half away from zero on the exact value, in both the Python build and the browser fallback.
+- **Changing the method:** bump `method.version`; saved alert observations from another version are re-baselined instead of firing. Regenerate the shared fixture with `python web/tests/fixtures/signals/make_fixture.py`; the Python and Node suites both compare against its `expected.json`.
 
 MVRV and NUPL use continuous lines in normal view, including NUPL's five sentiment colors. On 17 compatible imported charts, **Signal view** instead plots Bitcoin price as dots colored by the chart's metric, while retaining the original metric in hover details, the sidebar, and the data sheet. Links preserve this choice with `?chart=mvrv-z-score&signals=1`. The dashboard's MVRV Z-Score card opens in Signal view by default. Intentional PlanB price dots, scatter plots, and OHLC candles retain their chart-specific presentation.
 

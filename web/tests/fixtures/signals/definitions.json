@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "method": {
+    "version": 2,
+    "scoring": {
+      "type": "expanding_percentile_rank",
+      "ties": "midrank",
+      "point_in_time": true,
+      "percentile_bounds": [0, 100],
+      "min_history_days": 60,
+      "min_observations": 8
+    },
+    "rounding": { "rule": "half_away_from_zero" },
+    "phases": [
+      { "key": "bottom", "label": "Bottom", "below": 25 },
+      { "key": "bearish", "label": "Bearish", "below": 50 },
+      { "key": "bullish", "label": "Bullish", "below": 75 },
+      { "key": "top", "label": "Top", "below": null }
+    ],
+    "change_windows_days": [7, 30, 90, 365],
+    "history": { "step_days": 7, "carry_forward_days": 14, "value_significant_digits": 4 },
+    "freshness": {
+      "sources": {
+        "native": { "label": "Daily fixture", "cadence_days": 1, "stale_after_days": 2 },
+        "blockhorizon": { "label": "Weekly fixture", "cadence_days": 7, "stale_after_days": 9 }
+      }
+    },
+    "composite": { "id": "cycle-index", "label": "Cycle Index", "chart_id": "cycle-phase-dashboard", "weighting": "equal", "min_members": 2 }
+  },
+  "market": { "chart_id": "trend-chart", "price": { "name": "BTC price" }, "average": { "name": "200D MA" }, "recent_observations": 10 },
+  "signals": [
+    { "id": "plain", "chart_id": "plain-chart", "label": "Plain daily metric", "category": "Valuation", "source": "native",
+      "input": { "type": "series", "series": { "name": "Metric" } }, "unit": "index", "decimals": 2, "composite": true },
+    { "id": "weekly-ratio", "chart_id": "weekly-chart", "label": "Weekly price ratio", "category": "Cost Basis", "source": "blockhorizon",
+      "input": { "type": "ratio", "numerator": { "key": "price" }, "denominator": { "key": "realized_price" } }, "unit": "multiple", "decimals": 2, "composite": true },
+    { "id": "weekly-rescaled", "chart_id": "weekly-chart", "label": "Weekly ratio rescaled", "category": "Valuation", "source": "blockhorizon",
+      "input": { "type": "series", "series": { "key": "nupl" } }, "unit": "index", "decimals": 2,
+      "composite": false, "exclusion": { "reason": "duplicate", "of": "weekly-ratio", "note": "1 - 1/ratio is a rescaling of the ratio." } },
+    { "id": "band", "chart_id": "band-chart", "label": "Band position", "category": "Trend", "source": "native",
+      "input": { "type": "band_position", "value": { "name": "BTC price" }, "lower": { "name": "Lower band" }, "upper": { "name": "Upper band" } }, "unit": "band_position", "decimals": 0,
+      "composite": false, "exclusion": { "reason": "short_horizon", "note": "Fixture exclusion." } },
+    { "id": "inverted", "chart_id": "ath-chart", "label": "Inverted days", "category": "Cycle", "source": "native",
+      "input": { "type": "series", "series": { "name": "Days since ATH" } }, "invert": true, "unit": "days", "decimals": 0, "composite": true },
+    { "id": "young", "chart_id": "young-chart", "label": "Young metric", "category": "Risk", "source": "native",
+      "input": { "type": "series", "series": { "name": "Young" } }, "unit": "percent", "decimals": 1, "composite": true },
+    { "id": "lagging", "chart_id": "lagging-chart", "label": "Lagging metric", "category": "Mining", "source": "native",
+      "input": { "type": "series", "series": { "name": "Lagging" } }, "unit": "usd", "decimals": 2, "composite": true },
+    { "id": "abandoned", "chart_id": "abandoned-chart", "label": "Abandoned metric", "category": "Mining", "source": "native",
+      "input": { "type": "series", "series": { "name": "Abandoned" } }, "unit": "sat_per_vbyte", "decimals": 2, "composite": true },
+    { "id": "halfway-up", "chart_id": "halfway-chart", "label": "Positive rounding ties", "category": "Risk", "source": "native",
+      "input": { "type": "series", "series": { "name": "Halfway up" } }, "unit": "index", "decimals": 4,
+      "composite": false, "exclusion": { "reason": "short_horizon", "note": "Fixture: values sit exactly halfway between two rounded results." } },
+    { "id": "halfway-down", "chart_id": "halfway-chart", "label": "Negative rounding ties", "category": "Risk", "source": "native",
+      "input": { "type": "series", "series": { "name": "Halfway down" } }, "unit": "index", "decimals": 4,
+      "composite": false, "exclusion": { "reason": "short_horizon", "note": "Fixture: the same ties below zero." } },
+    { "id": "gappy", "chart_id": "gappy-chart", "label": "Metric with an outage", "category": "Risk", "source": "native",
+      "input": { "type": "series", "series": { "name": "Gappy" } }, "unit": "index", "decimals": 2,
+      "composite": false, "exclusion": { "reason": "non_directional", "note": "Fixture: six weekly samples are unavailable mid-history." } },
+    { "id": "too-short", "chart_id": "short-chart", "label": "Too short", "category": "Risk", "source": "native",
+      "input": { "type": "series", "series": { "name": "Short" } }, "unit": "index", "decimals": 2, "composite": true },
+    { "id": "renamed", "chart_id": "plain-chart", "label": "Renamed upstream series", "category": "Valuation", "source": "native",
+      "input": { "type": "series", "series": { "name": "Old metric name" } }, "unit": "index", "decimals": 2, "composite": false },
+    { "id": "no-chart", "chart_id": "absent-chart", "label": "Chart not generated", "category": "Valuation", "source": "native",
+      "input": { "type": "series", "series": { "name": "Anything" } }, "unit": "index", "decimals": 2, "composite": false }
+  ]
+}

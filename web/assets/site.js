@@ -41,55 +41,22 @@ const POPULAR_IDS = [
   "pb-realized-prices",
 ];
 
-const SIGNAL_DEFINITIONS = [
-  { id: "nupl", chartId: "nupl", label: "NUPL (Net Unrealized Profit Loss)", category: "Valuation", seriesKey: "nupl" },
-  { id: "utxos-profit", chartId: "percent-utxos-in-profit", label: "UTXOs in Profit (%)", category: "Profitability", seriesKey: "Percent UTXOs in profit" },
-  { id: "thermocap", chartId: "market-cap-to-thermocap-ratio", label: "Market Cap To Thermocap Ratio", category: "Valuation", seriesKey: "Market cap to thermocap ratio" },
-  { id: "sts-nupl", chartId: "sts-nupl", label: "NUPL Short Term Supply (STS)", category: "Cohorts", seriesKey: "sts_nupl" },
-  { id: "lts-nupl", chartId: "lts-nupl", label: "NUPL Long Term Supply (LTS)", category: "Cohorts", seriesKey: "lts_nupl" },
-  { id: "realized-price-sts", chartId: "realized-price-sts", label: "Realized Price - Short Term Supply (STS)", category: "Cost Basis", seriesKey: "Realized price STS", build: ratioByKeys("price", "Realized price STS") },
-  { id: "balanced-price", chartId: "balanced-price", label: "Balanced Price", category: "Cost Basis", seriesKey: "balanced_price", build: ratioByKeys("price", "balanced_price") },
-  { id: "sth-mvrv", chartId: "sth-mvrv", label: "MVRV Short Term Supply", category: "Cohorts", seriesKey: "sth_mvrv" },
-  { id: "realized-price", chartId: "realized-price", label: "Realized Price", category: "Cost Basis", seriesKey: "realized_price", build: ratioByKeys("price", "realized_price") },
-  { id: "mvrv", chartId: "mvrv", label: "MVRV (Market Value to Realized Value Ratio)", category: "Valuation", seriesKey: "mvrv" },
-  { id: "supply-profit", chartId: "percent-supply-in-profit", label: "Supply in Profit (%)", category: "Profitability", seriesKey: "Percent supply in profit" },
-  { id: "top-price", chartId: "top-price", label: "Top Price", category: "Cost Basis", seriesKey: "top_price", build: ratioByKeys("price", "top_price") },
-  { id: "mvrv-z", chartId: "mvrv-z-score", label: "MVRV Z-Score", category: "Valuation", seriesKey: "mvrv_z_score" },
-  { id: "delta-price", chartId: "delta-price", label: "Delta Price", category: "Cost Basis", seriesKey: "delta_price", build: ratioByKeys("price", "delta_price") },
-  { id: "lth-mvrv", chartId: "lth-mvrv", label: "MVRV Long Term Supply", category: "Cohorts", seriesKey: "lth_mvrv" },
-  { id: "realized-price-lts", chartId: "realized-price-lts", label: "Realized Price - Long Term Supply (LTS)", category: "Cost Basis", seriesKey: "Realized price LTS", build: ratioByKeys("price", "Realized price LTS") },
-  { id: "trend", chartId: "200-dma-200-wma", label: "Price vs 200D average", category: "Trend", build: ratioSeries(0, 1) },
-  { id: "mayer", chartId: "mayer-multiple", label: "Mayer Multiple", category: "Valuation", series: 0 },
-  { id: "drawdown", chartId: "drawdown-recovery-map", label: "Drawdown from ATH", category: "Cycle", series: 0 },
-  { id: "pi-cycle", chartId: "pi-cycle-top", label: "Pi Cycle spread", category: "Cycle", build: ratioSeries(1, 2) },
-  { id: "power-law", chartId: "power-law-oscillator", label: "Power Law Oscillator", category: "Valuation", series: 0 },
-  { id: "puell", chartId: "puell-multiple", label: "Puell Multiple", category: "Mining", series: 1 },
-  { id: "volatility", chartId: "volatility-regimes", label: "Realized volatility", category: "Risk", series: 0 },
-  { id: "bollinger", chartId: "bollinger-bands", label: "Bollinger position", category: "Trend", build: bandPositionSeries(0, 1, 2) },
-  { id: "sharpe", chartId: "risk-adjusted-returns", label: "1Y Sharpe proxy", category: "Momentum", series: 0 },
-  { id: "fees", chartId: "fee-pressure", label: "Fee pressure", category: "Mining", series: 0 },
-  { id: "hashprice", chartId: "miner-hashprice", label: "Miner hashprice", category: "Mining", series: 1 },
-  { id: "ath-age", chartId: "days-since-ath", label: "ATH recency", category: "Cycle", series: 1, invert: true },
+// The signal list, the scoring method and the Cycle Index membership live in
+// one place: web/assets/signal-definitions.json. The site build scores them
+// into signals.json; the browser re-computes them from chart payloads only
+// when that artifact is missing or invalid.
+const SIGNAL_DEFINITIONS_PATH = "web/assets/signal-definitions.json";
+const SIGNALS_ARTIFACT_NAME = "signals.json";
+const SIGNALS_ARTIFACT_SCHEMA = 1;
+const DEFAULT_SIGNAL_PHASES = [
+  { key: "bottom", label: "Bottom", below: 25 },
+  { key: "bearish", label: "Bearish", below: 50 },
+  { key: "bullish", label: "Bullish", below: 75 },
+  { key: "top", label: "Top", below: null },
 ];
-
-const REFERENCE_SIGNAL_IDS = [
-  "nupl",
-  "utxos-profit",
-  "thermocap",
-  "sts-nupl",
-  "lts-nupl",
-  "realized-price-sts",
-  "balanced-price",
-  "sth-mvrv",
-  "realized-price",
-  "mvrv",
-  "supply-profit",
-  "top-price",
-  "mvrv-z",
-  "delta-price",
-  "lth-mvrv",
-  "realized-price-lts",
-];
+const ALERT_RULES_KEY = "fintech-alerts-v1";
+const ALERT_SEEN_KEY = "fintech-alerts-seen-v1";
+const alertSession = { seenAt: "", fired: new Set() };
 
 document.addEventListener("DOMContentLoaded", init);
 
@@ -103,6 +70,7 @@ async function init() {
     if (pageConfig.view === "charts") await renderChartTerminal();
     if (pageConfig.view === "signals") await renderSignalsPage();
     if (pageConfig.view === "alerts") await renderAlertsPage();
+    else void checkAlertsInBackground();
   } catch (error) {
     renderFatalError(error);
   }
@@ -406,48 +374,46 @@ async function renderDashboard() {
   const renderCharts = () => renderDashboardCharts().catch((error) => console.warn("Dashboard charts unavailable", error));
   document.addEventListener("fintech-theme-change", renderCharts);
   const charts = renderCharts();
-  void buildSignals().then(async (signals) => {
-    appState.signals = signals;
-    const dashboardSignals = buildDashboardSignalSet(signals);
+  renderFreshness(document.querySelector("#dashboard-updated"), null);
+  void loadSignalState().then(async (state) => {
+    renderFreshness(document.querySelector("#dashboard-updated"), state);
     await Promise.allSettled([
-      Promise.resolve().then(() => renderMetricRibbon(dashboardSignals.slice(1))),
-      Promise.resolve().then(() => renderSignalHeatmap(document.querySelector("#dashboard-signal-heatmap"), dashboardSignals, 92, { startDate: "2012-01-01" })),
+      Promise.resolve().then(() => renderMetricRibbon(state)),
+      Promise.resolve().then(() => renderSignalHeatmap(document.querySelector("#dashboard-signal-heatmap"), buildDashboardSignalSet(state), 92, { startDate: "2012-01-01" })),
     ]);
   }).catch((error) => console.warn("Dashboard signals unavailable", error));
-  const updated = new Date(appState.manifest.generated_at);
-  document.querySelector("#dashboard-updated").textContent = `Updated ${formatDate(updated)}`;
   await charts;
 }
 
-async function renderMetricRibbon(referenceSignals = appState.signals) {
+function renderMetricRibbon(state = appState.signalState) {
   const ribbon = document.querySelector("#metric-ribbon");
-  const trend = await getPayload("200-dma-200-wma");
-  const prices = numericSeries(trend.series[0]);
-  const latestPrice = last(prices);
-  const monthAgoPrice = prices[Math.max(0, prices.length - 31)];
-  const change30 = ((latestPrice / monthAgoPrice) - 1) * 100;
-  const ma200 = last(numericSeries(trend.series[1]));
-  const distance = ((latestPrice / ma200) - 1) * 100;
-  const supplySignal = referenceSignals.find((signal) => signal.id === "supply-profit");
+  if (!ribbon || !state) return;
+  const market = state.market;
+  const composite = state.composite;
+  const members = state.signals.filter((signal) => signal.composite);
+  const price = toFiniteNumber(market?.price);
+  const change30 = toFiniteNumber(market?.change30dPct);
+  const distance = toFiniteNumber(market?.distance200dPct);
+  const supplySignal = state.signals.find((signal) => signal.id === "supply-profit");
   const supplyValue = toFiniteNumber(supplySignal?.rawValue);
   const supplyChange30 = rawSignalDelta(supplySignal, 30);
   const supplyHistory = recentSignalValues(supplySignal, 45);
-  const cycleIndex = average(referenceSignals.map((signal) => signal.score));
-  const bullishCount = referenceSignals.filter((signal) => signal.score >= 50).length;
-  const phases = phaseCounts(referenceSignals);
-  const phase = phaseFor(cycleIndex);
-  const recentPrice = trend.series[0].y.slice(-45);
-  const recentAverage = trend.series[1].y.slice(-45);
-  const recentRatios = recentPrice.map((value, index) => Number(value) / Number(recentAverage[index]));
+  const cycleIndex = toFiniteNumber(composite?.score);
+  const bullishCount = members.filter((signal) => signal.score >= 50).length;
+  const phases = phaseCounts(members);
+  const share = (count) => (members.length ? count / members.length * 100 : 0);
+  const membership = composite
+    ? `${composite.membersUsed === composite.membersTotal ? composite.membersTotal : `${composite.membersUsed} of ${composite.membersTotal}`} signals · equal weight`
+    : "";
 
   ribbon.innerHTML = `
     <article class="terminal-metric has-sparkline">
       <span class="terminal-metric-label">Bitcoin price</span>
       <div class="terminal-metric-row">
-        <strong class="terminal-metric-value">${formatUsd(latestPrice)}</strong>
-        <span class="terminal-metric-change ${change30 < 0 ? "negative" : ""}">${change30 < 0 ? "↘" : "↗"} ${signed(change30)} 30d</span>
+        <strong class="terminal-metric-value">${Number.isFinite(price) ? formatUsd(price) : "Unavailable"}</strong>
+        <span class="terminal-metric-change ${change30 < 0 ? "negative" : ""}">${Number.isFinite(change30) ? `${change30 < 0 ? "↘" : "↗"} ${signed(change30)} 30d` : ""}</span>
       </div>
-      ${sparklineSvg(prices.slice(-45))}
+      ${Number.isFinite(price) ? sparklineSvg((market.recentPrices || []).slice(-45)) : ""}
     </article>
     <article class="terminal-metric has-sparkline">
       <span class="terminal-metric-label">Supply in profit</span>
@@ -460,30 +426,30 @@ async function renderMetricRibbon(referenceSignals = appState.signals) {
     <article class="terminal-metric has-sparkline wide-only-metric">
       <span class="terminal-metric-label">Price vs 200D</span>
       <div class="terminal-metric-row">
-        <strong class="terminal-metric-value">${signed(distance)}</strong>
-        <span class="terminal-metric-change ${distance < 0 ? "negative" : ""}">${distance >= 0 ? "above trend" : "below trend"}</span>
+        <strong class="terminal-metric-value">${Number.isFinite(distance) ? signed(distance) : "Unavailable"}</strong>
+        <span class="terminal-metric-change ${distance < 0 ? "negative" : ""}">${Number.isFinite(distance) ? (distance >= 0 ? "above trend" : "below trend") : ""}</span>
       </div>
-      ${sparklineSvg(recentRatios)}
+      ${Number.isFinite(distance) ? sparklineSvg((market.recentRatios || []).slice(-45)) : ""}
     </article>
-    <article class="terminal-metric">
+    <article class="terminal-metric" title="${escapeHtml(membership ? `Cycle Index: ${membership}, scoring method v${state.method?.version ?? "?"}` : "")}">
       <span class="terminal-metric-label">Cycle index</span>
       <div class="terminal-metric-row">
-        <strong class="terminal-metric-value">${Math.round(cycleIndex)}</strong>
-        <span class="metric-phase">${phase.label}</span>
+        <strong class="terminal-metric-value">${Number.isFinite(cycleIndex) ? Math.round(cycleIndex) : "—"}</strong>
+        <span class="metric-phase">${Number.isFinite(cycleIndex) ? phaseFor(cycleIndex).label : "Unavailable"}</span>
       </div>
       <div class="metric-bar" aria-hidden="true"><span style="width:25%"></span><span style="width:25%"></span><span style="width:25%"></span><span style="width:25%"></span></div>
     </article>
-    <article class="terminal-metric">
+    <article class="terminal-metric" title="Cycle Index signals scoring 50 or higher">
       <span class="terminal-metric-label">Signal breadth</span>
       <div class="terminal-metric-row">
         <strong class="terminal-metric-value">${bullishCount}</strong>
-        <span class="terminal-metric-change">/ ${referenceSignals.length} bullish</span>
+        <span class="terminal-metric-change">/ ${members.length} bullish</span>
       </div>
       <div class="metric-bar" aria-label="${phaseCountLabel(phases)}">
-        <span style="width:${phases.bottom / referenceSignals.length * 100}%"></span>
-        <span style="width:${phases.bearish / referenceSignals.length * 100}%"></span>
-        <span style="width:${phases.bullish / referenceSignals.length * 100}%"></span>
-        <span style="width:${phases.top / referenceSignals.length * 100}%"></span>
+        <span style="width:${share(phases.bottom)}%"></span>
+        <span style="width:${share(phases.bearish)}%"></span>
+        <span style="width:${share(phases.bullish)}%"></span>
+        <span style="width:${share(phases.top)}%"></span>
       </div>
     </article>
   `;
@@ -529,8 +495,8 @@ async function renderDashboardCharts() {
 async function renderChartTerminal() {
   bindChartToolbar();
   document.querySelectorAll(".sidebar-chart-link[data-chart-id]").forEach(bindChartLink);
-  void buildSignals().then((signals) => {
-    appState.signals = signals;
+  void loadSignalState().then(() => {
+    updateChartAlertLink();
     if (appState.currentPayload) updateChartPhase(appState.currentPayload);
   }).catch((error) => console.warn("Chart signals unavailable", error));
   document.addEventListener("fintech-theme-change", () => {
@@ -888,11 +854,23 @@ function updateChartHeadings(chart) {
   const summary = document.querySelector("#chart-summary");
   if (summary) setChartSummary(chart.description);
   renderChartAttribution(chart);
+  updateChartAlertLink(chart);
+}
+
+function updateChartAlertLink(chart = appState.currentChart) {
   const alertLink = document.querySelector("#chart-alert-link");
-  if (alertLink) {
-    const definition = SIGNAL_DEFINITIONS.find((item) => item.chartId === chart.id);
-    alertLink.href = definition ? `../alerts/?signal=${encodeURIComponent(definition.id)}` : "../alerts/";
-  }
+  if (!alertLink || !chart) return;
+  // The alerts page resolves ?chart= itself, so this link is right before the
+  // signals finish loading and explains charts that have no cycle signal.
+  const signal = (appState.signals || []).find((item) => item.chartId === chart.id);
+  alertLink.href = signal
+    ? `../alerts/?signal=${encodeURIComponent(signal.id)}`
+    : `../alerts/?chart=${encodeURIComponent(chart.id)}`;
+  alertLink.title = signal
+    ? `Create an alert on the ${signal.label} cycle score`
+    : appState.signalState
+      ? "This chart has no cycle signal. Open alerts to choose a scored signal."
+      : "Create a cycle-score alert";
 }
 
 function renderRelatedCharts(chart) {
@@ -1834,88 +1812,131 @@ function seriesColor(series, index) {
 }
 
 async function renderSignalsPage() {
-  appState.signals = await buildSignals();
+  const state = await loadSignalState();
   const categoryFilter = document.querySelector("#signal-category-filter");
   const phaseFilter = document.querySelector("#signal-phase-filter");
-  const categories = [...new Set(appState.signals.map((signal) => signal.category))].sort();
+  const categories = [...new Set(state.signals.map((signal) => signal.category))].sort();
   categoryFilter.insertAdjacentHTML("beforeend", categories.map((category) => `<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`).join(""));
   const refresh = () => updateSignalsPage(categoryFilter.value, phaseFilter.value);
   categoryFilter.addEventListener("change", refresh);
   phaseFilter.addEventListener("change", refresh);
+  renderFreshness(document.querySelector("#signals-freshness"), state, { detail: true });
+  renderSignalMethod(state);
   updateSignalsPage("all", "all");
 }
 
 function updateSignalsPage(category, phase) {
+  const state = appState.signalState;
   const signals = appState.signals.filter((signal) => {
     const matchesCategory = category === "all" || signal.category === category;
     const matchesPhase = phase === "all" || signal.phase.key === phase;
     return matchesCategory && matchesPhase;
   });
-  renderSignalHeatmap(document.querySelector("#signal-page-heatmap"), signals, 68);
-  renderCycleSpectrum(signals);
-  renderSignalSummary(signals);
+  const indexRow = compositeSignal(state);
+  renderSignalHeatmap(document.querySelector("#signal-page-heatmap"), indexRow && signals.length ? [indexRow, ...signals] : signals, 68);
+  renderCycleSpectrum(signals, state);
+  renderSignalSummary(signals, state);
   renderSignalTable(signals);
   renderSignalInsights(signals);
 }
 
-function renderCycleSpectrum(signals) {
+// The headline Cycle Index always comes from the canonical composite. Averages
+// of whatever a filter happens to show are labelled as such, never as the index.
+function compositeMembershipLabel(composite) {
+  if (!composite) return "";
+  const count = composite.membersUsed === composite.membersTotal
+    ? `${composite.membersTotal}`
+    : `${composite.membersUsed} of ${composite.membersTotal}`;
+  return `${count} signals · equal weight`;
+}
+
+function shownAverageLabel(signals) {
+  if (!signals.length) return "";
+  const shown = average(signals.map((signal) => signal.score));
+  return `Average of ${signals.length} shown: ${Math.round(shown)}`;
+}
+
+function renderCycleSpectrum(signals, state = appState.signalState) {
   const target = document.querySelector("#cycle-spectrum");
   target.classList.remove("loading-block");
   if (!signals.length) {
     target.innerHTML = `<p class="empty-state">No signals match these filters.</p>`;
     return;
   }
-  const index = average(signals.map((signal) => signal.score));
+  const index = toFiniteNumber(state?.composite?.score);
   const dots = signals.map((signal, rowIndex) => {
     const score = clamp(signal.score, 0, 100);
     const height = 24 + (rowIndex % 5) * 13;
     const color = phaseColor(signal.phase.key);
+    const membership = signal.composite ? "in Cycle Index" : "not in Cycle Index";
     return `
       <span class="spectrum-stem" style="left:clamp(36px, ${score}%, calc(100% - 36px)); --stem-height:${height}px"></span>
-      <a class="spectrum-dot" style="left:clamp(36px, ${score}%, calc(100% - 36px)); bottom:${35 + height}px; background:${color}" href="../charts/?chart=${encodeURIComponent(signal.chartId)}" title="${escapeHtml(signal.label)} · ${Math.round(score)}"></a>
+      <a class="spectrum-dot${signal.composite ? "" : " non-member"}" style="left:clamp(36px, ${score}%, calc(100% - 36px)); bottom:${35 + height}px; background:${color}" href="../charts/?chart=${encodeURIComponent(signal.chartId)}" title="${escapeHtml(signal.label)} · ${Math.round(score)} · ${membership}"></a>
     `;
   }).join("");
+  const marker = Number.isFinite(index) ? `
+    <span class="spectrum-index" style="left:clamp(36px, ${index}%, calc(100% - 36px))" title="Cycle Index ${Math.round(index)} · ${escapeHtml(compositeMembershipLabel(state.composite))}"></span>
+    <span class="spectrum-index-label" style="left:clamp(48px, ${index}%, calc(100% - 48px))">INDEX ${Math.round(index)}</span>
+  ` : "";
   target.innerHTML = `
     <div class="spectrum-track" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
     ${dots}
-    <span class="spectrum-index" style="left:clamp(36px, ${index}%, calc(100% - 36px))" title="Cycle index ${Math.round(index)}"></span>
-    <span class="spectrum-index-label" style="left:clamp(48px, ${index}%, calc(100% - 48px))">INDEX ${Math.round(index)}</span>
+    ${marker}
     <div class="spectrum-labels"><span>Bottom</span><span>Bearish</span><span>Bullish</span><span>Top</span></div>
   `;
 }
 
-function renderSignalSummary(signals) {
+function renderSignalSummary(signals, state = appState.signalState) {
   const target = document.querySelector("#signal-summary");
   if (!signals.length) {
     target.innerHTML = `<p class="empty-state">No signal summary is available for the current filters.</p>`;
     return;
   }
   const counts = phaseCounts(signals);
-  const index = average(signals.map((signal) => signal.score));
+  const composite = state?.composite;
+  const index = toFiniteNumber(composite?.score);
   const bullish = signals.filter((signal) => signal.score >= 50).length;
-  const rising = signals.filter((signal) => signalDelta(signal, 30) > 0).length;
-  const trendSignal = appState.signals.find((signal) => signal.id === "trend");
-  const priceSeries = trendSignal?.payload?.series?.[0];
-  const price = last(primaryValues(priceSeries));
+  const withMomentum = signals.filter((signal) => Number.isFinite(signalDelta(signal, 30)));
+  const rising = withMomentum.filter((signal) => signalDelta(signal, 30) > 0).length;
+  const market = state?.market;
+  const price = toFiniteNumber(market?.price);
+  const indexCard = Number.isFinite(index)
+    ? `<strong>${Math.round(index)}</strong><span class="summary-detail">${phaseFor(index).label} · ${escapeHtml(compositeMembershipLabel(composite))}</span><div class="position-meter" style="--position:${index}%"></div>`
+    : `<strong>—</strong><span class="summary-detail">Unavailable: too few index signals have current data</span>`;
   target.innerHTML = `
-    <article class="signal-summary-item"><small>Cycle index</small><strong>${Math.round(index)}</strong><span class="summary-detail">${phaseFor(index).label}</span><div class="position-meter" style="--position:${index}%"></div></article>
-    <article class="signal-summary-item"><small>BTC price</small><strong>${formatUsd(price)}</strong>${sparklineSvg(primaryValues(priceSeries).slice(-60))}</article>
-    <article class="signal-summary-item"><small>Consensus</small><strong>${bullish}</strong><span class="summary-detail">/ ${signals.length} bullish</span><div class="metric-bar"><span style="width:${counts.bottom / signals.length * 100}%"></span><span style="width:${counts.bearish / signals.length * 100}%"></span><span style="width:${counts.bullish / signals.length * 100}%"></span><span style="width:${counts.top / signals.length * 100}%"></span></div></article>
-    <article class="signal-summary-item"><small>30D momentum</small><strong>${rising}</strong><span class="summary-detail">/ ${signals.length} rising</span><div class="metric-bar"><span style="width:${rising / signals.length * 100}%; background:var(--green)"></span><span style="width:${(signals.length - rising) / signals.length * 100}%; background:var(--surface-muted)"></span></div></article>
+    <article class="signal-summary-item"><small>Cycle Index</small>${indexCard}</article>
+    <article class="signal-summary-item"><small>BTC price</small><strong>${Number.isFinite(price) ? formatUsd(price) : "Unavailable"}</strong>${Number.isFinite(price) ? sparklineSvg(market.recentPrices || []) : ""}</article>
+    <article class="signal-summary-item"><small>Consensus</small><strong>${bullish}</strong><span class="summary-detail">/ ${signals.length} shown bullish</span><div class="metric-bar"><span style="width:${counts.bottom / signals.length * 100}%"></span><span style="width:${counts.bearish / signals.length * 100}%"></span><span style="width:${counts.bullish / signals.length * 100}%"></span><span style="width:${counts.top / signals.length * 100}%"></span></div></article>
+    <article class="signal-summary-item"><small>30D momentum</small><strong>${withMomentum.length ? rising : "—"}</strong><span class="summary-detail">${withMomentum.length ? `/ ${withMomentum.length} rising` : "No 30-day history yet"}</span><div class="metric-bar"><span style="width:${withMomentum.length ? rising / withMomentum.length * 100 : 0}%; background:var(--green)"></span><span style="width:${withMomentum.length ? (withMomentum.length - rising) / withMomentum.length * 100 : 100}%; background:var(--surface-muted)"></span></div></article>
   `;
+}
+
+function signalMembershipNote(signal) {
+  if (signal.composite) return "In Cycle Index";
+  const exclusion = signal.exclusion || {};
+  const twin = exclusion.of ? appState.signals.find((item) => item.id === exclusion.of)?.label || exclusion.of : "";
+  const reason = {
+    duplicate: twin ? `same quantity as ${twin}` : "duplicate quantity",
+    structural_trend: "structural trend",
+    non_directional: "not directional",
+    short_horizon: "short horizon",
+  }[exclusion.reason] || "not a member";
+  return `Not in index: ${reason}`;
 }
 
 function renderSignalTable(signals) {
   const body = document.querySelector("#signal-table-body");
   const count = document.querySelector("#signal-table-count");
-  count.textContent = `${signals.length} signal${signals.length === 1 ? "" : "s"}`;
+  count.textContent = [`${signals.length} signal${signals.length === 1 ? "" : "s"}`, shownAverageLabel(signals)].filter(Boolean).join(" · ");
   body.innerHTML = signals.map((signal) => {
     const deltas = [7, 30, 90, 365].map((days) => signalDelta(signal, days));
+    const asOf = signal.date ? `as of ${formatDate(new Date(signal.date))}` : "";
+    const stale = signal.stale ? ` <span class="stale-flag" title="Latest observation is ${signal.lagDays} days behind the newest data">stale</span>` : "";
     return `
-      <tr data-chart-id="${escapeHtml(signal.chartId)}" tabindex="0">
-        <td><strong>${escapeHtml(signal.label)}</strong><span class="summary-detail">${escapeHtml(signal.category)}</span></td>
-        <td class="signal-value" title="${escapeHtml(formatSignalRaw(signal))}">${Math.round(signal.score)}</td>
-        ${deltas.map((delta) => `<td class="signal-delta ${delta > 0 ? "positive" : delta < 0 ? "negative" : ""}">${signedScore(delta)}</td>`).join("")}
+      <tr data-chart-id="${escapeHtml(signal.chartId)}" data-signal-id="${escapeHtml(signal.id)}" tabindex="0">
+        <td><strong>${escapeHtml(signal.label)}</strong><span class="summary-detail" title="${escapeHtml(signal.exclusion?.note || "")}">${escapeHtml(signal.category)} · ${escapeHtml(signalMembershipNote(signal))}${stale}</span></td>
+        <td class="signal-value" title="${escapeHtml([formatSignalRaw(signal), asOf].filter(Boolean).join(" · "))}">${Math.round(signal.score)}</td>
+        ${deltas.map((delta) => `<td class="signal-delta ${delta > 0 ? "positive" : delta < 0 ? "negative" : ""}"${Number.isFinite(delta) ? "" : ' title="Not enough scored history for this window"'}>${signedScore(delta)}</td>`).join("")}
         <td><span class="phase-pill ${signal.phase.className}">${signal.phase.label}</span></td>
         <td><div class="position-meter" style="--position:${signal.score}%" aria-label="Score ${Math.round(signal.score)} of 100"></div></td>
         <td>${sparklineSvg(signal.points.filter((point) => point.date >= oneYearBefore(last(signal.points).date)).map((point) => point.score), "signal-sparkline")}</td>
@@ -1944,19 +1965,83 @@ function renderSignalInsights(signals) {
       return groups;
     }, {});
   const categoryRows = Object.entries(byCategory).map(([category, items]) => ({ category, score: average(items.map((item) => item.score)), count: items.length })).sort((a, b) => b.score - a.score);
-  const movers = [...signals].map((signal) => ({ signal, delta: signalDelta(signal, 30) })).sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta)).slice(0, 5);
+  // A signal without 30 days of scored history has no 30-day move to rank.
+  const movers = signals.map((signal) => ({ signal, delta: signalDelta(signal, 30) }))
+    .filter(({ delta }) => Number.isFinite(delta))
+    .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta)).slice(0, 5);
+  const moverRows = movers.map(({ signal, delta }) => `<div class="insight-row"><span>${escapeHtml(signal.label)}</span><strong class="${delta < 0 ? "negative" : ""}">${signedScore(delta)}</strong></div>`).join("")
+    || `<p class="empty-state">No shown signal has 30 days of scored history yet.</p>`;
   target.innerHTML = `
-    <article class="insight-card"><h3>Category pulse</h3><div class="insight-list">${categoryRows.map((item) => `<div class="insight-row"><span>${escapeHtml(item.category)} · ${item.count} signals</span><strong>${Math.round(item.score)} ${phaseFor(item.score).label}</strong></div>`).join("")}</div></article>
-    <article class="insight-card"><h3>30D movers</h3><div class="insight-list">${movers.map(({ signal, delta }) => `<div class="insight-row"><span>${escapeHtml(signal.label)}</span><strong class="${delta < 0 ? "negative" : ""}">${signedScore(delta)}</strong></div>`).join("")}</div></article>
+    <article class="insight-card"><h3>Category pulse</h3><div class="insight-list">${categoryRows.map((item) => `<div class="insight-row"><span>${escapeHtml(item.category)} · average of ${item.count} signal${item.count === 1 ? "" : "s"}</span><strong>${Math.round(item.score)} ${phaseFor(item.score).label}</strong></div>`).join("")}</div></article>
+    <article class="insight-card"><h3>30D movers</h3><div class="insight-list">${moverRows}</div></article>
+  `;
+}
+
+function formatDateTime(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return `${formatDate(date)}, ${shortTime(date)} UTC`;
+}
+
+// "Published" is when the site data was built; "Data through" is the newest
+// observation inside it. They differ, so they are never merged into "Updated".
+function renderFreshness(target, state, options = {}) {
+  if (!target) return;
+  const published = formatDateTime(appState.manifest?.generated_at);
+  const parts = [published ? `Published ${published}` : "Publication time unavailable"];
+  if (state?.dataThrough) parts.push(`Data through ${formatDate(new Date(state.dataThrough))}`);
+  const stale = (state?.signals || []).filter((signal) => signal.stale);
+  const unavailable = state?.unavailable || [];
+  const names = (items) => (options.detail ? `: ${items.map((item) => item.label).join(", ")}` : "");
+  if (stale.length) parts.push(`${stale.length} signal${stale.length === 1 ? "" : "s"} stale${names(stale)}`);
+  if (unavailable.length) parts.push(`${unavailable.length} signal${unavailable.length === 1 ? "" : "s"} unavailable${names(unavailable)}`);
+  target.textContent = parts.join(" · ");
+  target.title = [
+    ...stale.map((signal) => `${signal.label}: latest observation ${signal.date}, ${signal.lagDays} days behind`),
+    ...unavailable.map((item) => `${item.label}: ${item.reason}`),
+  ].join("\n");
+  target.classList.toggle("has-data-warning", Boolean(stale.length || unavailable.length));
+}
+
+function renderSignalMethod(state) {
+  const version = document.querySelector("#signal-method-version");
+  const membership = document.querySelector("#signal-method-membership");
+  const method = state?.method;
+  if (version) version.textContent = method ? `Method v${method.version}${state.source === "fallback" ? " · computed in this browser" : ""}` : "";
+  if (!membership || !method) return;
+  const label = (id) => state.signals.find((signal) => signal.id === id)?.label
+    || state.unavailable.find((item) => item.id === id)?.label
+    || id;
+  const reasons = {
+    duplicate: "Same quantity as another member",
+    structural_trend: "Structural trend",
+    non_directional: "Not directional",
+    short_horizon: "Short horizon",
+  };
+  const members = method.composite?.members || [];
+  const excluded = method.composite?.excluded || [];
+  membership.innerHTML = `
+    <div>
+      <h3>In the Cycle Index (${members.length}, equal weight)</h3>
+      <ul>${members.map((id) => `<li>${escapeHtml(label(id))}</li>`).join("")}</ul>
+    </div>
+    <div>
+      <h3>Shown but not counted (${excluded.length})</h3>
+      <ul>${excluded.map((item) => `<li><strong>${escapeHtml(label(item.id))}</strong> — ${escapeHtml(reasons[item.reason] || "Not a member")}${item.of ? ` (${escapeHtml(label(item.of))})` : ""}. ${escapeHtml(item.note || "")}</li>`).join("")}</ul>
+    </div>
   `;
 }
 
 async function renderAlertsPage() {
-  appState.signals = await buildSignals();
+  const state = await loadSignalState();
+  alertSession.seenAt = readAlertsSeenAt();
   const select = document.querySelector("#alert-signal");
-  select.innerHTML = appState.signals.map((signal) => `<option value="${escapeHtml(signal.id)}">${escapeHtml(signal.label)}</option>`).join("");
-  const requestedSignal = initialParams.get("signal");
-  if (requestedSignal && appState.signals.some((signal) => signal.id === requestedSignal)) select.value = requestedSignal;
+  select.innerHTML = [
+    `<option value="">Choose a signal…</option>`,
+    ...state.signals.map((signal) => `<option value="${escapeHtml(signal.id)}">${escapeHtml(signal.label)}</option>`),
+    ...state.unavailable.map((item) => `<option value="" disabled>${escapeHtml(item.label)} (unavailable)</option>`),
+  ].join("");
+  applyAlertRequest(state);
 
   const form = document.querySelector("#alert-form");
   form.addEventListener("input", updateAlertPreview);
@@ -1969,11 +2054,51 @@ async function renderAlertsPage() {
   });
   updateAlertPreview();
   renderAlertRules();
+  updateAlertBadge(0);
+}
+
+// Resolve ?signal= / ?chart= to a signal. When the request cannot be honoured
+// the form stays on "Choose a signal" and says why; it never substitutes a
+// different signal.
+function resolveAlertRequest(state, params = initialParams) {
+  const signalId = params.get("signal");
+  const chartId = params.get("chart");
+  if (!signalId && !chartId) return { signalId: "", notice: "" };
+  const signal = signalId
+    ? state.signals.find((item) => item.id === signalId)
+    : state.signals.find((item) => item.chartId === chartId);
+  if (signal) return { signalId: signal.id, notice: "" };
+  const missing = signalId
+    ? state.unavailable.find((item) => item.id === signalId)
+    : state.unavailable.find((item) => item.chartId === chartId);
+  if (missing) {
+    return { signalId: "", notice: `${missing.label} is unavailable in the latest data (${missing.reason}), so it was not selected. Choose another signal, or try again after the next data refresh.` };
+  }
+  if (signalId) return { signalId: "", notice: `There is no cycle signal named “${signalId}”. Choose a signal below.` };
+  const title = chartById(chartId)?.title || chartId;
+  return { signalId: "", notice: `${title} does not have a cycle score, so an alert cannot watch it directly. Choose one of the scored signals below.` };
+}
+
+function applyAlertRequest(state = appState.signalState) {
+  const request = resolveAlertRequest(state);
+  const select = document.querySelector("#alert-signal");
+  if (select) select.value = request.signalId;
+  const notice = document.querySelector("#alert-request-notice");
+  if (notice) {
+    notice.textContent = request.notice;
+    notice.hidden = !request.notice;
+  }
+  return request;
 }
 
 function saveAlertFromForm(event) {
   event.preventDefault();
   const signalId = document.querySelector("#alert-signal").value;
+  if (!appState.signals.some((signal) => signal.id === signalId)) {
+    const status = document.querySelector("#alert-save-status");
+    if (status) status.textContent = "Choose a signal before saving this alert.";
+    return;
+  }
   const operator = document.querySelector("#alert-operator").value;
   const threshold = clamp(Number(document.querySelector("#alert-threshold").value), 0, 100);
   const cadence = document.querySelector("#alert-cadence").value;
@@ -1997,40 +2122,156 @@ function saveAlertFromForm(event) {
 function resetAlertForm() {
   const form = document.querySelector("#alert-form");
   form.reset();
-  const requestedSignal = initialParams.get("signal");
-  if (requestedSignal && appState.signals.some((signal) => signal.id === requestedSignal)) document.querySelector("#alert-signal").value = requestedSignal;
+  applyAlertRequest();
   document.querySelector("#alert-threshold").value = "75";
   updateAlertPreview();
 }
 
+function alertOperatorPhrase(operator) {
+  return {
+    above: "is above",
+    below: "is below",
+    "crosses-above": "crosses above",
+    "crosses-below": "crosses below",
+  }[operator] || String(operator).replaceAll("-", " ");
+}
+
 function updateAlertPreview() {
-  const signal = appState.signals.find((item) => item.id === document.querySelector("#alert-signal")?.value) || appState.signals[0];
-  if (!signal) return;
-  const operator = document.querySelector("#alert-operator").value.replaceAll("-", " ");
-  const threshold = clamp(Number(document.querySelector("#alert-threshold").value), 0, 100);
   const preview = document.querySelector("#alert-preview");
-  preview.innerHTML = `<strong>${escapeHtml(signal.label)}</strong> is currently ${Math.round(signal.score)} (${signal.phase.label}). This rule will trigger when its cycle score ${escapeHtml(operator)} ${threshold}.`;
+  if (!preview) return;
+  const signal = appState.signals.find((item) => item.id === document.querySelector("#alert-signal")?.value);
+  if (!signal) {
+    preview.textContent = "Choose a signal to preview this rule.";
+    return;
+  }
+  const operator = alertOperatorPhrase(document.querySelector("#alert-operator").value);
+  const threshold = clamp(Number(document.querySelector("#alert-threshold").value), 0, 100);
+  preview.innerHTML = `<strong>${escapeHtml(signal.label)}</strong> is currently ${Math.round(signal.score)} (${signal.phase.label}). This rule will trigger when its cycle score ${escapeHtml(operator)} ${threshold}. Rules are checked when you open the site.`;
+}
+
+function alertIsLevelRule(rule) {
+  return rule.operator === "above" || rule.operator === "below";
+}
+
+function alertLevelMet(rule, score) {
+  if (rule.operator === "above") return score > rule.threshold;
+  if (rule.operator === "below") return score < rule.threshold;
+  return false;
+}
+
+// Check one rule against the current score. Scores are only comparable within
+// one scoring method, so an observation saved under another method version is
+// replaced (re-baselined) without firing.
+function checkAlertRule(rule, signal, methodVersion, now) {
+  const idle = { rule, fired: false, rebaselined: false };
+  if (!rule.enabled || (rule.cadence === "once" && rule.triggeredAt)) return idle;
+  const current = signal?.score;
+  if (!Number.isFinite(current)) return idle;
+  const level = alertIsLevelRule(rule);
+  const met = level ? alertLevelMet(rule, current) : undefined;
+  const observed = { ...rule, lastScore: current, methodVersion };
+  if (level) observed.conditionMet = met;
+  else delete observed.conditionMet;
+  if (Number.isFinite(rule.lastScore) && rule.methodVersion !== methodVersion) {
+    return { rule: { ...observed, rebaselinedAt: now }, fired: false, rebaselined: true };
+  }
+  const previous = rule.lastScore;
+  const fired = level
+    ? met && rule.conditionMet !== true
+    : Number.isFinite(previous) && (rule.operator === "crosses-above"
+      ? previous <= rule.threshold && current > rule.threshold
+      : rule.operator === "crosses-below" && previous >= rule.threshold && current < rule.threshold);
+  if (!fired) return { rule: observed, fired: false, rebaselined: false };
+  return {
+    rule: { ...observed, firedAt: now, ...(rule.cadence === "once" ? { triggeredAt: now, enabled: false } : {}) },
+    fired: true,
+    rebaselined: false,
+  };
+}
+
+function evaluateAlert(rule) {
+  const signal = appState.signals.find((item) => item.id === rule.signalId);
+  return checkAlertRule(rule, signal, appState.signalState?.method?.version, new Date().toISOString()).fired;
+}
+
+// Run every saved rule once against the loaded signals and persist the new
+// observations. This runs on every page so a rule can fire wherever the site
+// is opened; if the browser refuses the write, nothing is treated as saved.
+function evaluateAlertRules(state = appState.signalState) {
+  const rules = readAlertRules();
+  const now = new Date().toISOString();
+  const version = state?.method?.version;
+  const signals = state?.signals || appState.signals || [];
+  const results = rules.map((rule) => checkAlertRule(rule, signals.find((item) => item.id === rule.signalId), version, now));
+  const next = results.map((result) => result.rule);
+  const changed = JSON.stringify(next) !== JSON.stringify(rules);
+  const saved = !changed || writeAlertRules(next);
+  return { rules: saved ? next : rules, results, saved };
+}
+
+async function checkAlertsInBackground() {
+  try {
+    if (!readAlertRules().length) return;
+    const state = await loadSignalState();
+    const { rules } = evaluateAlertRules(state);
+    const seenAt = readAlertsSeenAt();
+    updateAlertBadge(rules.filter((rule) => rule.firedAt && rule.firedAt > seenAt).length);
+  } catch (error) {
+    console.warn("Alert check unavailable", error);
+  }
+}
+
+function updateAlertBadge(count) {
+  const link = document.querySelector?.('.terminal-nav a[href$="alerts/"]');
+  if (!link) return;
+  let badge = link.querySelector(".nav-badge");
+  if (!count) {
+    badge?.remove();
+    link.removeAttribute("title");
+    return;
+  }
+  if (!badge) {
+    badge = document.createElement("span");
+    badge.className = "nav-badge";
+    link.append(badge);
+  }
+  const summary = `${count} alert${count === 1 ? "" : "s"} fired since you last opened Alerts`;
+  badge.textContent = String(count);
+  badge.setAttribute("aria-label", summary);
+  link.title = `${summary} · checked when you open the site`;
+}
+
+// Every saved firing on screen has now been shown to the visitor, so it must
+// not come back as an unseen count on another page. This runs on each render
+// of the Alerts page, including after a rule is created or re-armed; the
+// in-page highlight keeps using the visit's original `alertSession.seenAt`.
+function acknowledgeDisplayedAlerts(rules) {
+  const latest = rules.reduce((newest, rule) => (rule.firedAt && rule.firedAt > newest ? rule.firedAt : newest), "");
+  if (!latest || latest <= readAlertsSeenAt()) return;
+  const now = new Date().toISOString();
+  writeAlertsSeenAt(now > latest ? now : latest);
 }
 
 function renderAlertRules() {
-  const rules = readAlertRules();
+  const outcome = evaluateAlertRules();
+  outcome.results.forEach((result) => { if (result.fired) alertSession.fired.add(result.rule.id); });
+  const rules = outcome.rules;
+  // `rules` holds only what was actually saved, so an unsaved firing is not acknowledged.
+  acknowledgeDisplayedAlerts(rules);
   const list = document.querySelector("#alert-list");
-  const evaluated = rules.map((rule) => ({ ...rule, triggered: evaluateAlert(rule) }));
-  const next = evaluated.map(({ triggered, ...rule }) => {
+  const view = rules.map((rule) => {
     const signal = appState.signals.find((item) => item.id === rule.signalId);
-    if (!rule.enabled || !signal || !Number.isFinite(signal.score)) return rule;
-    return { ...rule, lastScore: signal.score, ...(triggered && rule.cadence === "once" ? { triggeredAt: new Date().toISOString(), enabled: false } : {}) };
+    const fresh = alertSession.fired.has(rule.id) || Boolean(rule.firedAt && rule.firedAt > alertSession.seenAt);
+    const met = rule.enabled && alertIsLevelRule(rule) && Number.isFinite(signal?.score) && alertLevelMet(rule, signal.score);
+    return { rule, signal, fresh, met };
   });
-  if (JSON.stringify(next) !== JSON.stringify(rules) && writeAlertRules(next)) {
-    evaluated.forEach((rule, index) => Object.assign(rule, next[index]));
-  }
-  const active = evaluated.filter((rule) => rule.enabled).length;
-  const triggered = evaluated.filter((rule) => rule.triggered).length;
+  const active = rules.filter((rule) => rule.enabled).length;
+  const triggered = view.filter((item) => item.fresh || item.met).length;
   document.querySelector("#alert-count").textContent = `${rules.length} alert${rules.length === 1 ? "" : "s"}`;
   document.querySelector("#alert-overview").innerHTML = `
     <article class="alert-overview-item"><div><small>Active rules</small><strong>${active}</strong></div><span class="overview-icon" aria-hidden="true">♧</span></article>
     <article class="alert-overview-item"><div><small>Conditions met</small><strong>${triggered}</strong></div><span class="overview-icon" aria-hidden="true">●</span></article>
-    <article class="alert-overview-item"><div><small>Last evaluated</small><strong>${shortTime(new Date())}</strong></div><span class="overview-icon" aria-hidden="true">↻</span></article>
+    <article class="alert-overview-item"><div><small>Last checked</small><strong>${shortTime(new Date())}</strong></div><span class="overview-icon" aria-hidden="true">↻</span></article>
   `;
 
   if (!rules.length) {
@@ -2038,12 +2279,13 @@ function renderAlertRules() {
     return;
   }
 
-  list.innerHTML = evaluated.map((rule) => {
-    const signal = appState.signals.find((item) => item.id === rule.signalId);
-    const title = rule.label || signal?.label || "Unknown signal";
+  list.innerHTML = view.map(({ rule, signal, fresh, met }) => {
+    const missing = appState.signalState?.unavailable?.find((item) => item.id === rule.signalId);
+    const title = rule.label || signal?.label || (missing ? `${missing.label} (unavailable)` : "Unknown signal");
+    const status = fresh ? "Triggered since your last visit" : rule.triggeredAt ? "Completed" : met ? "Condition met" : rule.enabled ? "Watching" : "Paused";
     return `
-      <article class="alert-rule ${rule.triggered && rule.enabled ? "triggered" : ""}">
-        <span class="alert-rule-status" title="${rule.triggeredAt ? "Completed" : rule.triggered ? "Condition met" : rule.enabled ? "Watching" : "Paused"}"></span>
+      <article class="alert-rule ${fresh || met ? "triggered" : ""}">
+        <span class="alert-rule-status" title="${status}"></span>
         <div class="alert-rule-copy"><strong>${escapeHtml(title)}</strong><span>${escapeHtml(alertRuleText(rule, signal))}</span></div>
         <div class="alert-rule-actions">
           <label class="switch-control" title="Enable or pause alert"><input type="checkbox" aria-label="Enable ${escapeHtml(title)} alert" data-alert-toggle="${escapeHtml(rule.id)}" ${rule.enabled ? "checked" : ""}><span class="switch-track"></span></label>
@@ -2059,12 +2301,13 @@ function renderAlertRules() {
         if (rule.id !== control.dataset.alertToggle) return rule;
         const updated = { ...rule, enabled: control.checked };
         if (control.checked) {
-          delete updated.triggeredAt;
-          delete updated.lastScore;
+          // Re-arming starts a fresh watch: forget the earlier observation.
+          ["triggeredAt", "firedAt", "lastScore", "methodVersion", "conditionMet", "rebaselinedAt"].forEach((key) => delete updated[key]);
         }
         return updated;
       });
       if (!writeAlertRules(next)) { control.checked = !control.checked; return; }
+      if (control.checked) alertSession.fired.delete(control.dataset.alertToggle);
       renderAlertRules();
     });
   });
@@ -2076,28 +2319,20 @@ function renderAlertRules() {
   });
 }
 
-function evaluateAlert(rule) {
-  if (!rule.enabled || (rule.cadence === "once" && rule.triggeredAt)) return false;
-  const signal = appState.signals.find((item) => item.id === rule.signalId);
-  if (!signal) return false;
-  const current = signal.score;
-  if (!Number.isFinite(current)) return false;
-  const previous = rule.lastScore;
-  if (rule.operator === "above") return current > rule.threshold;
-  if (rule.operator === "below") return current < rule.threshold;
-  if (rule.operator === "crosses-above") return Number.isFinite(previous) && previous <= rule.threshold && current > rule.threshold;
-  if (rule.operator === "crosses-below") return Number.isFinite(previous) && previous >= rule.threshold && current < rule.threshold;
-  return false;
-}
-
 function alertRuleText(rule, signal) {
   const current = signal ? Math.round(signal.score) : "—";
-  return `Score ${String(rule.operator).replaceAll("-", " ")} ${rule.threshold} · now ${current} · ${rule.triggeredAt ? "Completed — toggle on to re-arm" : rule.cadence === "once" ? "once" : "each refresh"}`;
+  const state = rule.triggeredAt
+    ? "Completed — toggle on to re-arm"
+    : rule.cadence === "once" ? "once" : "every time the site is opened";
+  const rebaselined = rule.rebaselinedAt && !rule.triggeredAt
+    ? ` · re-baselined for scoring method v${rule.methodVersion}; review this threshold`
+    : "";
+  return `Score ${alertOperatorPhrase(rule.operator)} ${rule.threshold} · now ${current} · ${state}${rebaselined}`;
 }
 
 function readAlertRules() {
   try {
-    const value = JSON.parse(localStorage.getItem("fintech-alerts-v1") || "[]");
+    const value = JSON.parse(localStorage.getItem(ALERT_RULES_KEY) || "[]");
     return Array.isArray(value) ? value : [];
   } catch {
     return [];
@@ -2105,9 +2340,9 @@ function readAlertRules() {
 }
 
 function writeAlertRules(rules) {
-  const status = document.querySelector("#alert-save-status");
+  const status = document.querySelector?.("#alert-save-status");
   try {
-    localStorage.setItem("fintech-alerts-v1", JSON.stringify(rules));
+    localStorage.setItem(ALERT_RULES_KEY, JSON.stringify(rules));
     if (status) status.textContent = "";
     return true;
   } catch {
@@ -2116,20 +2351,29 @@ function writeAlertRules(rules) {
   }
 }
 
-function signalDelta(signal, days) {
-  return signal.score - scoreAtDaysAgo(signal, days);
+function readAlertsSeenAt() {
+  try {
+    return localStorage.getItem(ALERT_SEEN_KEY) || "";
+  } catch {
+    return "";
+  }
 }
 
-function scoreAtDaysAgo(signal, days) {
-  const points = signal.points;
-  if (!points.length) return 0;
-  const latestDate = new Date(last(points).date);
-  const target = new Date(latestDate);
-  target.setUTCDate(target.getUTCDate() - days);
-  for (let index = points.length - 1; index >= 0; index -= 1) {
-    if (new Date(points[index].date) <= target) return points[index].score;
+function writeAlertsSeenAt(value) {
+  try {
+    localStorage.setItem(ALERT_SEEN_KEY, value);
+    return true;
+  } catch {
+    return false;
   }
-  return points[0].score;
+}
+
+// Score change over a look-back window. The site build only fills a window
+// when scored history actually reaches back that far; otherwise it is null and
+// shown as unavailable rather than measured from the first observation.
+function signalDelta(signal, days) {
+  const change = signal?.changes?.[days];
+  return typeof change === "number" && Number.isFinite(change) ? change : null;
 }
 
 function oneYearBefore(date) {
@@ -2145,15 +2389,18 @@ function phaseColor(key) {
 function formatSignalRaw(signal) {
   const value = toFiniteNumber(signal.rawValue);
   if (!Number.isFinite(value)) return "Unavailable";
-  if (["trend", "pi-cycle"].includes(signal.id)) return `${value.toFixed(2)}x`;
-  if (signal.id === "bollinger") return `${(value * 100).toFixed(0)}% of band`;
-  if (signal.id === "ath-age") return `${Math.round(value)} days`;
-  if (["drawdown", "volatility"].includes(signal.id)) return `${value.toFixed(1)}%`;
-  if (signal.id === "fees") return `${value.toFixed(2)} sat/vB`;
-  return value.toFixed(Math.abs(value) >= 100 ? 0 : 2);
+  const decimals = Number.isInteger(signal.decimals) ? signal.decimals : (Math.abs(value) >= 100 ? 0 : 2);
+  if (signal.unit === "multiple") return `${value.toFixed(decimals)}x`;
+  if (signal.unit === "percent") return `${value.toFixed(decimals)}%`;
+  if (signal.unit === "band_position") return `${(value * 100).toFixed(0)}% of band`;
+  if (signal.unit === "days") return `${Math.round(value)} days`;
+  if (signal.unit === "sat_per_vbyte") return `${value.toFixed(decimals)} sat/vB`;
+  if (signal.unit === "usd") return formatUsd(value);
+  return value.toFixed(decimals);
 }
 
 function signedScore(value) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "—";
   const rounded = Math.round(value);
   return `${rounded > 0 ? "+" : ""}${rounded}`;
 }
@@ -2235,87 +2482,549 @@ function shortTime(date) {
   return new Intl.DateTimeFormat("en", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "UTC" }).format(date);
 }
 
-async function buildSignals() {
-  const results = await Promise.all(SIGNAL_DEFINITIONS.map(async (definition) => {
+// The manifest names the artifact it was built with. Without that entry the
+// artifact is looked for beside the manifest.
+function signalsArtifactPath(manifest = appState.manifest) {
+  const declared = manifest?.signals?.path;
+  if (typeof declared === "string" && declared) return assetPath(declared);
+  return pageConfig.manifestPath.replace(/[^/]*$/, SIGNALS_ARTIFACT_NAME);
+}
+
+// Reject anything that is not a complete, current artifact so the caller can
+// fall back to scoring chart payloads instead of rendering half a page.
+function signalsArtifactProblem(artifact, manifest = appState.manifest) {
+  if (!artifact || typeof artifact !== "object") return "not an object";
+  if (artifact.schema_version !== SIGNALS_ARTIFACT_SCHEMA) return `unsupported schema ${artifact.schema_version}`;
+  if (!Number.isFinite(artifact.method?.version) || !Array.isArray(artifact.method?.phases)) return "missing method";
+  if (!Array.isArray(artifact.history?.dates)) return "missing history dates";
+  if (!Array.isArray(artifact.signals) || !Array.isArray(artifact.unavailable)) return "missing signals";
+  if (!artifact.signals.length) return "no signals";
+  const dates = artifact.history.dates.length;
+  const broken = artifact.signals.find((signal) => (
+    typeof signal?.id !== "string"
+    || typeof signal.chart_id !== "string"
+    || !Number.isFinite(signal.score)
+    || !Array.isArray(signal.history?.scores)
+    || signal.history.scores.length !== dates
+  ));
+  if (broken) return `invalid signal ${broken?.id ?? ""}`.trim();
+  // The artifact carries no clock reading. It is identified by a fingerprint
+  // of its inputs, and the manifest it was published with repeats that
+  // fingerprint, so an artifact left over from another build is rejected.
+  if (typeof artifact.source_fingerprint !== "string" || !artifact.source_fingerprint) return "missing source fingerprint";
+  const expected = manifest?.signals?.source_fingerprint;
+  if (expected && expected !== artifact.source_fingerprint) return "built from different data than the published manifest";
+  return "";
+}
+
+let signalStatePromise = null;
+
+// One compact request replaces a full chart payload per signal. The per-chart
+// path remains only as a fallback for a missing or invalid artifact.
+function loadSignalState() {
+  signalStatePromise ||= (async () => {
+    let state = null;
     try {
-      const payload = await getPayload(definition.chartId);
-      const sourceSeries = signalSourceSeries(payload, definition);
-      if (definition.seriesKey && !sourceSeries) return null;
-      const points = definition.build
-        ? definition.build(payload)
-        : seriesPoints(sourceSeries, definition.invert ? -1 : 1);
-      const valid = points.filter((point) => Number.isFinite(point.value));
-      if (!valid.length) return null;
-      const values = valid.map((point) => point.value);
-      const low = quantile(values, 0.05);
-      const high = quantile(values, 0.95);
-      const scored = valid.map((point) => ({ ...point, score: normalizedScore(point.value, low, high) }));
-      const current = last(scored);
-      return {
-        ...definition,
-        payload,
-        points: scored,
-        score: current.score,
-        rawValue: definition.invert ? Math.abs(current?.value) : current?.value,
-        unitName: sourceSeries?.name || definition.label,
-        date: current?.date,
-        phase: phaseFor(current.score),
-      };
+      // A manifest that records "no artifact" means the build could not make one.
+      if (appState.manifest?.signals === null) throw new Error("the site build did not publish a signal artifact");
+      const artifact = await fetchJson(signalsArtifactPath());
+      const problem = signalsArtifactProblem(artifact);
+      if (problem) throw new Error(problem);
+      state = hydrateSignalState(artifact, "artifact");
     } catch (error) {
-      console.warn(`Signal unavailable: ${definition.id}`, error);
-      return null;
+      console.warn("Signal artifact unavailable; scoring chart payloads in the browser instead.", error);
+      state = hydrateSignalState(await buildSignalsFromCharts(), "fallback");
     }
-  }));
-  return results.filter(Boolean);
-}
-
-function signalSourceSeries(payload, definition) {
-  if (definition.seriesKey) {
-    return payload.series.find((series) => series.source_key === definition.seriesKey);
-  }
-  return payload.series[definition.series || 0];
-}
-
-function buildDashboardSignalSet(signals) {
-  const selected = REFERENCE_SIGNAL_IDS.map((id) => signals.find((signal) => signal.id === id)).filter(Boolean);
-  if (!selected.length) return signals;
-  const dateScores = new Map();
-  selected.forEach((signal) => {
-    signal.points.forEach((point) => {
-      const values = dateScores.get(point.date) || [];
-      values.push(point.score);
-      dateScores.set(point.date, values);
-    });
+    appState.signalState = state;
+    appState.signals = state.signals;
+    return state;
+  })().catch((error) => {
+    signalStatePromise = null;
+    throw error;
   });
-  const points = [...dateScores.entries()]
-    .map(([date, scores]) => ({ date, value: average(scores), score: average(scores) }))
-    .sort((a, b) => new Date(a.date) - new Date(b.date));
-  const score = last(points)?.score || 0;
-  return [{
-    id: "cycle-index",
-    chartId: "cycle-phase-dashboard",
-    label: "Cycle Index",
-    category: "Composite",
-    points,
-    score,
-    rawValue: score,
-    phase: phaseFor(score),
-  }, ...selected];
+  return signalStatePromise;
 }
 
-function rawSignalDelta(signal, days) {
-  if (!signal?.points?.length) return NaN;
-  const latest = last(signal.points);
-  const target = new Date(latest.date);
-  target.setUTCDate(target.getUTCDate() - days);
-  let previous = signal.points[0];
-  for (let index = signal.points.length - 1; index >= 0; index -= 1) {
-    if (new Date(signal.points[index].date) <= target) {
-      previous = signal.points[index];
-      break;
+async function buildSignals() {
+  return (await loadSignalState()).signals;
+}
+
+async function buildSignalsFromCharts() {
+  const definitions = await fetchJson(assetPath(SIGNAL_DEFINITIONS_PATH));
+  const chartIds = [...new Set([
+    ...definitions.signals.map((definition) => definition.chart_id),
+    definitions.market?.chart_id,
+  ].filter(Boolean))];
+  const payloads = new Map(await Promise.all(chartIds.map(async (chartId) => {
+    try {
+      return [chartId, await getPayload(chartId)];
+    } catch (error) {
+      console.warn(`Signal chart unavailable: ${chartId}`, error);
+      return [chartId, null];
     }
+  })));
+  return buildSignalsArtifact(definitions, (chartId) => payloads.get(chartId) ?? null);
+}
+
+function hydrateSignalState(artifact, source) {
+  const dates = artifact.history.dates;
+  // `samples` keeps every weekly sample, including unavailable (null) ones, so
+  // a gap in the data stays a gap. `points` is the scored subset.
+  const samples = (history) => dates.map((date, index) => ({
+    date,
+    value: history?.values?.[index] ?? null,
+    score: history?.scores?.[index] ?? null,
+  }));
+  const scored = (items) => items.filter((point) => Number.isFinite(point.score));
+  const method = artifact.method;
+  const phase = (score) => phaseFor(score, method.phases);
+  const signals = artifact.signals.map((signal) => ({
+    id: signal.id,
+    chartId: signal.chart_id,
+    label: signal.label,
+    category: signal.category,
+    source: signal.source,
+    unit: signal.unit,
+    decimals: signal.decimals,
+    invert: Boolean(signal.invert),
+    score: signal.score,
+    rawValue: signal.value,
+    date: signal.date,
+    phase: phase(signal.score),
+    changes: signal.changes || {},
+    stale: Boolean(signal.stale),
+    lagDays: signal.lag_days,
+    composite: Boolean(signal.composite),
+    exclusion: signal.exclusion || null,
+    firstDate: signal.first_date,
+    observations: signal.observations,
+    samples: samples(signal.history),
+    points: scored(samples(signal.history)),
+  }));
+  const composite = artifact.composite ? {
+    id: artifact.composite.id,
+    label: artifact.composite.label,
+    chartId: artifact.composite.chart_id,
+    date: artifact.composite.date,
+    score: artifact.composite.score,
+    phase: Number.isFinite(artifact.composite.score) ? phase(artifact.composite.score) : null,
+    changes: artifact.composite.changes || {},
+    membersTotal: artifact.composite.members_total,
+    membersUsed: artifact.composite.members_used,
+    missingMembers: artifact.composite.missing_members || [],
+    staleMembers: artifact.composite.stale_members || [],
+    samples: samples(artifact.composite.history),
+    points: scored(samples(artifact.composite.history)),
+  } : null;
+  const market = artifact.market ? {
+    date: artifact.market.date,
+    price: artifact.market.price,
+    change30dPct: artifact.market.change_30d_pct,
+    average200d: artifact.market.average_200d,
+    distance200dPct: artifact.market.distance_200d_pct,
+    recentPrices: artifact.market.recent?.prices || [],
+    recentRatios: artifact.market.recent?.ratios || [],
+  } : null;
+  return {
+    source,
+    sourceFingerprint: artifact.source_fingerprint ?? null,
+    dataThrough: artifact.data_through,
+    method,
+    signals,
+    composite,
+    market,
+    unavailable: (artifact.unavailable || []).map((item) => ({
+      id: item.id,
+      chartId: item.chart_id,
+      label: item.label,
+      composite: Boolean(item.composite),
+      reason: item.reason,
+    })),
+  };
+}
+
+// The canonical Cycle Index as a heatmap/table row.
+function compositeSignal(state) {
+  const composite = state?.composite;
+  if (!composite || !Number.isFinite(composite.score)) return null;
+  return {
+    id: composite.id,
+    chartId: composite.chartId,
+    label: composite.label,
+    category: "Composite",
+    samples: composite.samples,
+    points: composite.points,
+    score: composite.score,
+    rawValue: composite.score,
+    phase: composite.phase,
+    changes: composite.changes,
+    composite: false,
+  };
+}
+
+function buildDashboardSignalSet(state) {
+  const signals = state?.signals || [];
+  const members = signals.filter((signal) => signal.composite);
+  const index = compositeSignal(state);
+  if (index) return [index, ...members];
+  return members.length ? members : signals;
+}
+
+// ---------------------------------------------------------------------------
+// Browser port of web/signals_artifact.py. It is only used when signals.json
+// is unavailable, and both implementations are pinned to the same golden
+// fixture (web/tests/fixtures/signals), so keep the two in step.
+// ---------------------------------------------------------------------------
+
+function signalDay(value) {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}/.test(value)) return null;
+  const [year, month, day] = value.slice(0, 10).split("-").map(Number);
+  const time = Date.UTC(year, month - 1, day);
+  const check = new Date(time);
+  if (check.getUTCFullYear() !== year || check.getUTCMonth() !== month - 1 || check.getUTCDate() !== day) return null;
+  return Math.round(time / 86400000);
+}
+
+function signalDate(day) {
+  return new Date(day * 86400000).toISOString().slice(0, 10);
+}
+
+function signalNumber(value) {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+// One rounding rule for every published number: half away from zero on the
+// exact value. toFixed and toPrecision both work that way, and the site build
+// does the same with decimal arithmetic. Adding 0 turns -0 into 0.
+function roundDecimals(value, decimals) {
+  return Number(value.toFixed(decimals)) + 0;
+}
+
+function roundSignalScore(value) {
+  return value === null || value === undefined ? null : roundDecimals(value, 1);
+}
+
+function roundSignificant(value, digits) {
+  return value === null || value === undefined ? null : Number(value.toPrecision(digits)) + 0;
+}
+
+function selectSignalSeries(payload, selector) {
+  if (!Array.isArray(payload?.series) || !selector || typeof selector !== "object") return null;
+  return payload.series.find((series) => series && typeof series === "object" && (
+    ("key" in selector && series.source_key === selector.key)
+    || ("name" in selector && series.name === selector.name)
+  )) || null;
+}
+
+function describeSignalSelector(selector) {
+  if (selector && typeof selector === "object" && "key" in selector) return `source key '${selector.key}'`;
+  if (selector && typeof selector === "object" && "name" in selector) return `series '${selector.name}'`;
+  return "an unspecified series";
+}
+
+// Observation day -> value. A later duplicate date supersedes an earlier one;
+// a missing or non-finite observation never erases a real one.
+function signalSeriesByDay(series) {
+  const byDay = new Map();
+  if (!Array.isArray(series?.x) || !Array.isArray(series?.y)) return byDay;
+  const length = Math.min(series.x.length, series.y.length);
+  for (let index = 0; index < length; index += 1) {
+    const day = signalDay(series.x[index]);
+    const value = signalNumber(series.y[index]);
+    if (day === null || value === null) continue;
+    byDay.set(day, value);
   }
-  return Number(latest.value) - Number(previous.value);
+  return byDay;
+}
+
+function requiredSignalSeries(payload, selector, chartId) {
+  const series = selectSignalSeries(payload, selector);
+  if (!series) throw new Error(`${describeSignalSelector(selector)} is missing from chart '${chartId}'`);
+  return signalSeriesByDay(series);
+}
+
+function sortedDays(byDay) {
+  return [...byDay.keys()].sort((left, right) => left - right);
+}
+
+// Derived indicators are joined on the observation date, never on array
+// position, so a shifted, missing or duplicated row cannot pair a numerator
+// with another day's denominator.
+function resolveSignalObservations(definition, payload) {
+  const chartId = definition.chart_id;
+  if (!payload || typeof payload !== "object") throw new Error(`chart data for '${chartId}' is unavailable`);
+  const source = definition.input || {};
+  const days = [];
+  const values = [];
+  if (source.type === "series") {
+    const series = requiredSignalSeries(payload, source.series, chartId);
+    sortedDays(series).forEach((day) => { days.push(day); values.push(series.get(day)); });
+  } else if (source.type === "ratio") {
+    const numerator = requiredSignalSeries(payload, source.numerator, chartId);
+    const denominator = requiredSignalSeries(payload, source.denominator, chartId);
+    sortedDays(numerator).forEach((day) => {
+      const divisor = denominator.get(day);
+      if (divisor === undefined || divisor === 0) return;
+      days.push(day);
+      values.push(numerator.get(day) / divisor);
+    });
+  } else if (source.type === "band_position") {
+    const value = requiredSignalSeries(payload, source.value, chartId);
+    const lower = requiredSignalSeries(payload, source.lower, chartId);
+    const upper = requiredSignalSeries(payload, source.upper, chartId);
+    sortedDays(value).forEach((day) => {
+      const low = lower.get(day);
+      const high = upper.get(day);
+      if (low === undefined || high === undefined || high === low) return;
+      days.push(day);
+      values.push((value.get(day) - low) / (high - low));
+    });
+  } else {
+    throw new Error(`unsupported input type '${source.type}'`);
+  }
+  return { days, values };
+}
+
+function lowerBound(sorted, value) {
+  let low = 0;
+  let high = sorted.length;
+  while (low < high) {
+    const middle = (low + high) >> 1;
+    if (sorted[middle] < value) low = middle + 1;
+    else high = middle;
+  }
+  return low;
+}
+
+function upperBound(sorted, value) {
+  let low = 0;
+  let high = sorted.length;
+  while (low < high) {
+    const middle = (low + high) >> 1;
+    if (sorted[middle] <= value) low = middle + 1;
+    else high = middle;
+  }
+  return low;
+}
+
+// Point-in-time percentile rank: each observation is ranked (ties at mid-rank)
+// against the observations up to and including its own date only.
+function expandingSignalScores(days, values, scoring, invert = false) {
+  const minDays = scoring.min_history_days ?? 0;
+  const minObservations = scoring.min_observations ?? 1;
+  const ordered = [];
+  const firstDay = days[0] ?? 0;
+  return values.map((value, index) => {
+    ordered.splice(upperBound(ordered, value), 0, value);
+    const count = ordered.length;
+    if (days[index] - firstDay < minDays || count < minObservations) return null;
+    const below = lowerBound(ordered, value);
+    const equal = upperBound(ordered, value) - below;
+    const rank = 100 * (below + 0.5 * equal) / count;
+    return invert ? 100 - rank : rank;
+  });
+}
+
+// Index of the latest observation on or before `target` that is still recent
+// enough to stand in for it; null when the window is not covered.
+function asOfIndex(days, target, carryForwardDays) {
+  const index = upperBound(days, target) - 1;
+  if (index < 0 || target - days[index] > carryForwardDays) return null;
+  return index;
+}
+
+function buildSignalMarket(market, payloadFor, carryForwardDays) {
+  if (!market || typeof market !== "object") return null;
+  let prices;
+  let averages;
+  try {
+    const payload = payloadFor(market.chart_id);
+    if (!payload || typeof payload !== "object") return null;
+    prices = requiredSignalSeries(payload, market.price, market.chart_id);
+    averages = requiredSignalSeries(payload, market.average, market.chart_id);
+  } catch {
+    return null;
+  }
+  const days = sortedDays(prices);
+  if (!days.length) return null;
+  const latestDay = days[days.length - 1];
+  const price = prices.get(latestDay);
+  const average = averages.get(latestDay);
+  const monthIndex = asOfIndex(days, latestDay - 30, carryForwardDays);
+  const monthPrice = monthIndex === null ? null : prices.get(days[monthIndex]);
+  const recentDays = days.slice(-(market.recent_observations ?? 60));
+  return {
+    date: signalDate(latestDay),
+    price: roundDecimals(price, 2),
+    change_30d_pct: monthPrice ? roundDecimals((price / monthPrice - 1) * 100, 2) : null,
+    average_200d: average === undefined ? null : roundDecimals(average, 2),
+    distance_200d_pct: average ? roundDecimals((price / average - 1) * 100, 2) : null,
+    recent: {
+      dates: recentDays.map(signalDate),
+      prices: recentDays.map((day) => roundDecimals(prices.get(day), 2)),
+      ratios: recentDays.map((day) => (averages.get(day) ? roundDecimals(prices.get(day) / averages.get(day), 4) : null)),
+    },
+  };
+}
+
+function buildSignalsArtifact(definitions, loadPayload) {
+  const method = definitions.method;
+  const { scoring, phases } = method;
+  const windows = method.change_windows_days;
+  const stepDays = method.history.step_days;
+  const carry = method.history.carry_forward_days;
+  const digits = method.history.value_significant_digits;
+  const sourceRules = method.freshness.sources;
+  const compositeConfig = method.composite;
+
+  const resolved = [];
+  const unavailable = [];
+  definitions.signals.forEach((definition) => {
+    try {
+      const { days, values } = resolveSignalObservations(definition, loadPayload(definition.chart_id));
+      if (!days.length) throw new Error("no finite observations");
+      const scores = expandingSignalScores(days, values, scoring, Boolean(definition.invert));
+      if (scores[scores.length - 1] === null) throw new Error("history is shorter than the scoring minimum");
+      resolved.push({ definition, days, values, scores });
+    } catch (error) {
+      unavailable.push({
+        id: definition.id,
+        chart_id: definition.chart_id,
+        label: definition.label,
+        composite: Boolean(definition.composite),
+        reason: error.message,
+      });
+    }
+  });
+
+  const market = buildSignalMarket(definitions.market, loadPayload, carry);
+  const latestDays = resolved.map((item) => item.days[item.days.length - 1]);
+  if (market) latestDays.push(signalDay(market.date));
+  const dataThrough = latestDays.length ? Math.max(...latestDays) : null;
+
+  const grid = [];
+  if (resolved.length) {
+    const firstScored = Math.min(...resolved.map((item) => item.days[item.scores.findIndex((score) => score !== null)]));
+    for (let day = dataThrough; day >= firstScored; day -= stepDays) grid.push(day);
+    grid.reverse();
+  }
+
+  const sample = (item, key, target) => {
+    const index = asOfIndex(item.days, target, carry);
+    return index === null ? null : item[key][index];
+  };
+
+  const signals = resolved.map((item) => {
+    const { definition, days, values, scores } = item;
+    const latestDay = days[days.length - 1];
+    const latestScore = scores[scores.length - 1];
+    const changes = {};
+    windows.forEach((window) => {
+      const earlier = sample(item, "scores", latestDay - window);
+      changes[String(window)] = earlier === null ? null : roundSignalScore(latestScore - earlier);
+    });
+    const lagDays = dataThrough - latestDay;
+    const staleAfter = sourceRules[definition.source]?.stale_after_days ?? 2;
+    const score = roundSignalScore(latestScore);
+    return {
+      id: definition.id,
+      chart_id: definition.chart_id,
+      label: definition.label,
+      category: definition.category,
+      source: definition.source ?? null,
+      unit: definition.unit ?? null,
+      decimals: definition.decimals ?? null,
+      invert: Boolean(definition.invert),
+      value: roundDecimals(values[values.length - 1], 6),
+      date: signalDate(latestDay),
+      score,
+      phase: phaseFor(score, phases).key,
+      changes,
+      lag_days: lagDays,
+      stale: lagDays > staleAfter,
+      composite: Boolean(definition.composite),
+      exclusion: definition.exclusion ?? null,
+      first_date: signalDate(days[0]),
+      observations: days.length,
+      history: {
+        scores: grid.map((day) => roundSignalScore(sample(item, "scores", day))),
+        values: grid.map((day) => roundSignificant(sample(item, "values", day), digits)),
+      },
+    };
+  });
+
+  const members = resolved.filter((item) => item.definition.composite);
+  const memberIds = definitions.signals.filter((definition) => definition.composite).map((definition) => definition.id);
+  const compositeAt = (target) => {
+    let total = 0;
+    const used = [];
+    members.forEach((item) => {
+      const score = sample(item, "scores", target);
+      if (score === null) return;
+      total += score;
+      used.push(item.definition.id);
+    });
+    if (!used.length || used.length < compositeConfig.min_members) return { score: null, used };
+    return { score: total / used.length, used };
+  };
+
+  let composite = null;
+  if (dataThrough !== null) {
+    const current = compositeAt(dataThrough);
+    const changes = {};
+    windows.forEach((window) => {
+      const earlier = compositeAt(dataThrough - window).score;
+      changes[String(window)] = current.score === null || earlier === null ? null : roundSignalScore(current.score - earlier);
+    });
+    const score = roundSignalScore(current.score);
+    composite = {
+      id: compositeConfig.id,
+      label: compositeConfig.label,
+      chart_id: compositeConfig.chart_id ?? null,
+      date: signalDate(dataThrough),
+      score,
+      phase: score === null ? null : phaseFor(score, phases).key,
+      changes,
+      members_total: memberIds.length,
+      members_used: current.used.length,
+      missing_members: memberIds.filter((id) => !current.used.includes(id)),
+      stale_members: signals.filter((signal) => signal.composite && signal.stale).map((signal) => signal.id),
+      history: { scores: grid.map((day) => roundSignalScore(compositeAt(day).score)) },
+    };
+  }
+
+  const publishedMethod = JSON.parse(JSON.stringify(method));
+  publishedMethod.composite.members = memberIds;
+  publishedMethod.composite.excluded = definitions.signals
+    .filter((definition) => !definition.composite)
+    .map((definition) => ({ id: definition.id, ...(definition.exclusion || {}) }));
+  return {
+    schema_version: SIGNALS_ARTIFACT_SCHEMA,
+    // Only the site build fingerprints its inputs; this copy is never published.
+    source_fingerprint: null,
+    data_through: dataThrough === null ? null : signalDate(dataThrough),
+    method: publishedMethod,
+    market,
+    composite,
+    history: { dates: grid.map(signalDate) },
+    signals,
+    unavailable,
+  };
+}
+
+// Raw-value change over a look-back window, or NaN when the published history
+// does not reach back that far.
+function rawSignalDelta(signal, days) {
+  const points = (signal?.points || []).filter((point) => Number.isFinite(toFiniteNumber(point.value)));
+  if (!points.length) return NaN;
+  const latest = last(points);
+  const target = signalDay(latest.date) - days;
+  for (let index = points.length - 1; index >= 0; index -= 1) {
+    const day = signalDay(points[index].date);
+    if (day > target) continue;
+    return target - day > 14 ? NaN : Number(latest.value) - Number(points[index].value);
+  }
+  return NaN;
 }
 
 function recentSignalValues(signal, days) {
@@ -2325,7 +3034,7 @@ function recentSignalValues(signal, days) {
   cutoff.setUTCDate(cutoff.getUTCDate() - days);
   return signal.points
     .filter((point) => new Date(point.date) >= cutoff)
-    .map((point) => Number(point.value))
+    .map((point) => toFiniteNumber(point.value))
     .filter(Number.isFinite);
 }
 
@@ -2337,15 +3046,20 @@ function renderSignalHeatmap(target, signals, columns = 56, options = {}) {
     return;
   }
   const cutoff = options.startDate ? new Date(options.startDate).getTime() : -Infinity;
-  const visibleSignals = signals.map((signal) => ({
-    ...signal,
-    points: signal.points.map((point) => ({ ...point, timestamp: new Date(point.date).getTime() }))
-      .filter((point) => Number.isFinite(point.timestamp) && Number.isFinite(point.score))
-      .sort((left, right) => left.timestamp - right.timestamp),
-  }));
-  const histories = visibleSignals.filter((signal) => signal.points.length);
-  const start = Math.max(cutoff, Math.min(...histories.map((signal) => signal.points[0].timestamp)));
-  const end = Math.max(...histories.map((signal) => last(signal.points).timestamp));
+  // A cell shows the latest sample at or before its date. Unavailable samples
+  // are kept in the series so they end the preceding score, and no sample is
+  // carried further than the method's carry-forward limit.
+  const maxAge = (appState.signalState?.method?.history?.carry_forward_days ?? 14) * 86400000;
+  const visibleSignals = signals.map((signal) => {
+    const samples = (signal.samples || signal.points || [])
+      .map((point) => ({ ...point, timestamp: new Date(point.date).getTime() }))
+      .filter((point) => Number.isFinite(point.timestamp))
+      .sort((left, right) => left.timestamp - right.timestamp);
+    return { ...signal, samples, scored: samples.filter((point) => Number.isFinite(point.score)) };
+  });
+  const histories = visibleSignals.filter((signal) => signal.scored.length);
+  const start = Math.max(cutoff, Math.min(...histories.map((signal) => signal.scored[0].timestamp)));
+  const end = Math.max(...histories.map((signal) => last(signal.scored).timestamp));
   if (!histories.length || start > end) {
     target.innerHTML = `<p class="empty-state">No signal history matches these filters.</p>`;
     return;
@@ -2354,12 +3068,15 @@ function renderSignalHeatmap(target, signals, columns = 56, options = {}) {
   const rows = visibleSignals.map((signal) => {
     let pointIndex = -1;
     const cells = dates.map((timestamp) => {
-      while (pointIndex + 1 < signal.points.length && signal.points[pointIndex + 1].timestamp <= timestamp) pointIndex += 1;
-      const point = signal.points[pointIndex];
-      const covered = point && timestamp <= last(signal.points).timestamp;
+      while (pointIndex + 1 < signal.samples.length && signal.samples[pointIndex + 1].timestamp <= timestamp) pointIndex += 1;
+      const point = signal.samples[pointIndex];
+      const covered = Boolean(point)
+        && Number.isFinite(point.score)
+        && timestamp - point.timestamp <= maxAge
+        && timestamp <= last(signal.scored)?.timestamp;
       const dateLabel = formatDate(new Date(timestamp));
       const detail = covered
-        ? `${Math.round(point.score)} · observed ${formatDate(new Date(point.timestamp))}`
+        ? `${Math.round(point.score)} · as of ${formatDate(new Date(point.timestamp))}`
         : "No data";
       return `<span class="heatmap-cell${covered ? ` ${phaseFor(point.score).className}` : ""}" title="${escapeHtml(signal.label)} · ${escapeHtml(dateLabel)} · ${escapeHtml(detail)}"></span>`;
     }).join("");
@@ -3472,61 +4189,17 @@ function gradientColor(scale, ratio) {
   return `#${rgb.map((channel) => channel.toString(16).padStart(2, "0")).join("")}`;
 }
 
-function ratioSeries(numeratorIndex, denominatorIndex) {
-  return (payload) => {
-    const numerator = payload.series[numeratorIndex];
-    const denominator = payload.series[denominatorIndex];
-    return numerator.x.map((date, index) => ({
-      date,
-      value: toFiniteNumber(numerator.y[index]) / toFiniteNumber(denominator.y[index]),
-    }));
-  };
-}
-
-function ratioByKeys(numeratorKey, denominatorKey) {
-  return (payload) => {
-    const numerator = payload.series.find((series) => series.source_key === numeratorKey);
-    const denominator = payload.series.find((series) => series.source_key === denominatorKey);
-    if (!numerator || !denominator) return [];
-    const denominatorByDate = new Map(denominator.x.map((date, index) => [date, toFiniteNumber(denominator.y[index])]));
-    return numerator.x.map((date, index) => ({
-      date,
-      value: toFiniteNumber(numerator.y[index]) / denominatorByDate.get(date),
-    }));
-  };
-}
-
-function bandPositionSeries(lowerIndex, upperIndex, priceIndex) {
-  return (payload) => {
-    const lower = payload.series[lowerIndex];
-    const upper = payload.series[upperIndex];
-    const price = payload.series[priceIndex];
-    return price.x.map((date, index) => ({
-      date,
-      value: (toFiniteNumber(price.y[index]) - toFiniteNumber(lower.y[index])) / (toFiniteNumber(upper.y[index]) - toFiniteNumber(lower.y[index])),
-    }));
-  };
-}
-
-function seriesPoints(series, multiplier = 1) {
-  return (series?.x || []).map((date, index) => ({ date, value: toFiniteNumber(series.y[index]) * multiplier }));
-}
-
 function sampleEvenly(values, count) {
   if (values.length <= count) return values;
   return Array.from({ length: count }, (_, index) => values[Math.round(index * (values.length - 1) / (count - 1))]);
 }
 
-function normalizedScore(value, low, high) {
-  if (!Number.isFinite(value) || !Number.isFinite(low) || !Number.isFinite(high) || low === high) return 50;
-  return clamp(((value - low) / (high - low)) * 100, 0, 100);
-}
-
-function phaseFor(score) {
-  if (score < 25) return { key: "bottom", label: "Bottom", className: "phase-bottom" };
-  if (score < 50) return { key: "bearish", label: "Bearish", className: "phase-bearish" };
-  if (score < 75) return { key: "bullish", label: "Bullish", className: "phase-bullish" };
-  return { key: "top", label: "Top", className: "phase-top" };
+// Phase buckets come from the published scoring method; the defaults mirror
+// web/assets/signal-definitions.json for use before the signals have loaded.
+function phaseFor(score, phases = appState.signalState?.method?.phases || DEFAULT_SIGNAL_PHASES) {
+  const phase = phases.find((item) => item.below === null || item.below === undefined || score < item.below)
+    || phases[phases.length - 1];
+  return { key: phase.key, label: phase.label, className: `phase-${phase.key}` };
 }
 
 function phaseCounts(signals) {

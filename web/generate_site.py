@@ -56,6 +56,7 @@ from Bitcoin.bitcoin_chart_utils import (  # noqa: E402
 from Bitcoin.run_all_reports import REPORTS as BITCOIN_REPORTS  # noqa: E402
 from model_projection import apply_price_models, build_projection_frame, load_daily_fees, load_price_history  # noqa: E402
 from blockhorizon_data import import_reference_charts  # noqa: E402
+from signals_artifact import ARTIFACT_NAME as SIGNALS_ARTIFACT_NAME, write_signals_artifact  # noqa: E402
 
 
 SECTION_ORDER = [
@@ -2688,6 +2689,41 @@ def generate_stock_interactive_data(charts) -> None:
         print(f"Generated stock interactive data: {chart['id']}")
 
 
+def generate_signals_artifact(data_dir: Path = BITCOIN_SITE_DATA_DIR) -> dict | None:
+    """Publish the compact cycle-signal artifact next to the manifest.
+
+    Returns the manifest entry that identifies the artifact, or ``None`` when
+    it could not be built. The artifact itself contains no clock reading (the
+    same chart data always produces the same bytes); the manifest's
+    ``generated_at`` is the publication time and the entry's fingerprint ties
+    the two files together.
+
+    The pages fall back to scoring individual chart payloads when the artifact
+    is absent, so a failure here must not block chart publication. A stale
+    artifact is removed rather than left to describe older data.
+    """
+    try:
+        artifact = write_signals_artifact(data_dir)
+    except Exception as error:  # noqa: BLE001 - never block the chart build
+        (data_dir / SIGNALS_ARTIFACT_NAME).unlink(missing_ok=True)
+        print(f"WARNING: signal artifact was not generated; pages will score charts in the browser: {error}")
+        return None
+    composite = artifact.get("composite") or {}
+    print(
+        f"Generated signal artifact: {len(artifact['signals'])} signals, "
+        f"Cycle Index {composite.get('score')} ({composite.get('members_used')}/{composite.get('members_total')} members), "
+        f"data through {artifact['data_through']}"
+    )
+    for entry in artifact["unavailable"]:
+        print(f"WARNING: signal unavailable: {entry['id']} ({entry['reason']})")
+    return {
+        "path": f"web/data/bitcoin/{SIGNALS_ARTIFACT_NAME}",
+        "source_fingerprint": artifact["source_fingerprint"],
+        "data_through": artifact["data_through"],
+        "method_version": artifact["method"]["version"],
+    }
+
+
 def main() -> int:
     print("Generating static website data...")
     (BITCOIN_SITE_DATA_DIR / "price-prediction-ml.json").unlink(missing_ok=True)
@@ -2695,7 +2731,10 @@ def main() -> int:
     generate_interactive_data()
     reference_charts = import_reference_charts(BITCOIN_SITE_DATA_DIR, section_name)
     print(f"Generated {len(reference_charts)} imported BlockHorizon charts")
+    signals_entry = generate_signals_artifact()
     bitcoin_manifest = build_bitcoin_manifest(reference_charts)
+    # None tells the pages no artifact was published, so they do not request one.
+    bitcoin_manifest["signals"] = signals_entry
     write_json(WEB_DATA_DIR / "site-manifest.json", bitcoin_manifest)
     write_json(WEB_DATA_DIR / "bitcoin" / "site-manifest.json", bitcoin_manifest)
     print(f"Generated Bitcoin manifest with {len(bitcoin_manifest['charts'])} charts")
