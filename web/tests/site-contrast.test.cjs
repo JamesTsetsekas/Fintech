@@ -208,3 +208,115 @@ test("sidebar series colour follows the surface and never returns an invisible n
   assert.equal(dark.seriesSourceColor({ name: "n", marker: { color: "#123456" } }, 0), "#123456");
   assert.match(dark.seriesSourceColor({ name: "n" }, 1), /^#[0-9a-f]{6}$/);
 });
+
+test("every CSS named colour resolves and is adapted (full table, no DOM needed)", () => {
+  assert.deepEqual({ ...site.parseCssColor("rebeccapurple") }, { r: 102, g: 51, b: 153, a: 1 });
+  assert.deepEqual({ ...site.parseCssColor("DarkSlateGray") }, { r: 47, g: 79, b: 79, a: 1 });
+  const adapted = site.ensureContrast("darkslategray", DARK);
+  assert.notEqual(adapted, "darkslategray");
+  assert.ok(site.contrastRatio(adapted, DARK) >= MIN, adapted);
+  assert.equal(site.parseCssColor("constructor"), null);
+  assert.equal(site.parseCssColor("__proto__"), null);
+});
+
+test("hsl() accepts deg, turn, rad and grad hue units and modern space syntax", () => {
+  const red = { r: 255, g: 0, b: 0, a: 1 };
+  for (const value of ["hsl(0, 100%, 50%)", "hsl(360deg 100% 50%)", "hsl(1turn,100%,50%)", "hsl(6.283185307rad, 100%, 50%)", "hsl(400grad 100% 50%)"]) {
+    assert.deepEqual({ ...site.parseCssColor(value) }, red, value);
+  }
+  assert.deepEqual({ ...site.parseCssColor("hsl(.5turn,100%,50%)") }, { r: 0, g: 255, b: 255, a: 1 });
+  assert.equal(site.parseCssColor("hsl(10px, 50%, 50%)"), null);
+});
+
+test("browser-only colour syntax is a safe no-op without a DOM and never throws", () => {
+  for (const value of ["color(srgb 0.1 0.1 0.1)", "oklch(20% 0.02 80)", "color-mix(in srgb, red, blue)", "currentcolor", "var(--x)", "lab(10 0 0)"]) {
+    assert.equal(site.parseCssColor(value), null, value);
+    assert.equal(site.ensureContrast(value, DARK), value);
+  }
+  assert.equal(site.resolveBrowserColor("red"), null, "no document in the Node harness");
+});
+
+test("browser colour resolution works when a canvas is available, and caches results", () => {
+  const calls = [];
+  const context = {
+    window: { location: { search: "" } },
+    document: {
+      body: { dataset: {} }, documentElement: { dataset: { theme: "dark" } }, addEventListener() {},
+      createElement: () => ({
+        getContext: () => {
+          let style = "#000000";
+          return {
+            get fillStyle() { return style; },
+            set fillStyle(value) { calls.push(value); if (value === "oklch(20% 0.02 80)") style = "#2a2620"; else if (/^#/.test(value)) style = value; },
+          };
+        },
+      }),
+    },
+    URLSearchParams, Intl,
+  };
+  vm.createContext(context);
+  vm.runInContext(source, context);
+  const parsed = context.parseCssColor("oklch(20% 0.02 80)");
+  assert.deepEqual({ ...parsed }, { r: 42, g: 38, b: 32, a: 1 });
+  assert.equal(context.parseCssColor("not a colour"), null);
+  const before = calls.length;
+  context.parseCssColor("oklch(20% 0.02 80)");
+  context.parseCssColor("not a colour");
+  assert.equal(calls.length, before, "second lookups are served from the cache");
+  assert.ok(context.contrastRatio(context.ensureContrast("oklch(20% 0.02 80)", DARK), DARK) >= MIN);
+});
+
+test("adapting thousands of distinct colours stays fast", () => {
+  const adapter = site.themeColorAdapter(site.parseCssColor(LIGHT));
+  const colors = Array.from({ length: 6000 }, (_, index) => `#${((index * 2654435761) >>> 8 & 0xffffff).toString(16).padStart(6, "0")}`);
+  const started = process.hrtime.bigint();
+  colors.forEach((color) => adapter(color, "marker.color"));
+  colors.forEach((color) => adapter(color, "marker.color"));
+  const elapsed = Number(process.hrtime.bigint() - started) / 1e6;
+  assert.ok(elapsed < 1500, `6,000 distinct colours took ${elapsed.toFixed(0)} ms`);
+});
+
+test("named and explicit colour scales are adapted with the same colour-scale target", () => {
+  const surface = site.parseCssColor(LIGHT);
+  const adapter = site.themeColorAdapter(surface);
+  const stops = [[0, "#440154"], [0.5, "#21918c"], [1, "#fde725"]];
+  const explicit = site.mapSeriesColors({ marker: { color: [1, 2], colorscale: stops } }, adapter).marker.colorscale;
+  const resolvedPath = stops.map(([position, color]) => [position, adapter(color, "marker.colorscale")]);
+  assert.deepEqual(JSON.parse(JSON.stringify(explicit)), resolvedPath);
+  const asLine = adapter("#fde725", "line.color");
+  assert.notEqual(asLine, resolvedPath[2][1], "line target is stricter than the colour-scale target");
+  assert.equal(resolvedPath[2][1], site.ensureContrast("#fde725", surface, { min: 3, target: 3 }));
+  assert.ok(site.contrastRatio(resolvedPath[2][1], surface) >= 3);
+});
+
+test("effective Plotly backgrounds are composited over the DOM surface", () => {
+  const white = site.parseCssColor("#ffffff");
+  const opaque = site.effectivePlotSurface(white, { plot_bgcolor: "#111111" });
+  assert.equal(site.contrastRatio("#111111", opaque), 1);
+  assert.deepEqual({ ...opaque }, { r: 17, g: 17, b: 17, a: 1 });
+  const paperThenPlot = site.effectivePlotSurface(white, { paper_bgcolor: "#010101" }, { plot_bgcolor: "rgba(255,255,255,0.5)" });
+  assert.deepEqual({ ...paperThenPlot }, { r: 128, g: 128, b: 128, a: 1 });
+  assert.deepEqual({ ...site.effectivePlotSurface(white, { plot_bgcolor: "rgba(0,0,0,0)", paper_bgcolor: "transparent" }) }, { ...white });
+  assert.deepEqual({ ...site.effectivePlotSurface(white, { plot_bgcolor: "not-a-colour" }) }, { ...white });
+  assert.deepEqual({ ...site.effectivePlotSurface(white) }, { ...white });
+  const lightened = site.ensureContrast("#111111", opaque);
+  assert.ok(site.contrastRatio(lightened, opaque) >= MIN, lightened);
+});
+
+test("sidebar dot, legend and trace agree for marker-only and line series", () => {
+  const surface = site.parseCssColor(LIGHT);
+  const adapter = site.themeColorAdapter(surface);
+  for (const series of [
+    { name: "markers", mode: "markers", marker: { color: "#ffff54" } },
+    { name: "line", mode: "lines", line: { color: "#ffff54" } },
+    { name: "both", mode: "lines+markers", line: { color: "#ffff54" }, marker: { color: "#00ffff" } },
+  ]) {
+    const trace = site.mapSeriesColors(series, adapter);
+    const traceColor = trace.line?.color || trace.marker.color;
+    assert.equal(site.seriesColor(series, 0, surface), traceColor, series.name);
+  }
+  const markerOnly = site.seriesColor({ marker: { color: "#ffff54" } }, 0, surface);
+  assert.equal(markerOnly, site.ensureContrast("#ffff54", surface, { target: MIN }));
+  assert.equal(site.seriesColorPath({ marker: { color: "#fff" } }), "marker.color");
+  assert.equal(site.seriesColorPath({ line: { color: "#fff" }, marker: { color: "#000" } }), "line.color");
+});

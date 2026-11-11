@@ -121,7 +121,68 @@ const payload = {
     assert.ok(state.traces[0].lineRatio >= state.minimum);
     assert.equal(await mutated(), false, "source payload never mutated across theme changes");
     assert.deepEqual(errors, []);
-    console.log("PASS: dark-theme series, legend swatches, shapes and sidebar dots meet contrast; light theme keeps near-blacks; live toggle never mutates the payload.");
+    // Review follow-ups: explicit Plotly backgrounds, browser-resolved colour syntax,
+    // named vs explicit colour scales, and marker-only series agreeing with their dots.
+    const xs = ["2020-01-01", "2021-01-01", "2022-01-01"];
+    const drawn = (theme, series, layout = {}) => page.evaluate(async ({ theme, series, layout }) => {
+      document.documentElement.dataset.theme = theme;
+      document.dispatchEvent(new CustomEvent("fintech-theme-change"));
+      const plot = document.querySelector("#plot");
+      await renderPlot(plot, { x_value_type: "date", series, layout }, {});
+      const surface = effectivePlotSurface(plotSurfaceColor(plot), layout);
+      const ratio = (color) => contrastRatio(parseCssColor(color), surface);
+      return {
+        lines: plot._fullData.map((trace) => trace.line?.color),
+        markers: plot._fullData.map((trace) => trace.marker?.color),
+        scales: plot._fullData.map((trace) => trace.marker?.colorscale),
+        legendFills: [...plot.querySelectorAll(".legend .legendpoints path.scatterpts")].map((node) => getComputedStyle(node).fill),
+        dots: series.map((item, index) => seriesColor(item, index, surface)),
+        minimum: MIN_SERIES_CONTRAST,
+        ratios: plot._fullData.map((trace) => trace.line?.color ? ratio(trace.line.color) : null),
+      };
+    }, { theme, series, layout });
+
+    // 1. A white container with an explicit dark plot background: contrast is judged against the plot colour.
+    for (const theme of ["light", "dark"]) {
+      const result = await drawn(theme, [{ type: "scatter", mode: "lines", name: "ink", x: xs, y: [1, 2, 3], line: { color: "#111111", width: 2 } }],
+        { plot_bgcolor: "#111111", paper_bgcolor: "#ffffff" });
+      assert.ok(result.ratios[0] >= result.minimum, `#111111 line on a #111111 plot (${theme}) is ${result.ratios[0]}:1`);
+    }
+    const translucent = await drawn("light", [{ type: "scatter", mode: "lines", name: "ink", x: xs, y: [1, 2, 3], line: { color: "#111111", width: 2 } }],
+      { plot_bgcolor: "rgba(17,17,17,0.9)", paper_bgcolor: "#ffffff" });
+    assert.ok(translucent.ratios[0] >= translucent.minimum, "translucent plot backgrounds are composited before adapting");
+
+    // 2. Valid CSS syntax the fast parser does not know is resolved by the browser.
+    const exotic = await drawn("dark", ["darkslategray", "rebeccapurple", "hsl(.5turn,100%,5%)", "color(srgb 0.1 0.1 0.1)", "oklch(20% 0.02 80)"].map((color, index) => (
+      { type: "scatter", mode: "lines", name: `c${index}`, x: xs, y: [1, 2, 3], line: { color, width: 2 } })));
+    exotic.ratios.forEach((value, index) => assert.ok(value >= exotic.minimum, `exotic colour ${index} is ${value}:1 on dark`));
+
+    // 3. A named colour scale and its explicit equivalent adapt identically.
+    const rawStops = await page.evaluate(async () => {
+      const scratch = document.createElement("div");
+      document.body.appendChild(scratch);
+      await Plotly.newPlot(scratch, [{ type: "scatter", mode: "markers", x: [1, 2], y: [1, 2], marker: { color: [0, 1], colorscale: "Viridis" } }]);
+      const stops = scratch._fullData[0].marker.colorscale.map(([at, color]) => [at, color]);
+      Plotly.purge(scratch);
+      scratch.remove();
+      return stops;
+    });
+    const point = (marker) => ({ type: "scatter", mode: "markers", name: "ramp", x: xs, y: [1, 2, 3], marker: { color: [0, 0.5, 1], size: 8, ...marker } });
+    for (const theme of ["light", "dark"]) {
+      const named = await drawn(theme, [point({ colorscale: "Viridis" })]);
+      const explicit = await drawn(theme, [point({ colorscale: rawStops })]);
+      const normal = (scale) => page.evaluate((stops) => stops.map(([at, color]) => [at, formatCssColor(parseCssColor(color))]), scale);
+      assert.deepEqual(await normal(named.scales[0]), await normal(explicit.scales[0]), `named and explicit Viridis adapt identically (${theme})`);
+    }
+
+    // 4. Marker-only series: sidebar dot, trace colour and legend swatch all agree.
+    for (const theme of ["light", "dark"]) {
+      const result = await drawn(theme, [{ type: "scatter", mode: "markers", name: "dots", x: xs, y: [1, 2, 3], marker: { color: "#ffff54", size: 10 } }]);
+      assert.equal(result.dots[0], result.markers[0], `dot equals trace marker colour (${theme})`);
+      assert.equal(result.legendFills[0].replace(/\s/g, ""), cssRgb(result.markers[0]).replace(/\s/g, ""), `legend swatch equals trace marker colour (${theme})`);
+    }
+
+    console.log("PASS: dark-theme series, legend swatches, shapes and sidebar dots meet contrast; light theme keeps near-blacks; live toggle never mutates the payload; explicit plot backgrounds, browser-resolved colours, named colour scales and marker-only dots agree.");
   } finally {
     await browser.close();
   }

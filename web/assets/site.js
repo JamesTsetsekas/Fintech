@@ -1100,7 +1100,7 @@ function renderChartDetails(payload) {
     const value = seriesLatestValue(series, anchor);
     return `
       <div class="series-row" data-series-index="${index}">
-        <span class="series-dot" data-source-color="${escapeHtml(seriesSourceColor(series, index))}" style="background:${escapeHtml(seriesColor(series, index, plotSurfaceColor(seriesList)))}"></span>
+        <span class="series-dot" data-source-color="${escapeHtml(seriesSourceColor(series, index))}" data-source-path="${seriesColorPath(series)}" style="background:${escapeHtml(seriesColor(series, index, plotSurfaceColor(seriesList)))}"></span>
         <span class="series-name" title="${escapeHtml(series.name)}">${escapeHtml(series.name)}</span>
         <strong class="series-value">${escapeHtml(seriesDisplayValue(series, value))}</strong>
       </div>
@@ -1814,25 +1814,51 @@ function safeCssColor(value, fallback) {
 // weaker than the ratio suggests (the 3.1:1 grey 200WMA looked faint).
 const MIN_SERIES_CONTRAST = 3.5;
 const TARGET_SERIES_CONTRAST = 4.5;
+// Continuous colour scales (value ramps) are held to the bare WCAG 3:1 so their
+// pale end is not turned into a different, brown palette.
+const SCALE_SERIES_CONTRAST = 3;
 // Translucent colours (area fills, candle bodies, value bands) are washes: they
 // are meant to be faint and are drawn with an opaque outline, so they are left alone.
 const DECORATIVE_ALPHA = 0.6;
 const THEME_SURFACES = { dark: "#181816", light: "#fffefa" };
-const NAMED_COLORS = {
-  black: "#000000", white: "#ffffff", red: "#ff0000", green: "#008000", blue: "#0000ff", yellow: "#ffff00",
-  orange: "#ffa500", purple: "#800080", pink: "#ffc0cb", gray: "#808080", grey: "#808080", silver: "#c0c0c0",
-  navy: "#000080", teal: "#008080", maroon: "#800000", olive: "#808000", lime: "#00ff00", aqua: "#00ffff",
-  cyan: "#00ffff", magenta: "#ff00ff", fuchsia: "#ff00ff", brown: "#a52a2a", gold: "#ffd700", indigo: "#4b0082",
-  violet: "#ee82ee", crimson: "#dc143c", coral: "#ff7f50", salmon: "#fa8072", khaki: "#f0e68c", tan: "#d2b48c",
-  darkgray: "#a9a9a9", darkgrey: "#a9a9a9", dimgray: "#696969", dimgrey: "#696969", lightgray: "#d3d3d3",
-  lightgrey: "#d3d3d3", slategray: "#708090", slategrey: "#708090", darkblue: "#00008b", darkgreen: "#006400",
-  darkred: "#8b0000", lightblue: "#add8e6", lightgreen: "#90ee90", skyblue: "#87ceeb", royalblue: "#4169e1",
-};
+// CSS named colours (the no-DOM path; the browser's own parser covers newer syntax).
+const NAMED_COLORS = Object.assign(Object.create(null), Object.fromEntries("aliceblue f0f8ff,antiquewhite faebd7,aqua 00ffff,aquamarine 7fffd4,azure f0ffff,beige f5f5dc,bisque ffe4c4,black 000000,blanchedalmond ffebcd,blue 0000ff,blueviolet 8a2be2,brown a52a2a,burlywood deb887,cadetblue 5f9ea0,chartreuse 7fff00,chocolate d2691e,coral ff7f50,cornflowerblue 6495ed,cornsilk fff8dc,crimson dc143c,cyan 00ffff,darkblue 00008b,darkcyan 008b8b,darkgoldenrod b8860b,darkgray a9a9a9,darkgreen 006400,darkgrey a9a9a9,darkkhaki bdb76b,darkmagenta 8b008b,darkolivegreen 556b2f,darkorange ff8c00,darkorchid 9932cc,darkred 8b0000,darksalmon e9967a,darkseagreen 8fbc8f,darkslateblue 483d8b,darkslategray 2f4f4f,darkslategrey 2f4f4f,darkturquoise 00ced1,darkviolet 9400d3,deeppink ff1493,deepskyblue 00bfff,dimgray 696969,dimgrey 696969,dodgerblue 1e90ff,firebrick b22222,floralwhite fffaf0,forestgreen 228b22,fuchsia ff00ff,gainsboro dcdcdc,ghostwhite f8f8ff,gold ffd700,goldenrod daa520,gray 808080,green 008000,greenyellow adff2f,grey 808080,honeydew f0fff0,hotpink ff69b4,indianred cd5c5c,indigo 4b0082,ivory fffff0,khaki f0e68c,lavender e6e6fa,lavenderblush fff0f5,lawngreen 7cfc00,lemonchiffon fffacd,lightblue add8e6,lightcoral f08080,lightcyan e0ffff,lightgoldenrodyellow fafad2,lightgray d3d3d3,lightgreen 90ee90,lightgrey d3d3d3,lightpink ffb6c1,lightsalmon ffa07a,lightseagreen 20b2aa,lightskyblue 87cefa,lightslategray 778899,lightslategrey 778899,lightsteelblue b0c4de,lightyellow ffffe0,lime 00ff00,limegreen 32cd32,linen faf0e6,magenta ff00ff,maroon 800000,mediumaquamarine 66cdaa,mediumblue 0000cd,mediumorchid ba55d3,mediumpurple 9370db,mediumseagreen 3cb371,mediumslateblue 7b68ee,mediumspringgreen 00fa9a,mediumturquoise 48d1cc,mediumvioletred c71585,midnightblue 191970,mintcream f5fffa,mistyrose ffe4e1,moccasin ffe4b5,navajowhite ffdead,navy 000080,oldlace fdf5e6,olive 808000,olivedrab 6b8e23,orange ffa500,orangered ff4500,orchid da70d6,palegoldenrod eee8aa,palegreen 98fb98,paleturquoise afeeee,palevioletred db7093,papayawhip ffefd5,peachpuff ffdab9,peru cd853f,pink ffc0cb,plum dda0dd,powderblue b0e0e6,purple 800080,rebeccapurple 663399,red ff0000,rosybrown bc8f8f,royalblue 4169e1,saddlebrown 8b4513,salmon fa8072,sandybrown f4a460,seagreen 2e8b57,seashell fff5ee,sienna a0522d,silver c0c0c0,skyblue 87ceeb,slateblue 6a5acd,slategray 708090,slategrey 708090,snow fffafa,springgreen 00ff7f,steelblue 4682b4,tan d2b48c,teal 008080,thistle d8bfd8,tomato ff6347,turquoise 40e0d0,violet ee82ee,wheat f5deb3,white ffffff,whitesmoke f5f5f5,yellow ffff00,yellowgreen 9acd32".split(",").map((entry) => {
+  const [name, hex] = entry.split(" ");
+  return [name, `#${hex}`];
+})));
+const HUE_UNITS = { "": 1, deg: 1, grad: 0.9, rad: 180 / Math.PI, turn: 360 };
+
+// Normalises syntax the fast parser does not know (color(), lab(), oklch(),
+// color-mix(), ...) with the browser's canvas colour parser. Two different
+// sentinels tell "invalid" (the assignment is ignored) from a real colour, and a
+// one-pixel read-back converts any accepted colour to sRGB.
+// Returns null when there is no DOM or the colour is invalid; never throws.
+function resolveBrowserColor(text) {
+  try {
+    if (typeof document === "undefined" || typeof document.createElement !== "function") return null;
+    resolveBrowserColor.context ||= document.createElement("canvas").getContext("2d", { willReadFrequently: true });
+    const context = resolveBrowserColor.context;
+    if (!context) return null;
+    context.fillStyle = "#010203";
+    context.fillStyle = text;
+    const first = String(context.fillStyle);
+    context.fillStyle = "#040506";
+    context.fillStyle = text;
+    if (first !== String(context.fillStyle)) return null;
+    if (typeof context.getImageData !== "function") return first;
+    context.clearRect(0, 0, 1, 1);
+    context.fillRect(0, 0, 1, 1);
+    const [r, g, b, a] = context.getImageData(0, 0, 1, 1).data;
+    return a === 255 ? `rgb(${r},${g},${b})` : `rgba(${r},${g},${b},${Math.round(a / 255 * 1000) / 1000})`;
+  } catch (error) {
+    return null;
+  }
+}
 
 function parseCssColor(value) {
   if (typeof value !== "string") return null;
   const text = value.trim().toLowerCase();
-  if (!text) return null;
+  if (!text || text.length > 200) return null;
   if (text === "transparent") return { r: 0, g: 0, b: 0, a: 0 };
   if (NAMED_COLORS[text]) return parseCssColor(NAMED_COLORS[text]);
   const hex = text.match(/^#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/);
@@ -1841,13 +1867,31 @@ function parseCssColor(value) {
     const channels = digits.match(/../g).map((pair) => parseInt(pair, 16));
     return { r: channels[0], g: channels[1], b: channels[2], a: channels.length === 4 ? channels[3] / 255 : 1 };
   }
+  return parseFunctionalColor(text) || parseResolvedColor(text);
+}
+
+// Anything the fast parser rejects goes through the browser once and is cached.
+const resolvedColorCache = new Map();
+function parseResolvedColor(text) {
+  if (!resolvedColorCache.has(text)) {
+    resolvedColorCache.set(text, null);
+    const resolved = /currentcolor|var\(/.test(text) ? null : resolveBrowserColor(text);
+    const parsed = resolved && resolved.toLowerCase() !== text ? parseCssColor(resolved) : null;
+    if (resolvedColorCache.size > 2000) resolvedColorCache.clear();
+    resolvedColorCache.set(text, parsed);
+  }
+  const cached = resolvedColorCache.get(text);
+  return cached && { ...cached };
+}
+
+function parseFunctionalColor(text) {
   const functional = text.match(/^(rgba?|hsla?)\(\s*([^)]*?)\s*\)$/);
   if (!functional) return null;
   const parts = functional[2].split(/\s*[,/]\s*|\s+/).filter(Boolean);
   if (parts.length < 3 || parts.length > 4) return null;
   const number = (part, scale = 1) => {
     const percent = part.endsWith("%");
-    const parsed = Number(percent ? part.slice(0, -1) : part.replace(/deg$/, ""));
+    const parsed = Number(percent ? part.slice(0, -1) : part);
     return Number.isFinite(parsed) ? (percent ? parsed / 100 * scale : parsed) : NaN;
   };
   const alpha = parts.length === 4 ? clamp(number(parts[3], 1), 0, 1) : 1;
@@ -1856,10 +1900,11 @@ function parseCssColor(value) {
     const channels = parts.slice(0, 3).map((part) => clamp(Math.round(number(part, 255)), 0, 255));
     return channels.every(Number.isFinite) ? { r: channels[0], g: channels[1], b: channels[2], a: alpha } : null;
   }
-  const hue = number(parts[0]);
+  const hueMatch = parts[0].match(/^([+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?)(deg|grad|rad|turn)?$/);
   const saturation = number(parts[1], 1);
   const lightness = number(parts[2], 1);
-  if (![hue, saturation, lightness].every(Number.isFinite)) return null;
+  if (!hueMatch || ![saturation, lightness].every(Number.isFinite)) return null;
+  const hue = Number(hueMatch[1]) * HUE_UNITS[hueMatch[2] || ""];
   const [r, g, b] = hslToRgb(((hue % 360) + 360) % 360, clamp(saturation, 0, 1), clamp(lightness, 0, 1));
   return { r, g, b, a: alpha };
 }
@@ -2010,19 +2055,38 @@ function plotSurfaceColor(element) {
   return parseCssColor(THEME_SURFACES[document.documentElement?.dataset?.theme === "dark" ? "dark" : "light"]);
 }
 
+// Colour behind the traces: the DOM surface with the Plotly paper and plot
+// backgrounds (payload or caller layout, later wins) composited on top.
+function effectivePlotSurface(domSurface, ...layouts) {
+  let paper;
+  let plot;
+  layouts.forEach((layout) => {
+    if (layout?.paper_bgcolor !== undefined) paper = layout.paper_bgcolor;
+    if (layout?.plot_bgcolor !== undefined) plot = layout.plot_bgcolor;
+  });
+  return [paper, plot].reduce((surface, background) => {
+    const parsed = parseCssColor(themePaletteColor(background));
+    if (!parsed || parsed.a <= 0) return surface;
+    return parsed.a < 1 ? blendOver(parsed, surface) : { ...parsed, a: 1 };
+  }, domSurface);
+}
+
+// Marker colours often encode a value, so they are lifted only to the minimum
+// ratio, and colour-scale stops only to the WCAG floor; lines and text go to the
+// more comfortable target.
+function seriesContrastOptions(at) {
+  if (at === "marker.colorscale") return { min: SCALE_SERIES_CONTRAST, target: SCALE_SERIES_CONTRAST };
+  return at.startsWith("marker") ? { target: MIN_SERIES_CONTRAST } : {};
+}
+
 // Per-render colour function: palette remap, then contrast against `surface`.
 // Memoised because per-point marker arrays repeat a handful of colours.
-// Marker colours often encode a value on a colour ramp, so they are lifted only
-// to the minimum ratio; lines and text go to the more comfortable target.
 function themeColorAdapter(surface) {
   const cache = new Map();
   return (color, at = "") => {
     if (typeof color !== "string") return color;
-    const ramp = at.startsWith("marker");
-    const key = `${ramp ? "m" : "s"}${color}`;
-    if (!cache.has(key)) {
-      cache.set(key, ensureContrast(themePaletteColor(color), surface, ramp ? { target: MIN_SERIES_CONTRAST } : {}));
-    }
+    const key = `${at.startsWith("marker") ? at : "s"}|${color}`;
+    if (!cache.has(key)) cache.set(key, ensureContrast(themePaletteColor(color), surface, seriesContrastOptions(at)));
     return cache.get(key);
   };
 }
@@ -2032,15 +2096,22 @@ function seriesSourceColor(series, index) {
   return safeCssColor(color, SERIES_PALETTE[Math.abs(Number(index) || 0) % SERIES_PALETTE.length]);
 }
 
+// A series is drawn from its line colour when it has one, else its marker colour;
+// the sidebar dot and legend use the same colour *and* the same adaptation path
+// as the trace so they can never disagree.
+function seriesColorPath(series) {
+  return series?.line?.color ? "line.color" : "marker.color";
+}
+
 function seriesColor(series, index, surface) {
-  return ensureContrast(themePaletteColor(seriesSourceColor(series, index)), surface || plotSurfaceColor());
+  return themeColorAdapter(surface || plotSurfaceColor())(seriesSourceColor(series, index), seriesColorPath(series));
 }
 
 // Series dots keep their source colour so a theme toggle can recolour them
 // without re-rendering the sidebar.
 function refreshSeriesDots() {
   document.querySelectorAll?.(".series-dot[data-source-color]").forEach((dot) => {
-    dot.style.background = ensureContrast(themePaletteColor(dot.dataset.sourceColor), plotSurfaceColor(dot.parentElement));
+    dot.style.background = themeColorAdapter(plotSurfaceColor(dot.parentElement))(dot.dataset.sourceColor, dot.dataset.sourcePath || "line.color");
   });
 }
 document.addEventListener("fintech-theme-change", refreshSeriesDots);
@@ -3409,7 +3480,7 @@ async function renderPlot(target, payload, options = {}) {
   await cleanupChartInteractions(target);
   if (target._fintechRenderId !== renderId) return;
   const dark = document.documentElement.dataset.theme === "dark";
-  const surface = plotSurfaceColor(target);
+  const surface = effectivePlotSurface(plotSurfaceColor(target), chartDisplayLayout(payload, options), options.layout);
   const themeColor = themeColorAdapter(surface);
   const lightSequentialScale = [
     [0, "#f7f5f0"],
@@ -3579,7 +3650,7 @@ async function adaptNamedColorscales(target, themeColor) {
   (target._fullData || []).forEach((full) => {
     const resolved = full.marker?.colorscale;
     if (typeof target.data?.[full.index]?.marker?.colorscale !== "string" || !Array.isArray(resolved)) return;
-    const adapted = resolved.map(([position, color]) => [position, themeColor(color)]);
+    const adapted = resolved.map(([position, color]) => [position, themeColor(color, "marker.colorscale")]);
     if (adapted.some(([, color], index) => color !== resolved[index][1])) updates.push([full.index, adapted]);
   });
   for (const [index, scale] of updates) await Plotly.restyle(target, { "marker.colorscale": [scale] }, [index]);
