@@ -41,3 +41,6 @@ node_modules/
 # OS
 .DS_Store
 Thumbs.db
+
+# Local successful Bitcoin generation state
+Bitcoin/.successful_generation

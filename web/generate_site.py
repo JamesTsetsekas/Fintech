@@ -2033,7 +2033,7 @@ def build_miner_hashprice():
     data = data[data["Price"] > 0].copy()
     data = data.dropna(subset=["Estimated_Hashrate_EH_S", "Miner_Revenue_USD"])
     data = data[data["Estimated_Hashrate_EH_S"] > 0].copy()
-    data["Hashprice_USD_PH_Day"] = data["Miner_Revenue_USD"] / (data["Estimated_Hashrate_EH_S"] * 1_000_000)
+    data["Hashprice_USD_PH_Day"] = data["Miner_Revenue_USD"] / (data["Estimated_Hashrate_EH_S"] * 1_000)
     data["Hashprice_30D"] = data["Hashprice_USD_PH_Day"].rolling(30, min_periods=10).mean()
     data = data.dropna(subset=["Hashprice_USD_PH_Day", "Hashprice_30D"])
     latest = data.iloc[-1]

@@ -1,0 +1,31 @@
+name: Regression tests
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install calculation test dependencies
+        run: python -m pip install numpy pandas
+      - name: Importer and generator regressions
+        run: python -m unittest discover -s web -p 'test_*.py'
+      - name: Report runner regressions
+        run: python -m unittest discover -s Bitcoin -p 'test_*.py'
+      - name: Price model regressions
+        run: python -m unittest discover -s Bitcoin/model_price_prediction -p 'test_*.py'
+      - name: Browser logic regressions
+        working-directory: web
+        run: node --test tests/*.test.cjs

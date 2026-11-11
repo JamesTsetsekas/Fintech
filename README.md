@@ -23,9 +23,13 @@ BlockHorizon's three cost-basis distribution/replay views are deferred: their pr
 
 Preview the site locally from the repository root with `python3 -m http.server 8000`, then open `http://127.0.0.1:8000/`.
 
-The cron runner checks the upstream Bitcoin CSVs hourly, regenerates native reports only when those files change, and builds the static dashboard data. To keep GitHub Actions artifact storage within the free-tier allowance, it only force-publishes the latest-only `gh-pages` branch at 00:00, 06:00, 12:00, and 18:00 UTC. Conditional HTTP requests keep unchanged large CSVs off the wire. Stock reports and the experimental ML classifier are intentionally excluded from the scheduled Raspberry Pi path; their source remains available for manual runs. This keeps chart output available on GitHub Pages without committing every hourly chart refresh to `main`.
+The cron runner checks the upstream Bitcoin CSVs hourly, regenerates native reports when inputs or code change, outputs are missing, or the previous generation did not complete successfully, and builds the static dashboard data. To keep GitHub Actions artifact storage within the free-tier allowance, it only force-publishes the latest-only `gh-pages` branch at 00:00, 06:00, 12:00, and 18:00 UTC. Conditional HTTP requests keep unchanged large CSVs off the wire. Stock reports and the experimental ML classifier are intentionally excluded from the scheduled Raspberry Pi path; their source remains available for manual runs. This keeps chart output available on GitHub Pages without committing every hourly chart refresh to `main`.
+
+Bitcoin report retries use a local `Bitcoin/.successful_generation` content fingerprint (source CSVs, Python code, and scheduled report selection). It is replaced atomically only after every scheduled report succeeds and expected outputs exist. Failed, interrupted, `--only`, and `--skip-update` runs cannot mark scheduled outputs current; manual generation invalidates prior success. Deleting the marker forces regeneration on the next scheduled run. The derived block metrics cache is excluded from the fingerprint.
 
 ### Dashboard regression checks
+
+GitHub Actions runs the Python calculation/importer/report-runner suites and Node logic checks on pushes and pull requests. Locally, run `python -m unittest discover -s web -p "test_*.py"`, `python -m unittest Bitcoin.test_run_all_reports`, and `python -m unittest discover -s Bitcoin/model_price_prediction -p "test_*.py"` (calculation tests require NumPy and pandas).
 
 Run importer tests from the repository root with `python -m unittest web.test_blockhorizon_data`. Set `FINTECH_LIVE_TESTS=1` to also verify the complete reviewed catalog against the current upstream bundle; the default tests use local fixtures.
 

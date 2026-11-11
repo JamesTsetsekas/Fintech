@@ -9,6 +9,9 @@ Before running reports, it updates the data files from the GitHub repository.
 """
 
 import argparse
+import hashlib
+import json
+import tempfile
 import os
 import subprocess
 import sys
@@ -267,6 +270,47 @@ def scheduled_reports():
     return [report for report in REPORTS if report["name"] not in EXPENSIVE_REPORT_NAMES]
 
 
+
+def generation_fingerprint(reports):
+    """Hash source contents and code, independently of updater download state."""
+    digest = hashlib.sha256()
+    selection = [(str(r['path'].relative_to(script_dir)), r['output']) for r in reports]
+    digest.update(json.dumps(selection).encode())
+    data_dir = script_dir / 'data' / 'bitcoin_csv_data'
+    # The metrics cache is derived during report generation, not a source input.
+    inputs = [p for p in data_dir.glob('*.csv')
+              if p.name != 'daily_block_metrics_cache.csv']
+    inputs += [p for p in script_dir.rglob('*.py')
+               if not p.name.startswith('test_') and '__pycache__' not in p.parts]
+    for path in sorted(inputs):
+        digest.update(str(path.relative_to(script_dir)).encode())
+        digest.update(b'\0')
+        with path.open('rb') as source:
+            for chunk in iter(lambda: source.read(1024 * 1024), b''):
+                digest.update(chunk)
+        digest.update(b'\0')
+    return digest.hexdigest()
+
+
+def outputs_exist(reports):
+    return all((r['path'].parent / r['output']).is_file() and
+               (r['path'].parent / r['output']).stat().st_size > 0 for r in reports)
+
+
+def write_generation_marker(marker, fingerprint):
+    """Replace the marker atomically only after the entire generation succeeds."""
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(mode='w', dir=marker.parent,
+                                         delete=False, encoding='utf-8') as target:
+            temporary = Path(target.name)
+            target.write(fingerprint + '\n')
+        os.replace(temporary, marker)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+
+
 def parse_args():
     """Parse runner options."""
     parser = argparse.ArgumentParser(description="Run Bitcoin chart reports.")
@@ -463,9 +507,21 @@ def main():
             print("\n[FAILED] Bitcoin source data refresh did not complete; refusing to publish stale data.")
             sys.exit(1)
 
-    if data_changed is False and not args.only and os.getenv("FINTECH_ENABLE_ML") != "1":
-        print("\n[OK] Bitcoin source files are unchanged; skipping native report regeneration.")
+    marker = script_dir / '.successful_generation'
+    scheduled = not args.only and not args.skip_update
+    fingerprint = generation_fingerprint(selected_reports) if scheduled else None
+    try:
+        previous = marker.read_text(encoding='utf-8').strip()
+    except (OSError, UnicodeError):
+        previous = None
+    if (scheduled and data_changed is False and previous == fingerprint
+            and outputs_exist(selected_reports)):
+        print("\n[OK] Successful reports match current inputs; skipping native report regeneration.")
         sys.exit(0)
+
+    # Even manual runs can overwrite scheduled outputs. Invalidate before work
+    # so failure, interruption, or a partial selection cannot bless those files.
+    marker.unlink(missing_ok=True)
     
     # Track results
     results = {
@@ -505,6 +561,15 @@ def main():
             print(f"  [FAILED] {name}")
         sys.exit(1)
     
+    if scheduled:
+        if not outputs_exist(selected_reports):
+            print("\n[FAILED] Expected report outputs are missing or empty.")
+            sys.exit(1)
+        if generation_fingerprint(selected_reports) != fingerprint:
+            print("\n[FAILED] Report inputs changed during generation; retry required.")
+            sys.exit(1)
+        write_generation_marker(marker, fingerprint)
+
     print("\nAll reports completed successfully!")
     sys.exit(0)
 
