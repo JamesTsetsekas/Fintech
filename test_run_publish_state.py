@@ -81,6 +81,32 @@ class PublishPendingTests(unittest.TestCase):
         self.assertTrue(runner.publish_is_due('abc'))
         self.assertIsNone(runner.last_published_fingerprint())
 
+    def test_non_utf8_state_is_treated_as_corrupt_and_repaired(self):
+        runner.PUBLISH_STATE_PATH.parent.mkdir(parents=True)
+        runner.PUBLISH_STATE_PATH.write_bytes(b'\xff\xfe\x00{"fingerprint": "x"}\x80')
+        self.assertTrue(runner.publish_is_due('abc'))
+        self.assertIsNone(runner.last_published_fingerprint())
+        runner.mark_publish_pending('abc')  # must not raise; rewrites a valid file
+        self.assertTrue(runner._load_publish_state()['pending'])
+
+    def test_run_killed_mid_publish_is_retried(self):
+        runner.remember_published_fingerprint('fp', 'gh-pages', 'abc')
+        self.assertFalse(runner.publish_is_due('abc'))
+
+        class Killed(BaseException):
+            pass
+
+        with patch.object(runner, 'REPORT_RUNNERS', []),                 patch.object(runner, 'git_pull', return_value=True),                 patch.object(runner, 'install_requirements_if_needed', return_value=True),                 patch.object(runner, 'get_head_sha', return_value='abc'),                 patch.object(runner, 'run_site_generator', side_effect=Killed),                 self.assertRaises(Killed):
+            runner.main(publish=True)
+        self.assertTrue(runner.publish_is_due('abc'))
+
+    def test_skip_publish_runs_do_not_mark_pending(self):
+        runner.remember_published_fingerprint('fp', 'gh-pages', 'abc')
+
+        with patch.object(runner, 'REPORT_RUNNERS', []),                 patch.object(runner, 'git_pull', return_value=True),                 patch.object(runner, 'install_requirements_if_needed', return_value=True),                 patch.object(runner, 'get_head_sha', return_value='abc'),                 patch.object(runner, 'run_site_generator', return_value=True),                 self.assertRaises(SystemExit):
+            runner.main(publish=False)
+        self.assertFalse(runner.publish_is_due('abc'))
+
     def test_unknown_head_does_not_force_publish(self):
         runner.remember_published_fingerprint('fp', 'gh-pages', 'abc')
         with patch.object(runner, 'get_head_sha', return_value=None):

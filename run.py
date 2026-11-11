@@ -215,7 +215,8 @@ def static_site_fingerprint(site_dir: Path, branch: str = "") -> str:
 def _load_publish_state() -> dict:
     try:
         payload = json.loads(PUBLISH_STATE_PATH.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+    except (OSError, ValueError):
+        # ValueError covers JSONDecodeError and UnicodeDecodeError (corrupt state file).
         return {}
     return payload if isinstance(payload, dict) else {}
 
@@ -955,6 +956,12 @@ def main(publish: bool = True):
     print("Stock reports and the experimental ML report are excluded from scheduled runs.")
     print("Individual runners will show detailed progress for each report.\n")
 
+    # Persist the pending marker up front so a run that is killed mid-publish
+    # (power loss, OOM, SIGKILL) is retried on the next hourly run. It is cleared
+    # by remember_published_fingerprint() on a confirmed publish or unchanged skip.
+    if publish:
+        mark_publish_pending(get_head_sha())
+
     # Pull latest changes from GitHub
     pull_success = git_pull()
     if not pull_success:
@@ -1049,6 +1056,7 @@ if __name__ == '__main__':
         # Exit 0 when a publish is due (never published, last attempt failed, or HEAD moved).
         sys.exit(0 if publish_is_due() else 1)
     if '--publish-only' in sys.argv:
+        mark_publish_pending(get_head_sha())
         published = publish_static_site()
         if not published:
             mark_publish_pending(get_head_sha())

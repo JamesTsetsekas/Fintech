@@ -238,6 +238,11 @@ SOURCE_LOG_SCALE_OVERRIDES = {"pb-s2f"}
 BUNDLE_CACHE_PATH = Path(__file__).resolve().parent.parent / "logs" / "blockhorizon-bundle-cache.json"
 
 
+def _is_valid_bundle(bundle) -> bool:
+    """A bundle is a non-empty list of chart objects; anything else is unusable."""
+    return isinstance(bundle, list) and bool(bundle) and all(isinstance(chart, dict) for chart in bundle)
+
+
 def _read_bundle_cache(path: Path) -> dict | None:
     try:
         cached = json.loads(path.read_text(encoding="utf-8"))
@@ -246,7 +251,7 @@ def _read_bundle_cache(path: Path) -> dict | None:
     if (
         isinstance(cached, dict)
         and isinstance(cached.get("etag"), str) and cached["etag"]
-        and isinstance(cached.get("bundle"), list)
+        and _is_valid_bundle(cached.get("bundle"))
     ):
         return cached
     return None
@@ -284,7 +289,7 @@ def _fetch_bundle(timeout: int = 90, cache_path: Path | None = None) -> tuple[li
         if error.code == 304 and cached:
             return cached["bundle"], cached.get("built_at")
         raise
-    if not isinstance(payload, list):
+    if not _is_valid_bundle(payload):
         raise ValueError("BlockHorizon chart bundle did not contain a chart list")
     if etag:
         _write_bundle_cache(cache_path, etag, built_at, payload)

@@ -140,11 +140,34 @@ class BundleCacheTests(unittest.TestCase):
 
         def fake(request, timeout):
             seen.append(request.get_header("If-none-match"))
-            return FakeResponse([], {})
+            return FakeResponse([{"slug": "a"}], {})
 
         with patch.object(data, "urlopen", side_effect=fake):
             data._fetch_bundle(cache_path=self.cache)
         self.assertEqual(seen, [None])
+
+    def test_structurally_invalid_cache_is_not_trusted_on_304(self):
+        for bundle in ([None], [], ["x"], {"a": 1}):
+            with self.subTest(bundle=bundle):
+                self.cache.parent.mkdir(parents=True, exist_ok=True)
+                self.cache.write_text(json.dumps({"etag": '"v1"', "built_at": None, "bundle": bundle}))
+                seen = []
+
+                def fake(request, timeout):
+                    seen.append(request.get_header("If-none-match"))
+                    return FakeResponse([{"slug": "fresh"}], {"ETag": '"v2"'})
+
+                with patch.object(data, "urlopen", side_effect=fake):
+                    result, _ = data._fetch_bundle(cache_path=self.cache)
+                self.assertEqual(seen, [None])  # unconditional refetch, no If-None-Match
+                self.assertEqual(result, [{"slug": "fresh"}])
+                self.assertEqual(json.loads(self.cache.read_text())["etag"], '"v2"')
+
+    def test_invalid_download_is_rejected_and_not_cached(self):
+        with patch.object(data, "urlopen", return_value=FakeResponse([None], {"ETag": '"bad"'})):
+            with self.assertRaises(ValueError):
+                data._fetch_bundle(cache_path=self.cache)
+        self.assertFalse(self.cache.exists())
 
 
 class DeterministicPayloadTests(unittest.TestCase):
