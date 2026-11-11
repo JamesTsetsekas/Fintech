@@ -41,11 +41,17 @@
 
     <div class="terminal-shell">
       <aside class="library-sidebar" aria-label="Chart library">
+        <button id="library-toggle" class="library-toggle" type="button" aria-controls="library-results" aria-expanded="false">Chart library <span aria-hidden="true">&#8964;</span></button>
         <label class="sidebar-search">
           <span aria-hidden="true">⌕</span>
-          <input id="sidebar-search" type="search" placeholder="Search charts (press /)" autocomplete="off">
+          <input id="sidebar-search" aria-label="Search charts" aria-controls="library-results" type="search" placeholder="Search charts (press /)" autocomplete="off">
         </label>
-        <div class="sidebar-scroll">
+        <p id="pin-status" class="pin-status" role="status"></p>
+        <div id="library-results" class="sidebar-scroll">
+          <section class="sidebar-group">
+            <div class="sidebar-group-heading"><strong>Pinned</strong><span id="pinned-count">0</span></div>
+            <div id="pinned-list" class="sidebar-list" aria-live="polite"></div>
+          </section>
           <section class="sidebar-group">
             <div class="sidebar-group-heading"><strong>Popular charts</strong><span id="popular-count">—</span></div>
             <div id="popular-list" class="sidebar-list skeleton-list" aria-live="polite"></div>

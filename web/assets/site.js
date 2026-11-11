@@ -13,6 +13,8 @@ const appState = {
     table: false,
     scale: null,
     signalView: false,
+    rangePayload: null,
+    rangeTransition: null,
   },
 };
 
@@ -112,19 +114,52 @@ function bindTheme() {
   });
 }
 
+function setLibraryOpen(open, restoreFocus = false) {
+  const button = document.querySelector("#library-toggle");
+  const sidebar = document.querySelector(".library-sidebar");
+  button?.setAttribute("aria-expanded", String(open));
+  sidebar?.classList.toggle("library-open", open);
+  if (restoreFocus) button?.focus();
+}
+
 function bindKeyboardSearch() {
   const search = document.querySelector("#sidebar-search");
   if (!search) return;
-  search.addEventListener("input", () => renderSidebar(search.value.trim().toLowerCase()));
-  document.addEventListener("keydown", (event) => {
-    if (event.key === "/" && document.activeElement?.tagName !== "INPUT") {
+  const button = document.querySelector("#library-toggle");
+  button?.addEventListener("click", () => setLibraryOpen(button.getAttribute("aria-expanded") !== "true"));
+  search.addEventListener("focus", () => setLibraryOpen(true));
+  search.addEventListener("input", () => {
+    setLibraryOpen(true);
+    renderSidebar();
+  });
+  document.querySelector(".library-sidebar")?.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && window.matchMedia("(max-width: 820px)").matches) {
       event.preventDefault();
+      setLibraryOpen(false, true);
+    }
+  });
+  document.addEventListener("keydown", (event) => {
+    const target = document.activeElement;
+    if (event.key === "/" && !["INPUT", "TEXTAREA", "SELECT"].includes(target?.tagName) && !target?.isContentEditable) {
+      event.preventDefault();
+      setLibraryOpen(true);
       search.focus();
     }
   });
 }
 
-function renderSidebar(query = "") {
+function readPinnedCharts() {
+  try {
+    const value = JSON.parse(localStorage.getItem("fintech-pins") || "[]");
+    const validIds = new Set((appState.manifest?.charts || []).map(chart => chart.id));
+    return new Set(Array.isArray(value) ? value.filter(id => typeof id === "string" && validIds.has(id)) : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function renderSidebar(query = document.querySelector("#sidebar-search")?.value.trim().toLowerCase() || "") {
+  if (!appState.manifest) return;
   const charts = appState.manifest.charts.filter((chart) => {
     const haystack = `${chart.title} ${chart.section} ${chart.description}`.toLowerCase();
     return !query || haystack.includes(query);
@@ -135,6 +170,16 @@ function renderSidebar(query = "") {
   const popularList = document.querySelector("#popular-list");
   if (!allList || !popularList) return;
 
+  const focusedLink = document.activeElement?.closest?.(".sidebar-chart-link[data-chart-id]");
+  const focusedChartId = focusedLink?.dataset.chartId;
+  const focusedListId = focusedLink?.parentElement?.id;
+  const pins = readPinnedCharts();
+  const pinnedCharts = charts.filter(chart => pins.has(chart.id));
+  const pinnedList = document.querySelector("#pinned-list");
+  if (pinnedList) {
+    pinnedList.innerHTML = pinnedCharts.map(sidebarChartLink).join("") || `<p class="empty-state">${query ? "No pinned charts match this search." : "Pin a chart from its toolbar to keep it here."}</p>`;
+    document.querySelector("#pinned-count").textContent = String(pinnedCharts.length);
+  }
   popularList.classList.remove("skeleton-list");
   allList.classList.remove("skeleton-list");
   popularList.innerHTML = popularLayer.length
@@ -153,6 +198,10 @@ function renderSidebar(query = "") {
 
   document.querySelector("#popular-count").textContent = String(popularLayer.length);
   document.querySelector("#all-count").textContent = String(charts.length);
+  if (pageConfig.view === "charts") document.querySelectorAll(".sidebar-chart-link[data-chart-id]").forEach(bindChartLink);
+  if (focusedChartId && focusedListId) {
+    document.querySelector(`#${CSS.escape(focusedListId)} [data-chart-id="${CSS.escape(focusedChartId)}"]`)?.focus({ preventScroll: true });
+  }
 }
 
 function sidebarChartLink(chart) {
@@ -160,7 +209,7 @@ function sidebarChartLink(chart) {
     ? `${pageConfig.assetPrefix}charts/?chart=${encodeURIComponent(chart.id)}`
     : `charts/?chart=${encodeURIComponent(chart.id)}`;
   return `
-    <a class="sidebar-chart-link ${chart.id === appState.activeChartId ? "active" : ""}" href="${href}" data-chart-id="${escapeHtml(chart.id)}">
+    <a class="sidebar-chart-link ${chart.id === appState.activeChartId ? "active" : ""}" href="${href}" data-chart-id="${escapeHtml(chart.id)}" ${chart.id === appState.activeChartId ? 'aria-current="page"' : ""}>
       <span>${escapeHtml(chart.title)}</span>
       ${chart.kind === "interactive" ? `<span class="pin-mark" aria-label="Interactive">◔</span>` : ""}
     </a>
@@ -168,16 +217,20 @@ function sidebarChartLink(chart) {
 }
 
 async function renderDashboard() {
-  appState.signals = await buildSignals();
-  const dashboardSignals = buildDashboardSignalSet(appState.signals);
-  await Promise.all([
-    renderMetricRibbon(dashboardSignals.slice(1)),
-    renderSignalHeatmap(document.querySelector("#dashboard-signal-heatmap"), dashboardSignals, 92, { startDate: "2012-01-01" }),
-    renderDashboardCharts(),
-  ]);
+  const renderCharts = () => renderDashboardCharts().catch((error) => console.warn("Dashboard charts unavailable", error));
+  document.addEventListener("fintech-theme-change", renderCharts);
+  const charts = renderCharts();
+  void buildSignals().then(async (signals) => {
+    appState.signals = signals;
+    const dashboardSignals = buildDashboardSignalSet(signals);
+    await Promise.allSettled([
+      Promise.resolve().then(() => renderMetricRibbon(dashboardSignals.slice(1))),
+      Promise.resolve().then(() => renderSignalHeatmap(document.querySelector("#dashboard-signal-heatmap"), dashboardSignals, 92, { startDate: "2012-01-01" })),
+    ]);
+  }).catch((error) => console.warn("Dashboard signals unavailable", error));
   const updated = new Date(appState.manifest.generated_at);
   document.querySelector("#dashboard-updated").textContent = `Updated ${formatDate(updated)}`;
-  document.addEventListener("fintech-theme-change", renderDashboardCharts);
+  await charts;
 }
 
 async function renderMetricRibbon(referenceSignals = appState.signals) {
@@ -269,23 +322,36 @@ async function renderDashboardCharts() {
   }).join("");
 
   await Promise.all(chartIds.map(async (id) => {
-    const payload = await getPayload(id);
     const target = document.querySelector(`#dashboard-plot-${CSS.escape(id)}`);
-    target.classList.remove("loading-block");
-    const showHalvings = payload.show_halvings_default || ["pi-cycle-top", "200-dma-200-wma"].includes(payload.id);
-    renderPlot(target, payload, {
-      compact: true,
-      maxPoints: 600,
-      signalView: id === "mvrv-z-score",
-      layout: showHalvings ? halvingOverlayLayout(payload) : undefined,
-    });
+    try {
+      const payload = await getPayload(id);
+      target.classList.remove("loading-block");
+      const showHalvings = payload.show_halvings_default || ["pi-cycle-top", "200-dma-200-wma"].includes(payload.id);
+      await renderPlot(target, payload, {
+        compact: true,
+        maxPoints: 600,
+        signalView: id === "mvrv-z-score",
+        layout: showHalvings ? halvingOverlayLayout(payload) : undefined,
+      });
+    } catch (error) {
+      target.classList.remove("loading-block");
+      target.innerHTML = `<p class="error-state">${escapeHtml(error.message)}</p>`;
+    }
   }));
 }
 
 async function renderChartTerminal() {
   bindChartToolbar();
   document.querySelectorAll(".sidebar-chart-link[data-chart-id]").forEach(bindChartLink);
-  appState.signals = await buildSignals();
+  void buildSignals().then((signals) => {
+    appState.signals = signals;
+    if (appState.currentPayload) updateChartPhase(appState.currentPayload);
+  }).catch((error) => console.warn("Chart signals unavailable", error));
+  document.addEventListener("fintech-theme-change", () => {
+    if (appState.currentPayload && !appState.chartOptions.table) {
+      void Promise.resolve().then(() => renderTerminalPlot()).catch((error) => console.warn("Chart theme update unavailable", error));
+    }
+  });
   const requestedId = initialParams.get("chart");
   const firstInteractive = appState.manifest.charts.find((chart) => chart.kind === "interactive" && chart.data_path);
   const firstChart = appState.manifest.charts.find((chart) => chart.id === requestedId)
@@ -294,14 +360,15 @@ async function renderChartTerminal() {
     || appState.manifest.charts[0];
   if (firstChart) await selectTerminalChart(firstChart.id, { updateUrl: false, signalView: initialParams.get("signals") === "1" });
 
-  document.addEventListener("fintech-theme-change", () => {
-    if (appState.currentPayload && !appState.chartOptions.table) renderTerminalPlot();
-  });
 }
 
 function bindChartLink(link) {
+  if (link.dataset.chartBound) return;
+  link.dataset.chartBound = "true";
   link.addEventListener("click", (event) => {
+    if (event.button > 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     event.preventDefault();
+    if (window.matchMedia("(max-width: 820px)").matches) setLibraryOpen(false, true);
     selectTerminalChart(link.dataset.chartId);
   });
 }
@@ -329,12 +396,16 @@ async function selectTerminalChart(chartId, options = {}) {
   appState.chartOptions.table = false;
   appState.chartOptions.scale = null;
   appState.chartOptions.signalView = false;
+  appState.chartOptions.rangePayload = null;
+  appState.chartOptions.rangeTransition = null;
+  document.querySelectorAll("[data-range]").forEach((button) => button.classList.toggle("active", button.dataset.range === "all"));
   document.querySelectorAll("[data-chart-action]").forEach((button) => button.classList.remove("active"));
   document.querySelector('[data-chart-action="grid"]')?.classList.toggle("active", !appState.chartOptions.grid);
   const pinButton = document.querySelector('[data-chart-action="pin"]');
   if (pinButton) {
-    const pinned = new Set(JSON.parse(localStorage.getItem("fintech-pins") || "[]")).has(chart.id);
+    const pinned = readPinnedCharts().has(chart.id);
     pinButton.classList.toggle("active", pinned);
+    pinButton.setAttribute("aria-pressed", String(pinned));
     pinButton.textContent = pinned ? "⌖ Pinned" : "⌖ Pin";
   }
   document.querySelector("#terminal-plot")?.removeAttribute("hidden");
@@ -429,6 +500,12 @@ async function renderTerminalPlot() {
   const target = document.querySelector("#terminal-plot");
   const payload = appState.currentPayload;
   if (!target || !payload) return;
+  // Finish a shortcut animation before capturing its final viewport. Keep the
+  // original render baseline so Reset zoom still restores the complete chart.
+  await appState.chartOptions.rangeTransition;
+  if (appState.currentPayload !== payload) return;
+  const visibleRange = appState.chartOptions.rangePayload === payload
+    ? target._fullLayout?.xaxis?.range?.slice() : null;
   target.innerHTML = "";
   const series = terminalSeries(payload);
   const layout = terminalLayout(payload);
@@ -439,6 +516,13 @@ async function renderTerminalPlot() {
     });
   }
   await renderPlot(target, payload, { series, layout, grid: appState.chartOptions.grid, maxPoints: 2200, signalView: appState.chartOptions.signalView });
+  if (appState.currentPayload !== payload) return;
+  appState.chartOptions.rangePayload = payload;
+  if (visibleRange && target._fintechNavigation) {
+    await target._fintechNavigation.zoomTo(visibleRange);
+  } else if (visibleRange && window.Plotly) {
+    await Plotly.relayout(target, { "xaxis.range": visibleRange, "xaxis.autorange": false });
+  }
 }
 
 function terminalSeries(payload) {
@@ -549,6 +633,11 @@ function renderChartDetails(payload) {
 
   renderChartInsights(payload, base);
 
+  updateChartPhase(payload);
+}
+
+function updateChartPhase(payload) {
+  if (payload !== appState.currentPayload || payload.id !== appState.currentChart?.id) return;
   const signal = appState.signals.find((item) => item.chartId === appState.currentChart.id);
   const phaseBox = document.querySelector("#chart-phase");
   if (signal) phaseBox.innerHTML = `<span>Cycle signal</span><strong>${Math.round(signal.score)} · ${signal.phase.label}</strong>`;
@@ -892,12 +981,23 @@ async function handleChartAction(action, button) {
 }
 
 function togglePinnedChart(button) {
-  const pins = new Set(JSON.parse(localStorage.getItem("fintech-pins") || "[]"));
-  if (pins.has(appState.currentChart.id)) pins.delete(appState.currentChart.id);
-  else pins.add(appState.currentChart.id);
-  localStorage.setItem("fintech-pins", JSON.stringify([...pins]));
-  button.classList.toggle("active", pins.has(appState.currentChart.id));
-  button.textContent = pins.has(appState.currentChart.id) ? "⌖ Pinned" : "⌖ Pin";
+  const id = appState.currentChart?.id;
+  if (!appState.manifest?.charts.some(chart => chart.id === id)) return;
+  const pins = readPinnedCharts();
+  if (pins.has(id)) pins.delete(id);
+  else pins.add(id);
+  const status = document.querySelector("#pin-status");
+  try {
+    localStorage.setItem("fintech-pins", JSON.stringify([...pins]));
+  } catch {
+    if (status) status.textContent = "Could not save pins on this device. Check browser storage settings and try again.";
+    return;
+  }
+  if (status) status.textContent = "";
+  button.classList.toggle("active", pins.has(id));
+  button.setAttribute("aria-pressed", String(pins.has(id)));
+  button.textContent = pins.has(id) ? "\u2316 Pinned" : "\u2316 Pin";
+  renderSidebar();
 }
 
 function setChartRange(range) {
@@ -907,9 +1007,9 @@ function setChartRange(range) {
   const endpoint = payload.x_value_type === "date" ? observedRangeEnd(payload) : null;
   if (endpoint === null || range === "all") {
     const navigation = document.querySelector("#terminal-plot")?._fintechNavigation;
-    if (navigation) return navigation.reset();
-    Plotly.relayout(document.querySelector("#terminal-plot"), { "xaxis.autorange": true });
-    return;
+    return appState.chartOptions.rangeTransition = Promise.resolve(navigation
+      ? navigation.reset()
+      : Plotly.relayout(document.querySelector("#terminal-plot"), { "xaxis.autorange": true }));
   }
   const end = new Date(endpoint);
   let start = new Date(end);
@@ -921,8 +1021,9 @@ function setChartRange(range) {
   if (range === "ytd") start = new Date(Date.UTC(end.getUTCFullYear(), 0, 1));
   const target = document.querySelector("#terminal-plot");
   const selectedRange = [start.toISOString(), end.toISOString()];
-  if (target?._fintechNavigation) return target._fintechNavigation.zoomTo(selectedRange);
-  Plotly.relayout(target, { "xaxis.range": selectedRange });
+  return appState.chartOptions.rangeTransition = Promise.resolve(target?._fintechNavigation
+    ? target._fintechNavigation.zoomTo(selectedRange)
+    : Plotly.relayout(target, { "xaxis.range": selectedRange }));
 }
 
 function observedRangeEnd(payload) {
@@ -1246,7 +1347,7 @@ function renderAlertRules() {
         <span class="alert-rule-status" title="${rule.triggeredAt ? "Completed" : rule.triggered ? "Condition met" : rule.enabled ? "Watching" : "Paused"}"></span>
         <div class="alert-rule-copy"><strong>${escapeHtml(title)}</strong><span>${escapeHtml(alertRuleText(rule, signal))}</span></div>
         <div class="alert-rule-actions">
-          <label class="switch-control" title="Enable or pause alert"><input type="checkbox" data-alert-toggle="${escapeHtml(rule.id)}" ${rule.enabled ? "checked" : ""}><span class="switch-track"></span></label>
+          <label class="switch-control" title="Enable or pause alert"><input type="checkbox" aria-label="Enable ${escapeHtml(title)} alert" data-alert-toggle="${escapeHtml(rule.id)}" ${rule.enabled ? "checked" : ""}><span class="switch-track"></span></label>
           <button type="button" data-alert-delete="${escapeHtml(rule.id)}" aria-label="Delete ${escapeHtml(title)}">Delete</button>
         </div>
       </article>

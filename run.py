@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """Run the scheduled Bitcoin report and static-site publishing pipeline."""
 
+import base64
+import re
+from urllib.parse import quote, quote_plus, unquote, urlsplit
+
 import hashlib
 import json
 import subprocess
@@ -76,20 +80,93 @@ def get_env_int(name, default, minimum=1):
         return default
     return value
 
-def get_authenticated_remote_url(original_url):
-    """Return an authenticated GitHub remote URL, or None if no token is set."""
-    github_token = os.getenv('GITHUB_TOKEN')
-    if not github_token:
+def sanitize_git_output(value):
+    """Redact credentials, including URL-encoded and Basic-auth representations."""
+    if value is None:
         return None
+    if isinstance(value, bytes):
+        value = value.decode("utf-8", errors="replace")
+    original = text = str(value)
+    token = os.getenv("GITHUB_TOKEN")
+    secrets = set()
+    if token:
+        secrets.update((token, quote(token, safe=""), quote_plus(token)))
+        for username in ("x-access-token", "", token):
+            credential = f"{username}:{token}" if username != token else f"{token}:"
+            secrets.add(base64.b64encode(credential.encode()).decode())
+    # Decode for redaction too: encoded URL userinfo and headers must not escape it.
+    for _ in range(3):
+        decoded = unquote(text)
+        if decoded == text:
+            break
+        text = decoded
+    decoded = text
+    for secret in sorted(secrets, key=len, reverse=True):
+        text = text.replace(secret, "[REDACTED]")
+    text = re.sub(r"(?i)(https?://)[^/\s@]+@", r"\1REDACTED@", text)
+    text = re.sub(r"(?i)(authorization\s*[:=]\s*(?:basic|bearer)\s+)[^\s'\"]+",
+                  r"\1[REDACTED]", text)
+    # Keep credential-free URLs (and paths containing percent escapes) exact.
+    return original if text == decoded else text
 
-    if original_url.startswith('https://'):
-        return original_url.replace('https://', f'https://{github_token}@', 1)
-    if original_url.startswith('git@github.com:'):
-        repo_path = original_url.replace('git@github.com:', '', 1)
-        if not repo_path.endswith('.git'):
-            repo_path = f"{repo_path}.git"
-        return f"https://{github_token}@github.com/{repo_path}"
-    return original_url
+
+def run_git(args, *, auth_remote=None, **kwargs):
+    """Run Git with captured, redacted diagnostics and ephemeral GitHub auth.
+
+    auth_remote names the remote actually used by a network command. Resolve all
+    effective URLs (including pushurl/insteadOf) before deciding to supply a token.
+    SSH and other hosts continue using their existing Git authentication.
+    """
+    env = os.environ.copy()
+    token = env.pop("GITHUB_TOKEN", None)
+    if auth_remote and token:
+        query = ['git', 'remote', 'get-url', '--all']
+        if args[1] == 'push':
+            query.append('--push')
+        urls = run_git(query + [auth_remote], cwd=kwargs.get('cwd', script_dir), check=True)
+        targets = urls.stdout.strip().splitlines()
+        parsed = [urlsplit(url) for url in targets]
+        if any(url.username is not None and url.scheme in ('http', 'https') for url in parsed):
+            raise ValueError("Use a credential-free Git remote URL")
+        if parsed and all(url.scheme == 'https' and url.netloc.lower() == 'github.com'
+                          for url in parsed):
+            # Inherited tracing can write unredacted headers to a file, bypassing
+            # our captured diagnostics. Disable it only in this child process.
+            for key in list(env):
+                if key.startswith('GIT_TRACE') or key == 'GIT_CURL_VERBOSE':
+                    env.pop(key)
+            header = base64.b64encode(f"x-access-token:{token}".encode()).decode()
+            config = [
+                ('http.https://github.com/.extraheader', ''),
+                ('http.https://github.com/.extraheader', f'Authorization: Basic {header}'),
+                ('http.https://github.com/.followRedirects', 'false'),
+                ('credential.helper', ''),
+            ]
+            count = int(env.get('GIT_CONFIG_COUNT', '0'))
+            for key, value in config:
+                env[f'GIT_CONFIG_KEY_{count}'] = key
+                env[f'GIT_CONFIG_VALUE_{count}'] = value
+                count += 1
+            env['GIT_CONFIG_COUNT'] = str(count)
+    # Never stream raw diagnostics (including hooks) directly to the terminal.
+    kwargs.update(capture_output=True, text=True, env=env)
+    try:
+        result = subprocess.run(args, **kwargs)
+    except subprocess.CalledProcessError as exc:
+        raise subprocess.CalledProcessError(
+            exc.returncode, [sanitize_git_output(arg) for arg in args],
+            output=sanitize_git_output(exc.stdout), stderr=sanitize_git_output(exc.stderr),
+        ) from None
+    except subprocess.TimeoutExpired as exc:
+        raise subprocess.TimeoutExpired(
+            [sanitize_git_output(arg) for arg in args], exc.timeout,
+            output=sanitize_git_output(exc.stdout), stderr=sanitize_git_output(exc.stderr),
+        ) from None
+    except OSError as exc:
+        raise RuntimeError(sanitize_git_output(exc)) from None
+    result.stdout = sanitize_git_output(result.stdout)
+    result.stderr = sanitize_git_output(result.stderr)
+    return result
 
 
 def _normalized_publish_bytes(path: Path) -> bytes:
@@ -148,7 +225,7 @@ def remember_published_fingerprint(fingerprint: str, branch: str) -> None:
     temporary_path.replace(PUBLISH_STATE_PATH)
 
 def get_current_branch():
-    result = subprocess.run(
+    result = run_git(
         ['git', 'rev-parse', '--abbrev-ref', 'HEAD'],
         capture_output=True,
         text=True,
@@ -164,7 +241,7 @@ def get_current_branch():
     return branch
 
 def get_upstream_branch(current_branch):
-    result = subprocess.run(
+    result = run_git(
         ['git', 'rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'],
         capture_output=True,
         text=True,
@@ -175,7 +252,7 @@ def get_upstream_branch(current_branch):
     return f"origin/{current_branch}"
 
 def get_unpushed_commits(upstream_branch):
-    result = subprocess.run(
+    result = run_git(
         ['git', 'rev-list', '--reverse', f'{upstream_branch}..HEAD'],
         capture_output=True,
         text=True,
@@ -187,7 +264,7 @@ def get_unpushed_commits(upstream_branch):
     return [line.strip() for line in result.stdout.splitlines() if line.strip()]
 
 def print_git_output_tail(output, label):
-    lines = [line for line in (output or '').strip().splitlines() if line.strip()]
+    lines = [line for line in (sanitize_git_output(output) or '').strip().splitlines() if line.strip()]
     if not lines:
         return
     print(label)
@@ -219,8 +296,9 @@ def push_commit_with_retries(commit_sha, remote_branch, chunk_number, total_chun
             f"Push chunk {chunk_number}/{total_chunks}, attempt {attempt}/{retries}: "
             f"{commit_sha[:12]} -> origin/{remote_branch}"
         )
-        result = subprocess.run(
+        result = run_git(
             ['git', 'push', 'origin', refspec],
+            auth_remote='origin',
             capture_output=True,
             text=True,
             cwd=script_dir
@@ -243,8 +321,9 @@ def push_commit_with_retries(commit_sha, remote_branch, chunk_number, total_chun
     return False
 
 def refresh_origin_branch(remote_branch):
-    result = subprocess.run(
+    result = run_git(
         ['git', 'fetch', 'origin', remote_branch],
+        auth_remote='origin',
         capture_output=True,
         text=True,
         cwd=script_dir
@@ -272,21 +351,6 @@ def push_pending_commits():
         print("No unpushed commits to push.")
         return True
 
-    result = subprocess.run(
-        ['git', 'remote', 'get-url', 'origin'],
-        capture_output=True,
-        text=True,
-        check=True,
-        cwd=script_dir
-    )
-    original_url = result.stdout.strip()
-    auth_url = get_authenticated_remote_url(original_url)
-    if not auth_url:
-        print("✗ GITHUB_TOKEN not found in .env file")
-        print("Please create a .env file with your GitHub token.")
-        print("See .env.example for template.")
-        return False
-
     chunk_size = get_env_int('GIT_PUSH_CHUNK_SIZE', DEFAULT_PUSH_CHUNK_SIZE)
     chunk_targets = pending_commits[chunk_size - 1::chunk_size]
     if not chunk_targets or chunk_targets[-1] != pending_commits[-1]:
@@ -297,199 +361,45 @@ def push_pending_commits():
         f"Pushing in {len(chunk_targets)} chunk(s) of up to {chunk_size} commits."
     )
 
-    subprocess.run(['git', 'remote', 'set-url', 'origin', auth_url], check=True, cwd=script_dir)
-    try:
-        for index, commit_sha in enumerate(chunk_targets, start=1):
-            if not push_commit_with_retries(commit_sha, remote_branch, index, len(chunk_targets)):
-                return False
-        refresh_origin_branch(remote_branch)
-        print("✓ Pushed pending commits to GitHub")
-        return True
-    finally:
-        subprocess.run(['git', 'remote', 'set-url', 'origin', original_url], check=True, cwd=script_dir)
+    for index, commit_sha in enumerate(chunk_targets, start=1):
+        if not push_commit_with_retries(commit_sha, remote_branch, index, len(chunk_targets)):
+            return False
+    refresh_origin_branch(remote_branch)
+    print("Pushed pending commits to GitHub")
+    return True
+
 
 def git_pull():
-    """Pull latest changes from GitHub using token authentication."""
-    print("\n" + "="*60)
+    """Pull from origin without changing its URL or persisting authentication."""
+    print("\n" + "=" * 60)
     print("GIT PULL - UPDATING PROJECT")
-    print("="*60)
-
+    print("=" * 60)
     try:
-        # Change to script directory
         os.chdir(script_dir)
-        
-        # Initialize result to None
-        result = None
-
-        # Get GitHub token from environment
-        github_token = os.getenv('GITHUB_TOKEN')
-        if not github_token:
-            print("⚠ GITHUB_TOKEN not found in .env file")
-            print("Attempting pull without authentication...")
-            # Fetch first to check status
-            fetch_result = subprocess.run(
-                ['git', 'fetch', 'origin'],
-                capture_output=True,
-                text=True
-            )
-            
-            # Check if branches have diverged
-            status_result = subprocess.run(
-                ['git', 'status', '-sb'],
-                capture_output=True,
-                text=True
-            )
-            status_output = status_result.stdout.strip()
-            
-            has_diverged = '[' in status_output and 'ahead' in status_output and 'behind' in status_output
-            
-            if has_diverged:
-                print("Branches have diverged. Using rebase strategy...")
-                result = subprocess.run(
-                    ['git', 'pull', '--rebase', '--no-edit'],
-                    capture_output=True,
-                    text=True
-                )
-                if result.returncode != 0:
-                    print(f"⚠ Rebase failed, trying merge: {result.stderr}")
-                    result = subprocess.run(
-                        ['git', 'pull', '--no-edit'],
-                        capture_output=True,
-                        text=True
-                    )
-            else:
-                result = subprocess.run(
-                    ['git', 'pull'],
-                    capture_output=True,
-                    text=True
-                )
-            
-            if result.returncode != 0:
-                print(f"✗ Pull failed: {result.stderr}")
-                return False
-        else:
-            # Get the current remote URL
-            result = subprocess.run(
-                ['git', 'remote', 'get-url', 'origin'],
-                capture_output=True,
-                text=True,
-                check=True
-            )
-            original_url = result.stdout.strip()
-
-            # Create authenticated URL
-            if original_url.startswith('https://'):
-                # Replace https://github.com/ with https://token@github.com/
-                auth_url = original_url.replace('https://', f'https://{github_token}@')
-            elif original_url.startswith('git@'):
-                # Convert SSH to HTTPS with token
-                auth_url = original_url.replace('git@github.com:', f'https://{github_token}@github.com/')
-                auth_url = auth_url.replace('.git', '') + '.git'
-            else:
-                auth_url = original_url
-
-            # Temporarily set remote URL with token
-            subprocess.run(['git', 'remote', 'set-url', 'origin', auth_url], check=True)
-
-            try:
-                # First fetch to check status
-                fetch_result = subprocess.run(
-                    ['git', 'fetch', 'origin'],
-                    capture_output=True,
-                    text=True
-                )
-                if fetch_result.returncode != 0:
-                    print(f"⚠ Fetch failed: {fetch_result.stderr}")
-                    # Continue anyway, might still work
-                
-                # Check if branches have diverged
-                status_result = subprocess.run(
-                    ['git', 'status', '-sb'],
-                    capture_output=True,
-                    text=True
-                )
-                if status_result.returncode != 0:
-                    print(f"⚠ Status check failed: {status_result.stderr}")
-                    # Use normal pull as fallback
-                    result = subprocess.run(
-                        ['git', 'pull'],
-                        capture_output=True,
-                        text=True
-                    )
-                    if result.returncode != 0:
-                        print(f"✗ Pull failed: {result.stderr}")
-                        return False
-                    # Pull succeeded, skip divergence check
-                else:
-                    status_output = status_result.stdout.strip()
-                    
-                    # Check for divergence (ahead and behind)
-                    has_diverged = '[' in status_output and 'ahead' in status_output and 'behind' in status_output
-                    
-                    if has_diverged:
-                        print("Branches have diverged. Using rebase strategy to integrate changes...")
-                        # Use pull with rebase to put local commits on top of remote
-                        result = subprocess.run(
-                            ['git', 'pull', '--rebase', '--no-edit'],
-                            capture_output=True,
-                            text=True
-                        )
-                        if result.returncode != 0:
-                            print(f"⚠ Rebase failed: {result.stderr}")
-                            print("Attempting merge strategy...")
-                            # If rebase fails, try merge
-                            result = subprocess.run(
-                                ['git', 'pull', '--no-edit'],
-                                capture_output=True,
-                                text=True
-                            )
-                            if result.returncode != 0:
-                                print(f"✗ Pull with merge also failed: {result.stderr}")
-                                return False
-                    else:
-                        # Normal pull (no divergence)
-                        result = subprocess.run(
-                            ['git', 'pull'],
-                            capture_output=True,
-                            text=True
-                        )
-                        if result.returncode != 0:
-                            print(f"✗ Pull failed: {result.stderr}")
-                            return False
-            finally:
-                # Restore original remote URL
-                subprocess.run(['git', 'remote', 'set-url', 'origin', original_url], check=True)
-
-        # Ensure result is defined before using it
-        if result is None:
-            print("✗ Internal error: result variable not defined")
+        fetch_result = run_git(['git', 'fetch', 'origin'], auth_remote='origin', cwd=script_dir)
+        if fetch_result.returncode != 0:
+            print_git_output_tail(fetch_result.stderr, "Fetch failed:")
+        status = run_git(['git', 'status', '-sb'], cwd=script_dir)
+        if status.returncode != 0:
+            print_git_output_tail(status.stderr, "Status check failed:")
+        diverged = status.returncode == 0 and all(
+            word in status.stdout for word in ('[', 'ahead', 'behind'))
+        # Explicit origin keeps the authentication decision tied to the actual remote.
+        args = ['git', 'pull', '--rebase', '--no-edit', 'origin'] if diverged else ['git', 'pull', 'origin']
+        result = run_git(args, auth_remote='origin', cwd=script_dir)
+        if diverged and result.returncode != 0:
+            print_git_output_tail(result.stderr, "Rebase failed, trying merge:")
+            result = run_git(['git', 'pull', '--no-edit', 'origin'], auth_remote='origin', cwd=script_dir)
+        if result.returncode != 0:
+            print_git_output_tail(result.stderr, "Pull failed:")
             return False
-        
-        if not hasattr(result, 'stdout') or result.stdout is None:
-            print("✗ Internal error: result.stdout is not available")
-            return False
-            
-        print(result.stdout.strip())
-
-        if "Already up to date" in result.stdout or "Already up-to-date" in result.stdout or "Current branch main is up to date" in result.stdout:
-            print("✓ Project is already up to date")
-        elif "Fast-forward" in result.stdout or "Updating" in result.stdout or "Rebasing" in result.stdout or "Merging" in result.stdout:
-            print("✓ Project updated successfully")
-        else:
-            print("✓ Project synchronized")
-
+        print_git_output_tail(result.stdout, "Pull output:")
+        print("Project synchronized")
         return True
+    except Exception as exc:
+        print(f"Git pull failed: {sanitize_git_output(exc)}")
+        return False
 
-    except subprocess.CalledProcessError as e:
-        print(f"✗ Git pull failed: {e}")
-        if hasattr(e, 'stderr') and e.stderr:
-            print(f"Error output: {e.stderr}")
-        elif hasattr(e, 'stdout') and e.stdout:
-            print(f"Output: {e.stdout}")
-        return False
-    except Exception as e:
-        print(f"✗ Exception during git pull: {e}")
-        return False
 
 def check_requirements_changed():
     """Check if any requirements.txt files have changed or if we need to verify installation."""
@@ -509,7 +419,7 @@ def check_requirements_changed():
             return False
         
         # Check if any requirements files were modified in the last commit
-        result = subprocess.run(
+        result = run_git(
             ['git', 'log', '-1', '--name-only', '--pretty=format:', 'HEAD'],
             capture_output=True,
             text=True,
@@ -526,7 +436,7 @@ def check_requirements_changed():
                 return True
         
         # Also check git status for modified files
-        status_result = subprocess.run(
+        status_result = run_git(
             ['git', 'status', '--porcelain'],
             capture_output=True,
             text=True,
@@ -544,7 +454,7 @@ def check_requirements_changed():
         return False
         
     except Exception as e:
-        print(f"⚠ Could not check requirements changes: {e}")
+        print(f"⚠ Could not check requirements changes: {sanitize_git_output(e)}")
         # If we can't check, assume they need verification
         return True
 
@@ -711,7 +621,7 @@ def git_commit_and_push():
         os.chdir(script_dir)
 
         # Check git status
-        result = subprocess.run(
+        result = run_git(
             ['git', 'status', '--porcelain'],
             capture_output=True,
             text=True,
@@ -725,24 +635,24 @@ def git_commit_and_push():
         print("Changes detected. Committing and pushing...")
 
         # Add all changes
-        subprocess.run(['git', 'add', '.'], check=True)
+        run_git(['git', 'add', '.'], check=True)
 
         # Commit with timestamp (EST when available)
         now = datetime.now(EST) if EST else datetime.now()
         timestamp = now.strftime('%Y-%m-%d %H:%M:%S')
         commit_message = f"Auto-update charts and reports - {timestamp}"
-        subprocess.run(['git', 'commit', '-m', commit_message], check=True)
+        run_git(['git', 'commit', '-m', commit_message], check=True)
         print(f"✓ Committed: {commit_message}")
 
         return push_pending_commits()
 
     except subprocess.CalledProcessError as e:
-        print(f"✗ Git operation failed: {e}")
+        print(f"✗ Git operation failed: {sanitize_git_output(e)}")
         if hasattr(e, 'stderr') and e.stderr:
-            print(f"Error output: {e.stderr}")
+            print(f"Error output: {sanitize_git_output(e.stderr)}")
         return False
     except Exception as e:
-        print(f"✗ Exception during git operation: {e}")
+        print(f"✗ Exception during git operation: {sanitize_git_output(e)}")
         return False
 
 def run_report_runner(runner_info):
@@ -897,7 +807,7 @@ def publish_static_site():
         )
         return False
 
-    status_result = subprocess.run(
+    status_result = run_git(
         ["git", "status", "--porcelain", "--untracked-files=no"],
         capture_output=True,
         text=True,
@@ -918,7 +828,7 @@ def publish_static_site():
     print(f"{'='*60}")
 
     try:
-        result = subprocess.run(
+        result = run_git(
             ['git', 'remote', 'get-url', 'origin'],
             capture_output=True,
             text=True,
@@ -926,7 +836,9 @@ def publish_static_site():
             cwd=script_dir,
         )
         original_url = result.stdout.strip()
-        auth_url = get_authenticated_remote_url(original_url) or original_url
+        parsed_url = urlsplit(original_url)
+        if parsed_url.scheme in ('http', 'https') and parsed_url.username is not None:
+            raise ValueError("Use a credential-free Git remote URL")
 
         now = datetime.now(EST) if EST else datetime.now()
         timestamp = now.strftime('%Y-%m-%d %H:%M:%S')
@@ -940,12 +852,12 @@ def publish_static_site():
                 print("✓ Static site content is unchanged; skipped GitHub Pages deployment")
                 return True
 
-            subprocess.run(['git', 'init'], cwd=site_dir, check=True, capture_output=True, text=True)
-            subprocess.run(['git', 'checkout', '-B', publish_branch], cwd=site_dir, check=True, capture_output=True, text=True)
-            subprocess.run(['git', 'config', 'user.name', 'Fintech Automation'], cwd=site_dir, check=True)
-            subprocess.run(['git', 'config', 'user.email', 'actions@users.noreply.github.com'], cwd=site_dir, check=True)
-            subprocess.run(['git', 'add', '.'], cwd=site_dir, check=True)
-            commit_result = subprocess.run(
+            run_git(['git', 'init'], cwd=site_dir, check=True, capture_output=True, text=True)
+            run_git(['git', 'checkout', '-B', publish_branch], cwd=site_dir, check=True, capture_output=True, text=True)
+            run_git(['git', 'config', 'user.name', 'Fintech Automation'], cwd=site_dir, check=True)
+            run_git(['git', 'config', 'user.email', 'actions@users.noreply.github.com'], cwd=site_dir, check=True)
+            run_git(['git', 'add', '.'], cwd=site_dir, check=True)
+            commit_result = run_git(
                 ['git', 'commit', '-m', commit_message],
                 cwd=site_dir,
                 capture_output=True,
@@ -957,9 +869,10 @@ def publish_static_site():
                 print_git_output_tail(commit_result.stdout, "Commit output:")
                 return False
 
-            subprocess.run(['git', 'remote', 'add', 'origin', auth_url], cwd=site_dir, check=True)
-            push_result = subprocess.run(
+            run_git(['git', 'remote', 'add', 'origin', original_url], cwd=site_dir, check=True)
+            push_result = run_git(
                 ['git', 'push', '--force', 'origin', f'{publish_branch}:refs/heads/{publish_branch}'],
+                auth_remote='origin',
                 cwd=site_dir,
                 capture_output=True,
                 text=True,
@@ -975,12 +888,12 @@ def publish_static_site():
             return True
 
     except subprocess.CalledProcessError as e:
-        print(f"✗ Static site publish git operation failed: {e}")
+        print(f"✗ Static site publish git operation failed: {sanitize_git_output(e)}")
         if e.stderr:
             print_git_output_tail(e.stderr, "Error output:")
         return False
     except Exception as e:
-        print(f"✗ Exception publishing static site: {e}")
+        print(f"✗ Exception publishing static site: {sanitize_git_output(e)}")
         return False
 
 def main(publish: bool = True):

@@ -5,7 +5,7 @@
   --surface-muted: #f0efea;
   --ink: #171715;
   --muted: #6f6d67;
-  --faint: #98958e;
+  --faint: #737069;
   --line: #deddd7;
   --line-strong: #c9c6be;
   --accent: #c85f3c;
@@ -30,7 +30,7 @@ html[data-theme="dark"] {
   --surface-muted: #24231f;
   --ink: #f0eee7;
   --muted: #aaa69d;
-  --faint: #7c7971;
+  --faint: #aaa69d;
   --line: #34332e;
   --line-strong: #4b4941;
   --accent: #df7651;
@@ -245,7 +245,6 @@ button { color: inherit; }
   border-radius: 9px;
   background: var(--surface-raised);
   color: var(--ink);
-  outline: 0;
 }
 
 .sidebar-search input::placeholder { color: var(--faint); }
@@ -1200,7 +1199,6 @@ button { color: inherit; }
   background: var(--surface-raised);
   color: var(--ink);
   box-shadow: var(--shadow-sm);
-  outline: 0;
 }
 
 .filter-controls select { padding: 0 32px 0 11px; }
@@ -1745,7 +1743,9 @@ button { color: inherit; }
     border-right: 0;
     border-bottom: 1px solid var(--line);
   }
-  .sidebar-scroll { display: none; }
+  .library-toggle { display: flex; }
+  .sidebar-scroll { display: none; max-height: min(55dvh, 30rem); overscroll-behavior-y: contain; }
+  .library-open .sidebar-scroll { display: block; }
   .sidebar-search { margin-block: 8px; }
   .chart-terminal-shell {
     height: auto;
@@ -1803,7 +1803,7 @@ button { color: inherit; }
   .workspace-heading-actions > span { display: none; }
   .workspace-heading .text-action { font-size: 0.68rem; }
   .dashboard-chart-card { min-height: 280px; }
-  .toolbar-group-end { display: none; }
+  .toolbar-group-end { display: flex; }
   .toolbar-group { min-width: max-content; }
   .chart-canvas { min-height: 520px; }
   .terminal-plot { min-height: 440px; }
@@ -1856,3 +1856,15 @@ button { color: inherit; }
 .chart-series-value-badge[data-side="right"] { transform: translate(0, -50%); }
 .chart-selecting .chart-series-value-badge { display: none; }
 .dashboard-mini-plot .chart-series-value-badge { font-size: 9px; }
+
+/* Keep the compact library and chart actions reachable on narrow screens. */
+.library-toggle { display: none; width: calc(100% - 24px); margin: 8px 12px 0; padding: 8px; justify-content: space-between; border: 1px solid var(--line); background: var(--surface-raised); color: var(--ink); font: inherit; cursor: pointer; }
+.library-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.pin-status:empty { display: none; }
+.pin-status { margin: 8px 12px; font-size: .8rem; color: var(--ink); }
+@media (max-width: 820px) {
+  .library-toggle { display: flex; }
+  .chart-toolbar { flex-wrap: wrap; }
+  .toolbar-group { flex-wrap: wrap; min-width: 0; }
+  .toolbar-group-end { justify-content: flex-start; }
+}
