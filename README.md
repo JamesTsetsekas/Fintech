@@ -13,6 +13,8 @@ The browser experience includes four linked workspaces:
 - `signals/` — normalized cycle scores across 16 on-chain and 12 repo-native indicators, with historical phases and momentum.
 - `alerts/` — device-local alert rules evaluated against the latest generated signal scores.
 
+On smaller screens, **Browse charts** opens the searchable library; selecting a chart closes it and restores focus. **Pinned charts** keeps device-local favorites available alongside Popular and All charts. Sheet, Pin, Alert, and Download remain available in the mobile toolbar. Charts load while supporting cycle signals are prepared, and time windows survive chart redraws; selecting another chart resets to All.
+
 The scheduled Bitcoin library is the non-duplicating union of 46 repo-native charts and 149 charts adapted from BlockHorizon's chart bundle (195 total). The upstream catalog was reviewed on October 20, 2026, including the new weekly moving averages, loss percentages, old-versus-new coin loss comparison, and 2-/4-year realized prices. Imports use stable chart IDs so title changes preserve links and pins while refreshing data. Six charts removed upstream are retired locally; missing reviewed charts stop publication instead of silently reusing stale data. Source provenance remains recorded in each generated chart's metadata.
 
 Drag horizontally across a time-series chart to zoom into the selected dates. Dashboard and terminal charts animate the transition, refit numeric Y scales to the visible observations, and label dollar axes with readable values such as `$20K` and `$100K`. Bounded metric scales, such as NUPL and percentages, keep their meaningful limits. Double-click inside the plot or use **Reset zoom** to restore the original view. The terminal also provides zoom, fit, and reset buttons, plus independent price-axis dragging and wheel scaling. Transitions respect the device's reduced-motion preference.
@@ -26,6 +28,8 @@ Preview the site locally from the repository root with `python3 -m http.server 8
 The cron runner checks the upstream Bitcoin CSVs hourly, regenerates native reports when inputs or code change, outputs are missing, or the previous generation did not complete successfully, and builds the static dashboard data. To keep GitHub Actions artifact storage within the free-tier allowance, it only force-publishes the latest-only `gh-pages` branch at 00:00, 06:00, 12:00, and 18:00 UTC. Conditional HTTP requests keep unchanged large CSVs off the wire. Stock reports and the experimental ML classifier are intentionally excluded from the scheduled Raspberry Pi path; their source remains available for manual runs. This keeps chart output available on GitHub Pages without committing every hourly chart refresh to `main`.
 
 Bitcoin report retries use a local `Bitcoin/.successful_generation` content fingerprint (source CSVs, Python code, and scheduled report selection). It is replaced atomically only after every scheduled report succeeds and expected outputs exist. Failed, interrupted, `--only`, and `--skip-update` runs cannot mark scheduled outputs current; manual generation invalidates prior success. Deleting the marker forces regeneration on the next scheduled run. The derived block metrics cache is excluded from the fingerprint.
+
+GitHub HTTPS authentication is supplied only to child Git processes for GitHub remotes. The updater keeps remote URLs credential-free; SSH remotes continue using their existing authentication.
 
 ### Dashboard regression checks
 
