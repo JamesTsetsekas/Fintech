@@ -211,7 +211,7 @@ function readPinnedCharts() {
 function elsewhereMatchText(total) {
   const section = terminalSections().find((item) => item.key === appState.sectionFilter);
   if (!section || !total) return "";
-  return `No ${section.name} charts match. ${total} ${total === 1 ? "match is" : "matches are"} in other sections; choose All to see ${total === 1 ? "it" : "them"}.`;
+  return `No ${escapeHtml(section.name)} charts match. ${total} ${total === 1 ? "match is" : "matches are"} in other sections; choose All to see ${total === 1 ? "it" : "them"}.`;
 }
 
 function libraryResultLinks() {
@@ -279,7 +279,7 @@ function boilerplateDescriptions(charts) {
 function searchCharts(charts, query) {
   const list = Array.isArray(charts) ? charts : [];
   const terms = normalizeSearchText(query).split(" ").filter(Boolean)
-    .map((term) => [...new Set([term, ...(SEARCH_ALIASES[term] || [])])]);
+    .map((term) => [...new Set([term, ...(Object.hasOwn(SEARCH_ALIASES, term) ? SEARCH_ALIASES[term] : [])])]);
   const byTitle = (a, b) => String(a.title).localeCompare(String(b.title));
   if (!terms.length) return [...list].sort(byTitle);
   const boilerplate = boilerplateDescriptions(list);

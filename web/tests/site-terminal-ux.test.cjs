@@ -289,3 +289,22 @@ test("readout reads nearby observations with units and ignores series that ended
   assert.equal(readout.label, "Jan 2, 2026");
   assert.deepEqual(JSON.parse(JSON.stringify(readout.items.map((item) => [item.name, item.value]))), [["BTC price", "$200"], ["Old metric", "—"]]);
 });
+
+test("search ignores inherited object keys such as constructor and __proto__", () => {
+  const scope = context();
+  const library = [{ id: "a", title: "Alpha constructor", section: "x" }];
+  for (const query of ["constructor", "__proto__", "toString hasOwnProperty", "valueOf"]) {
+    assert.doesNotThrow(() => scope.searchCharts(library, query), query);
+  }
+  assert.deepEqual(Array.from(scope.searchCharts(library, "constructor"), (chart) => chart.id), ["a"]);
+});
+
+test("the empty-result message escapes section names from manifest metadata", () => {
+  const scope = context();
+  scope.terminalSections = () => [{ key: "evil", name: "<img src=x onerror=window.pwned=1>" }];
+  vm.runInContext('appState.sectionFilter = "evil"', scope);
+  const message = scope.elsewhereMatchText(2);
+  assert.match(message, /2 matches are in other sections/);
+  assert.ok(!message.includes("<img"), message);
+  assert.ok(message.includes("&lt;img"), message);
+});
