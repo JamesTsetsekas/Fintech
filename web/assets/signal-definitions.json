@@ -1,0 +1,193 @@
+{
+  "schema_version": 1,
+  "method": {
+    "version": 2,
+    "scoring": {
+      "type": "expanding_percentile_rank",
+      "ties": "midrank",
+      "point_in_time": true,
+      "percentile_bounds": [0, 100],
+      "min_history_days": 730,
+      "min_observations": 60,
+      "description": "Each score is the percentile rank (0-100, ties at mid-rank) of a reading within that indicator's own history up to and including the observation date. Ranks do not depend on how a metric is expressed, so NUPL and MVRV, which are rescalings of each other, score identically. Because every historical score only uses data available on its date, the timeline does not use hindsight; the latest score is ranked against the full history. No score is published until an indicator has two years of history."
+    },
+    "rounding": {
+      "rule": "half_away_from_zero",
+      "description": "Every published number is rounded once, on its exact value, with ties going away from zero: scores and changes to 1 decimal, latest values to 6 decimals, history values to 4 significant digits."
+    },
+    "phases": [
+      { "key": "bottom", "label": "Bottom", "below": 25 },
+      { "key": "bearish", "label": "Bearish", "below": 50 },
+      { "key": "bullish", "label": "Bullish", "below": 75 },
+      { "key": "top", "label": "Top", "below": null }
+    ],
+    "change_windows_days": [7, 30, 90, 365],
+    "history": {
+      "step_days": 7,
+      "carry_forward_days": 14,
+      "value_significant_digits": 4
+    },
+    "freshness": {
+      "sources": {
+        "native": { "label": "Repository daily series", "cadence_days": 1, "stale_after_days": 2 },
+        "blockhorizon": { "label": "BlockHorizon weekly bundle", "cadence_days": 7, "stale_after_days": 9 }
+      }
+    },
+    "composite": {
+      "id": "cycle-index",
+      "label": "Cycle Index",
+      "chart_id": "cycle-phase-dashboard",
+      "weighting": "equal",
+      "min_members": 8,
+      "membership_rule": "One representative per underlying quantity; no structurally trending series; only directional, cycle-scale measures. Members stay correlated (most are valuation ratios), so the index is a breadth summary rather than a set of independent votes."
+    }
+  },
+  "market": {
+    "chart_id": "200-dma-200-wma",
+    "price": { "name": "BTC price" },
+    "average": { "name": "200D MA" },
+    "recent_observations": 60
+  },
+  "signals": [
+    {
+      "id": "nupl", "chart_id": "nupl", "label": "NUPL (Net Unrealized Profit Loss)", "category": "Valuation", "source": "blockhorizon",
+      "input": { "type": "series", "series": { "key": "nupl" } }, "unit": "index", "decimals": 2,
+      "composite": false, "exclusion": { "reason": "duplicate", "of": "mvrv", "note": "NUPL equals 1 - 1/MVRV, a rescaling of MVRV." }
+    },
+    {
+      "id": "utxos-profit", "chart_id": "percent-utxos-in-profit", "label": "UTXOs in Profit (%)", "category": "Profitability", "source": "blockhorizon",
+      "input": { "type": "series", "series": { "key": "Percent UTXOs in profit" } }, "unit": "percent", "decimals": 1,
+      "composite": true
+    },
+    {
+      "id": "thermocap", "chart_id": "market-cap-to-thermocap-ratio", "label": "Market Cap To Thermocap Ratio", "category": "Valuation", "source": "blockhorizon",
+      "input": { "type": "series", "series": { "key": "Market cap to thermocap ratio" } }, "unit": "index", "decimals": 2,
+      "composite": false, "exclusion": { "reason": "structural_trend", "note": "The ratio has drifted upward across Bitcoin's history, so its percentile leans high regardless of cycle position." }
+    },
+    {
+      "id": "sts-nupl", "chart_id": "sts-nupl", "label": "NUPL Short Term Supply (STS)", "category": "Cohorts", "source": "blockhorizon",
+      "input": { "type": "series", "series": { "key": "sts_nupl" } }, "unit": "index", "decimals": 2,
+      "composite": false, "exclusion": { "reason": "duplicate", "of": "sth-mvrv", "note": "Short-term NUPL is a rescaling of short-term MVRV." }
+    },
+    {
+      "id": "lts-nupl", "chart_id": "lts-nupl", "label": "NUPL Long Term Supply (LTS)", "category": "Cohorts", "source": "blockhorizon",
+      "input": { "type": "series", "series": { "key": "lts_nupl" } }, "unit": "index", "decimals": 2,
+      "composite": false, "exclusion": { "reason": "duplicate", "of": "lth-mvrv", "note": "Long-term NUPL is a rescaling of long-term MVRV." }
+    },
+    {
+      "id": "realized-price-sts", "chart_id": "realized-price-sts", "label": "Realized Price - Short Term Supply (STS)", "category": "Cost Basis", "source": "blockhorizon",
+      "input": { "type": "ratio", "numerator": { "key": "price" }, "denominator": { "key": "Realized price STS" } }, "unit": "multiple", "decimals": 2,
+      "composite": false, "exclusion": { "reason": "duplicate", "of": "sth-mvrv", "note": "Price divided by short-term realized price is short-term MVRV." }
+    },
+    {
+      "id": "balanced-price", "chart_id": "balanced-price", "label": "Balanced Price", "category": "Cost Basis", "source": "blockhorizon",
+      "input": { "type": "ratio", "numerator": { "key": "price" }, "denominator": { "key": "balanced_price" } }, "unit": "multiple", "decimals": 2,
+      "composite": true
+    },
+    {
+      "id": "sth-mvrv", "chart_id": "sth-mvrv", "label": "MVRV Short Term Supply", "category": "Cohorts", "source": "blockhorizon",
+      "input": { "type": "series", "series": { "key": "sth_mvrv" } }, "unit": "index", "decimals": 2,
+      "composite": true
+    },
+    {
+      "id": "realized-price", "chart_id": "realized-price", "label": "Realized Price", "category": "Cost Basis", "source": "blockhorizon",
+      "input": { "type": "ratio", "numerator": { "key": "price" }, "denominator": { "key": "realized_price" } }, "unit": "multiple", "decimals": 2,
+      "composite": false, "exclusion": { "reason": "duplicate", "of": "mvrv", "note": "Price divided by realized price is MVRV." }
+    },
+    {
+      "id": "mvrv", "chart_id": "mvrv", "label": "MVRV (Market Value to Realized Value Ratio)", "category": "Valuation", "source": "blockhorizon",
+      "input": { "type": "series", "series": { "key": "mvrv" } }, "unit": "index", "decimals": 2,
+      "composite": true
+    },
+    {
+      "id": "supply-profit", "chart_id": "percent-supply-in-profit", "label": "Supply in Profit (%)", "category": "Profitability", "source": "blockhorizon",
+      "input": { "type": "series", "series": { "key": "Percent supply in profit" } }, "unit": "percent", "decimals": 1,
+      "composite": true
+    },
+    {
+      "id": "top-price", "chart_id": "top-price", "label": "Top Price", "category": "Cost Basis", "source": "blockhorizon",
+      "input": { "type": "ratio", "numerator": { "key": "price" }, "denominator": { "key": "top_price" } }, "unit": "multiple", "decimals": 2,
+      "composite": true
+    },
+    {
+      "id": "mvrv-z", "chart_id": "mvrv-z-score", "label": "MVRV Z-Score", "category": "Valuation", "source": "blockhorizon",
+      "input": { "type": "series", "series": { "key": "mvrv_z_score" } }, "unit": "index", "decimals": 2,
+      "composite": true
+    },
+    {
+      "id": "delta-price", "chart_id": "delta-price", "label": "Delta Price", "category": "Cost Basis", "source": "blockhorizon",
+      "input": { "type": "ratio", "numerator": { "key": "price" }, "denominator": { "key": "delta_price" } }, "unit": "multiple", "decimals": 2,
+      "composite": true
+    },
+    {
+      "id": "lth-mvrv", "chart_id": "lth-mvrv", "label": "MVRV Long Term Supply", "category": "Cohorts", "source": "blockhorizon",
+      "input": { "type": "series", "series": { "key": "lth_mvrv" } }, "unit": "index", "decimals": 2,
+      "composite": true
+    },
+    {
+      "id": "realized-price-lts", "chart_id": "realized-price-lts", "label": "Realized Price - Long Term Supply (LTS)", "category": "Cost Basis", "source": "blockhorizon",
+      "input": { "type": "ratio", "numerator": { "key": "price" }, "denominator": { "key": "Realized price LTS" } }, "unit": "multiple", "decimals": 2,
+      "composite": false, "exclusion": { "reason": "duplicate", "of": "lth-mvrv", "note": "Price divided by long-term realized price is long-term MVRV." }
+    },
+    {
+      "id": "trend", "chart_id": "200-dma-200-wma", "label": "Price vs 200D average", "category": "Trend", "source": "native",
+      "input": { "type": "ratio", "numerator": { "name": "BTC price" }, "denominator": { "name": "200D MA" } }, "unit": "multiple", "decimals": 2,
+      "composite": false, "exclusion": { "reason": "duplicate", "of": "mayer", "note": "Price divided by the 200-day average is the Mayer Multiple." }
+    },
+    {
+      "id": "mayer", "chart_id": "mayer-multiple", "label": "Mayer Multiple", "category": "Valuation", "source": "native",
+      "input": { "type": "series", "series": { "name": "Mayer Multiple" } }, "unit": "multiple", "decimals": 2,
+      "composite": true
+    },
+    {
+      "id": "drawdown", "chart_id": "drawdown-recovery-map", "label": "Drawdown from ATH", "category": "Cycle", "source": "native",
+      "input": { "type": "series", "series": { "name": "Drawdown" } }, "unit": "percent", "decimals": 1,
+      "composite": true
+    },
+    {
+      "id": "pi-cycle", "chart_id": "pi-cycle-top", "label": "Pi Cycle spread", "category": "Cycle", "source": "native",
+      "input": { "type": "ratio", "numerator": { "name": "111D MA" }, "denominator": { "name": "350D MA x2" } }, "unit": "multiple", "decimals": 2,
+      "composite": true
+    },
+    {
+      "id": "power-law", "chart_id": "power-law-oscillator", "label": "Power Law Oscillator", "category": "Valuation", "source": "native",
+      "input": { "type": "series", "series": { "name": "Oscillator" } }, "unit": "index", "decimals": 1,
+      "composite": true
+    },
+    {
+      "id": "puell", "chart_id": "puell-multiple", "label": "Puell Multiple", "category": "Mining", "source": "native",
+      "input": { "type": "series", "series": { "name": "30D average" } }, "unit": "index", "decimals": 2,
+      "composite": true
+    },
+    {
+      "id": "volatility", "chart_id": "volatility-regimes", "label": "Realized volatility", "category": "Risk", "source": "native",
+      "input": { "type": "series", "series": { "name": "30D realized volatility" } }, "unit": "percent", "decimals": 1,
+      "composite": false, "exclusion": { "reason": "non_directional", "note": "Volatility spikes at both blow-off tops and capitulation lows, so a high reading does not indicate cycle position." }
+    },
+    {
+      "id": "bollinger", "chart_id": "bollinger-bands", "label": "Bollinger position", "category": "Trend", "source": "native",
+      "input": { "type": "band_position", "value": { "name": "BTC price" }, "lower": { "name": "Lower band" }, "upper": { "name": "Upper band" } }, "unit": "band_position", "decimals": 0,
+      "composite": false, "exclusion": { "reason": "short_horizon", "note": "A 20-day band position swings across its whole range within weeks and would add noise to a cycle-scale index." }
+    },
+    {
+      "id": "sharpe", "chart_id": "risk-adjusted-returns", "label": "1Y Sharpe proxy", "category": "Momentum", "source": "native",
+      "input": { "type": "series", "series": { "name": "1Y Sharpe proxy" } }, "unit": "index", "decimals": 2,
+      "composite": true
+    },
+    {
+      "id": "fees", "chart_id": "fee-pressure", "label": "Fee pressure", "category": "Mining", "source": "native",
+      "input": { "type": "series", "series": { "name": "30D fee rate" } }, "unit": "sat_per_vbyte", "decimals": 2,
+      "composite": false, "exclusion": { "reason": "structural_trend", "note": "Fee rates have fallen structurally, pinning the percentile near 0 for most of the last five years." }
+    },
+    {
+      "id": "hashprice", "chart_id": "miner-hashprice", "label": "Miner hashprice", "category": "Mining", "source": "native",
+      "input": { "type": "series", "series": { "name": "30D average" } }, "unit": "usd", "decimals": 4,
+      "composite": false, "exclusion": { "reason": "structural_trend", "note": "Revenue per unit of hashrate declines almost monotonically as hashrate grows, pinning the percentile near 0." }
+    },
+    {
+      "id": "ath-age", "chart_id": "days-since-ath", "label": "ATH recency", "category": "Cycle", "source": "native",
+      "input": { "type": "series", "series": { "name": "Days since ATH" } }, "invert": true, "unit": "days", "decimals": 0,
+      "composite": true
+    }
+  ]
+}
