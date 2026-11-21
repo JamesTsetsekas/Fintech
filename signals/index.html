@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <title>Signal Explorer | Fintech Charts</title>
+    <meta name="description" content="Explore normalized Bitcoin cycle signals, momentum, phase changes, and market breadth.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../web/assets/site.css">
+    <script>
+      (() => {
+        const saved = localStorage.getItem("fintech-theme");
+        if (saved === "dark" || saved === "light") document.documentElement.dataset.theme = saved;
+      })();
+    </script>
+    <script src="../web/assets/site.js" defer></script>
+  </head>
+  <body data-view="signals" data-manifest="../web/data/bitcoin/site-manifest.json" data-asset-prefix="../">
+    <header class="terminal-header">
+      <a class="terminal-brand" href="../" aria-label="Fintech Charts dashboard">
+        <span class="terminal-brand-mark" aria-hidden="true">F<span>/</span></span>
+        <span>Fintech<br>Charts</span>
+      </a>
+      <nav class="terminal-nav" aria-label="Primary navigation">
+        <a href="../">Dashboard</a>
+        <a href="../charts/">Charts</a>
+        <a class="active" href="./">Signals</a>
+        <a href="../alerts/">Alerts</a>
+      </nav>
+      <div class="header-actions">
+        <button class="icon-button theme-toggle" type="button" aria-label="Toggle color theme" title="Toggle color theme"><span aria-hidden="true">◐</span></button>
+        <a class="primary-button compact" href="../alerts/">Create alert</a>
+      </div>
+    </header>
+
+    <main class="signals-workspace">
+      <div class="page-title-row">
+        <div>
+          <p class="kicker">Ranked against each indicator’s own history</p>
+          <h1>Signal explorer</h1>
+          <p id="signals-freshness" class="freshness-line" role="status">Loading latest data</p>
+        </div>
+        <div class="filter-controls">
+          <select id="signal-category-filter" aria-label="Filter signals by category"><option value="all">All categories</option></select>
+          <select id="signal-phase-filter" aria-label="Filter signals by phase">
+            <option value="all">All phases</option>
+            <option value="bottom">Bottom</option>
+            <option value="bearish">Bearish</option>
+            <option value="bullish">Bullish</option>
+            <option value="top">Top</option>
+          </select>
+        </div>
+      </div>
+
+      <section class="module signal-page-module" aria-labelledby="signal-timeline-title">
+        <div class="module-heading">
+          <div><p class="kicker">Full history</p><h2 id="signal-timeline-title">Signal timeline</h2></div>
+          <span class="module-note">Point-in-time percentile · 0 = lowest reading to date · 100 = highest</span>
+        </div>
+        <div id="signal-page-heatmap" class="signal-heatmap signal-page-heatmap loading-block"></div>
+      </section>
+
+      <section class="module spectrum-module" aria-labelledby="spectrum-title">
+        <div class="module-heading"><div><p class="kicker">Current readings</p><h2 id="spectrum-title">Cycle spectrum</h2></div></div>
+        <div id="cycle-spectrum" class="cycle-spectrum loading-block"></div>
+      </section>
+
+      <section id="signal-summary" class="signal-summary-strip"></section>
+
+      <section class="module signal-table-module" aria-labelledby="all-signals-title">
+        <div class="module-heading">
+          <div><p class="kicker">Latest scorecard</p><h2 id="all-signals-title">All signals</h2></div>
+          <span id="signal-table-count" class="module-note">Loading</span>
+        </div>
+        <div class="signal-table-scroll">
+          <table class="signal-table">
+            <thead><tr><th>Signal</th><th>Value</th><th>7d</th><th>30d</th><th>90d</th><th>1y</th><th>Phase</th><th>Position</th><th>1y trend</th></tr></thead>
+            <tbody id="signal-table-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="signal-insights" class="signal-insight-grid"></section>
+
+      <section class="module method-module" aria-labelledby="method-title">
+        <div class="module-heading">
+          <div><p class="kicker">Methodology</p><h2 id="method-title">How scores work</h2></div>
+          <span id="signal-method-version" class="module-note"></span>
+        </div>
+        <div class="method-body">
+          <ul class="method-points">
+            <li><strong>A score is a percentile rank.</strong> Each indicator is scored from 0 to 100 by where its latest reading ranks within that indicator’s own history: 20 means the reading is higher than about 20% of its past readings. Ranking does not depend on how a metric is expressed, so two rescalings of the same quantity (for example NUPL and MVRV) score the same.</li>
+            <li><strong>Phases are fixed score buckets.</strong> Bottom is below 25, Bearish 25 to 50, Bullish 50 to 75 and Top 75 or above. They describe where a reading sits in its history. They are not forecasts or advice.</li>
+            <li><strong>Scores are relative and keep re-normalising.</strong> Today’s score compares today’s reading with the full history so far, so the same raw value can score differently as more history arrives. Each past point on the timeline was ranked only against the data that existed on its date (no hindsight); it changes only if a source revises its history. No score is shown until an indicator has two years of history.</li>
+            <li><strong>One Cycle Index.</strong> The headline index on the dashboard and on this page is the equal-weight average of the member signals listed below. Members are still correlated, so read it as breadth rather than as independent votes. When a filter is active, the table shows an “Average of N shown”, which is not the index.</li>
+            <li><strong>Changes and freshness.</strong> A 7d, 30d, 90d or 1y change is only shown when scored history reaches back that far; otherwise it reads “—”. “Published” is when this site was built and “Data through” is the newest observation. A signal is flagged stale when its latest observation trails the newest data by more than 2 days (9 days for weekly on-chain sources), and listed as unavailable when its source series cannot be read.</li>
+          </ul>
+          <div id="signal-method-membership" class="method-membership"></div>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>
