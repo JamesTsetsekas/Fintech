@@ -204,6 +204,11 @@ REPORTS = [
         'output': 'halving_phase_compass.png'
     },
     {
+        'name': 'Bitcoin Spiral',
+        'path': script_dir / 'bitcoin_spiral' / 'bitcoin_spiral.py',
+        'output': 'bitcoin_spiral.png'
+    },
+    {
         'name': 'Halving Era ROI Heatmap',
         'path': script_dir / 'halving_era_roi_heatmap' / 'halving_era_roi_heatmap.py',
         'output': 'halving_era_roi_heatmap.png'

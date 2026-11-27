@@ -3660,7 +3660,7 @@ async function renderPlot(target, payload, options = {}) {
     .flatMap(expandGradientLine);
   const traces = installLevelOfDetail(target, displaySeries.map((series) => {
     const { axis, ...trace } = series;
-    let next = { ...trace, yaxis: axis || trace.yaxis || "y" };
+    let next = trace.type === "scatterpolar" ? { ...trace } : { ...trace, yaxis: axis || trace.yaxis || "y" };
     if (options.maxPoints && !trace.signal_metric_values && !trace.meta?.fintechHelper
         && Array.isArray(trace.x) && !trace.x.includes(null)) {
       // Reduced per viewport by installLevelOfDetail once colors are mapped.
@@ -3727,6 +3727,32 @@ async function renderPlot(target, payload, options = {}) {
   if (payload.x_value_type === "category") layout.xaxis = { ...layout.xaxis, type: "category" };
   if (payload.x_value_type === "number") layout.xaxis = { ...layout.xaxis, type: "linear" };
   if (payload.x_value_type === "date") layout.xaxis = { ...layout.xaxis, hoverformat: "%b %-d, %Y" };
+  const polar = payload.x_value_type === "polar";
+  if (polar) {
+    // Polar charts (Bitcoin Spiral) have no cartesian axes, so drop the default
+    // x/y axes and style the polar grid with the same theme colors instead.
+    delete layout.xaxis;
+    delete layout.yaxis;
+    const gridcolor = options.grid === false ? "rgba(0,0,0,0)" : dark ? "#34332e" : "#e8e6df";
+    const linecolor = dark ? "#4b4941" : "#c9c6be";
+    layout.dragmode = false;
+    layout.hovermode = "closest";
+    const narrow = (target.clientWidth || 0) < 640;
+    layout.margin = { ...layout.margin, l: narrow ? 66 : 96, r: narrow ? 66 : 96 };
+    layout.polar = deepMerge({
+      bgcolor: "rgba(0,0,0,0)",
+      angularaxis: { gridcolor, linecolor, tickfont: { size: narrow ? 9 : 11 } },
+      radialaxis: { gridcolor, linecolor, tickfont: { size: narrow ? 8 : 10 } },
+    }, layout.polar || {});
+    const radial = layout.polar.radialaxis;
+    if (narrow && Array.isArray(radial.tickvals) && radial.tickvals.length > 6) {
+      // Keep every other decade (ending on the outermost) so labels stay legible.
+      const last = radial.tickvals.length - 1;
+      const keep = (_, index) => (last - index) % 2 === 0;
+      radial.tickvals = radial.tickvals.filter(keep);
+      if (Array.isArray(radial.ticktext)) radial.ticktext = radial.ticktext.filter(keep);
+    }
+  }
   const categoricalY = traces.some((trace) => (
     (trace.type === "heatmap" || trace.orientation === "h")
     && Array.isArray(trace.y)
@@ -3779,6 +3805,8 @@ async function renderPlot(target, payload, options = {}) {
     const priceTicks = priceAxisTickUpdates(target);
     if (Object.keys(priceTicks).length) await Plotly.relayout(target, priceTicks);
     if (target._fintechRenderId !== renderId) return plot;
+    // Scale rails, crosshair badges and time navigation are cartesian-only.
+    if (polar) return plot;
     if (!options.compact) {
       installPriceScaleControls(target);
       bindChartHoverDetails(target, payload);

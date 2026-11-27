@@ -52,6 +52,9 @@ from Bitcoin.bitcoin_chart_utils import (  # noqa: E402
     load_market_frame,
     power_law_band_prices,
     power_law_price,
+    spiral_events,
+    spiral_spoke_labels,
+    spiral_theta_degrees,
 )
 from Bitcoin.run_all_reports import REPORTS as BITCOIN_REPORTS  # noqa: E402
 from model_projection import apply_price_models, build_projection_frame, load_daily_fees, load_price_history  # noqa: E402
@@ -186,6 +189,7 @@ SECTION_BY_NAME = {
     "Epoch-Over-Epoch (EOE) Growth": "halving",
     "Halving Cycles": "halving",
     "Halving Phase Compass": "halving",
+    "Bitcoin Spiral": "halving",
     "Halving Era ROI Heatmap": "heatmaps",
     "Cycle High Drawdown": "drawdowns",
     "Drawdown Recovery Map": "drawdowns",
@@ -236,6 +240,7 @@ DESCRIPTIONS = {
     "Epoch-Over-Epoch (EOE) Growth": "Growth comparison across halving epochs.",
     "Halving Cycles": "Cycle performance normalized from halving starts.",
     "Halving Phase Compass": "Polar view of price multiple through the current halving epoch.",
+    "Bitcoin Spiral": "Log price on a clock that turns once every four years, with all-time highs, cycle bottoms, and halvings.",
     "Halving Era ROI Heatmap": "Month-by-month ROI since each halving.",
     "Cycle High Drawdown": "Drawdowns from cycle highs overlaid across market cycles.",
     "Drawdown Recovery Map": "Major drawdowns and recovery durations.",
@@ -285,6 +290,7 @@ INTERACTIVE_IDS = {
     "epoch-over-epoch-eoe-growth",
     "halving-cycles",
     "halving-phase-compass",
+    "bitcoin-spiral",
     "halving-era-roi-heatmap",
     "cycle-high-drawdown",
     "drawdown-duration-heatmap",
@@ -1429,6 +1435,176 @@ def build_epoch_over_epoch_growth():
     )
 
 
+def spiral_price_label(value: float) -> str:
+    """Full-precision USD label for spiral hover text, including sub-cent 2009-10 prices."""
+    if value >= 1_000:
+        return f"${value:,.0f}"
+    if value >= 1:
+        return f"${value:,.2f}"
+    return f"${value:.3g}"
+
+
+def spiral_tick_label(value: float) -> str:
+    if value >= 1_000_000:
+        return f"${value / 1_000_000:g}M"
+    if value >= 1_000:
+        return f"${value / 1_000:g}k"
+    return f"${value:g}"
+
+
+def spiral_trace(name, frame, *, mode, hovertemplate, note=None, **style):
+    """Scatterpolar trace placing each dated price on the four-year spiral clock."""
+    dates = pd.to_datetime(frame["Date"]).tolist()
+    rows = frame.to_dict("records")
+    return {
+        "type": "scatterpolar",
+        "name": name,
+        "mode": mode,
+        "theta": [round(float(value), 4) for value in spiral_theta_degrees(dates)],
+        "r": numeric_values(frame["Price"]),
+        "customdata": [
+            [f"{date:%b} {date.day}, {date.year}", spiral_price_label(float(row["Price"]))] + ([note(row)] if note else [])
+            for date, row in zip(dates, rows)
+        ],
+        "hovertemplate": hovertemplate,
+        **style,
+    }
+
+
+def build_bitcoin_spiral():
+    data = load_daily_price(BITCOIN_DATA_DIR)
+    data = data[data["Price"] > 0].sort_values("Date").reset_index(drop=True)
+    events = spiral_events(data)
+    latest = data.iloc[-1]
+    floor_power = int(math.floor(math.log10(float(data["Price"].min()))))
+    ceiling_power = max(6, int(math.ceil(math.log10(float(data["Price"].max()) * 1.5))))
+
+    # Shade the current calendar year's quarter of the clock, centre to rim.
+    current_year = int(latest["Date"].year)
+    year_start = pd.Timestamp(year=current_year, month=1, day=1)
+    year_end = pd.Timestamp(year=current_year, month=12, day=31)
+    arc_dates = list(pd.date_range(year_start, year_end, freq="7D")) + [year_end]
+    arc_theta = [round(float(value), 4) for value in spiral_theta_degrees(arc_dates)]
+    centre, rim = 10.0 ** floor_power, 10.0 ** ceiling_power
+    series = [
+        {
+            "type": "scatterpolar",
+            "name": f"{current_year} (current year)",
+            "mode": "lines",
+            "theta": [arc_theta[0], *arc_theta, arc_theta[-1]],
+            "r": [centre, *([rim] * len(arc_theta)), centre],
+            "fill": "toself",
+            "fillcolor": "rgba(255,159,67,0.10)",
+            "line": {"width": 0, "color": "rgba(255,159,67,0)"},
+            "hoverinfo": "skip",
+        },
+        spiral_trace(
+            "Bitcoin",
+            data,
+            mode="lines",
+            line={"color": "#ff9f43", "width": 2.4},
+            hovertemplate="%{customdata[0]}<br>%{customdata[1]}<extra>Bitcoin</extra>",
+        ),
+        spiral_trace(
+            "All-time highs",
+            events["ath"],
+            mode="markers",
+            marker={"color": "#3ce38a", "size": 5},
+            hovertemplate="%{customdata[0]}<br>New ATH %{customdata[1]}<extra>All-time high</extra>",
+        ),
+    ]
+    if not events["bottoms"].empty:
+        series.append(
+            spiral_trace(
+                "Cycle bottoms",
+                events["bottoms"],
+                mode="markers",
+                marker={"color": "#ff5f63", "size": 11, "line": {"color": "#050608", "width": 1}},
+                note=lambda row: f"{-row['Drawdown'] * 100:.1f}% from prior ATH",
+                hovertemplate="%{customdata[0]}<br>%{customdata[1]}<br>%{customdata[2]}<extra>Cycle bottom</extra>",
+            )
+        )
+    open_low = events["open_low"]
+    if open_low is not None:
+        series.append(
+            spiral_trace(
+                f"Low since ATH ({-open_low['Drawdown'] * 100:.0f}%)",
+                pd.DataFrame([open_low]),
+                mode="markers",
+                marker={"color": "rgba(0,0,0,0)", "size": 11, "line": {"color": "#ff5f63", "width": 2}},
+                note=lambda row: f"{-row['Drawdown'] * 100:.1f}% from ATH (not a confirmed bottom)",
+                hovertemplate="%{customdata[0]}<br>%{customdata[1]}<br>%{customdata[2]}<extra>Low since ATH</extra>",
+            )
+        )
+    if not events["halvings"].empty:
+        series.append(
+            spiral_trace(
+                "Halvings",
+                events["halvings"],
+                mode="markers",
+                marker={"color": "#eef3f8", "size": 11, "line": {"color": "#050608", "width": 1.5}},
+                note=lambda row: f"Halving to epoch {int(row['Epoch'])}",
+                hovertemplate="%{customdata[0]}<br>%{customdata[2]}<br>BTC %{customdata[1]}<extra>Halving</extra>",
+            )
+        )
+    series.append(
+        spiral_trace(
+            "Now",
+            data.tail(1),
+            mode="markers",
+            marker={"color": "#eef3f8", "size": 14, "line": {"color": "#ff9f43", "width": 3}},
+            hovertemplate="%{customdata[0]}<br>%{customdata[1]}<extra>Latest close</extra>",
+        )
+    )
+
+    summary = f"Latest close {usd_label(float(latest['Price']))}."
+    if open_low is not None:
+        summary += f" Low since the last ATH {usd_label(open_low['Price'])} ({-open_low['Drawdown'] * 100:.0f}%)."
+    if not events["bottoms"].empty:
+        summary += " Confirmed cycle bottoms: " + "; ".join(
+            f"{row.Date:%b %Y} {usd_label(row.Price)}" for row in events["bottoms"].itertuples()
+        ) + "."
+    tick_values = [10.0 ** power for power in range(floor_power + 1, ceiling_power + 1)]
+    spoke_labels = []
+    for index, spoke in enumerate(spiral_spoke_labels(current_year)):
+        if index % 2:  # 3 and 9 o'clock labels wrap onto two lines to fit beside the circle
+            years = spoke.split(", ")
+            spoke = ", ".join(years[:2]) + ",<br>" + ", ".join(years[2:])
+        spoke_labels.append(spoke)
+    payload = base_payload(
+        "bitcoin-spiral",
+        "Bitcoin Spiral",
+        summary,
+        series,
+        {
+            "hovermode": "closest",
+            "polar": {
+                "angularaxis": {
+                    "rotation": 90,
+                    "direction": "clockwise",
+                    "tickmode": "array",
+                    "tickvals": [0, 45, 90, 135, 180, 225, 270, 315],
+                    "ticktext": [label for spoke in spoke_labels for label in (spoke, "")],
+                },
+                "radialaxis": {
+                    "type": "log",
+                    "range": [floor_power, ceiling_power],
+                    "tickmode": "array",
+                    "tickvals": tick_values,
+                    "ticktext": [spiral_tick_label(value) for value in tick_values],
+                    "angle": 0,
+                    "tickangle": 0,
+                },
+            },
+        },
+        x_value_type="polar",
+        show_range_selector=False,
+    )
+    # Polar series carry no x dates, so stamp freshness from the data itself.
+    payload["updated_at"] = latest["Date"].strftime("%Y-%m-%d")
+    return payload
+
+
 def build_halving_phase_compass():
     market = load_market_frame(BITCOIN_DATA_DIR)
     data = market[market["Price"] > 0].copy()
@@ -2106,6 +2282,7 @@ INTERACTIVE_BUILDERS = {
     "epoch-over-epoch-eoe-growth": build_epoch_over_epoch_growth,
     "halving-cycles": build_halving_cycles,
     "halving-phase-compass": build_halving_phase_compass,
+    "bitcoin-spiral": build_bitcoin_spiral,
     "halving-era-roi-heatmap": build_halving_era_roi_heatmap,
     "cycle-high-drawdown": build_cycle_high_drawdown,
     "drawdown-duration-heatmap": build_drawdown_duration_heatmap,
