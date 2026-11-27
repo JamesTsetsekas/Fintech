@@ -118,6 +118,11 @@ Polar chart where one full rotation equals a halving epoch and radius shows the 
 
 ![Halving Phase Compass](https://jamestsetsekas.github.io/Fintech/Bitcoin/halving_phase_compass/halving_phase_compass.png)
 
+#### Bitcoin Spiral
+Log price on a polar clock that turns clockwise once every four calendar years (Jan 1 of 2009, '13, '17, '21, '25 at the top), so each cycle's run-up, peak and bear market line up on the same spokes. Marks closing all-time highs, confirmed cycle bottoms (≥75% drawdowns later recovered by a new ATH), the open low since the last ATH, halvings, and the current year's quadrant. Inspired by the Bitcoin Strategy Platform spiral.
+
+![Bitcoin Spiral](https://jamestsetsekas.github.io/Fintech/Bitcoin/bitcoin_spiral/bitcoin_spiral.png)
+
 #### Halving Era ROI Heatmap
 Month-by-month ROI heatmap for each halving epoch, normalized from that epoch's first post-halving daily close.
 

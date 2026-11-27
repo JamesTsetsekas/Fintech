@@ -304,3 +304,81 @@ def currency_label(value):
     if abs(value) > 0:
         return f"${value:.4f}"
     return f"${value:,.0f}"
+
+
+# Bitcoin Spiral: one clockwise rotation per four calendar years, starting at
+# 12 o'clock on Jan 1, 2009, so 2009/'13/'17/'21/'25 share the top spoke and
+# halving years ('12, '16, '20, '24, '28) share the 9 o'clock spoke.
+SPIRAL_START = pd.Timestamp("2009-01-01")
+SPIRAL_ROTATION_YEARS = 4
+SPIRAL_MIN_BOTTOM_DRAWDOWN = 0.75
+
+
+def spiral_theta_degrees(dates):
+    """Clockwise angle in degrees (0 = Jan 1 of 2009, '13, '17, ...) for each date."""
+    stamps = pd.to_datetime(pd.Series(dates))
+    years = stamps.dt.year - SPIRAL_START.year
+    year_start = pd.to_datetime(stamps.dt.year.astype(str) + "-01-01")
+    year_days = np.where(stamps.dt.is_leap_year, 366.0, 365.0)
+    year_fraction = (stamps - year_start).dt.total_seconds() / 86_400 / year_days
+    return ((((years % SPIRAL_ROTATION_YEARS) + year_fraction) / SPIRAL_ROTATION_YEARS) * 360).to_numpy(dtype=float)
+
+
+def spiral_spoke_labels(last_year):
+    """Spoke labels for 0/90/180/270 degrees, e.g. "2009, '13, '17, '21, '25"."""
+    rotation_end = SPIRAL_START.year + SPIRAL_ROTATION_YEARS * ((last_year - SPIRAL_START.year) // SPIRAL_ROTATION_YEARS) + 3
+    labels = []
+    for offset in range(SPIRAL_ROTATION_YEARS):
+        years = range(SPIRAL_START.year + offset, rotation_end + 1, SPIRAL_ROTATION_YEARS)
+        labels.append(", ".join(str(year) if index == 0 else f"'{year % 100:02d}" for index, year in enumerate(years)))
+    return labels
+
+
+def spiral_events(data, min_bottom_drawdown=SPIRAL_MIN_BOTTOM_DRAWDOWN):
+    """Return closing all-time highs, cycle bottoms, halvings and the open drawdown low.
+
+    A cycle bottom is the lowest close of a drawdown at least ``min_bottom_drawdown``
+    deep that price later recovered from with a new all-time high, so only
+    confirmed bottoms are marked. The still-open drawdown (if any) is reported
+    separately as ``open_low`` with its depth.
+    """
+    frame = data[["Date", "Price"]].dropna()
+    frame = frame[frame["Price"] > 0].sort_values("Date").reset_index(drop=True)
+    prices = frame["Price"].to_numpy(dtype=float)
+    running_high = np.maximum.accumulate(prices)
+    previous_high = np.concatenate(([0.0], running_high[:-1]))
+    ath = frame[prices > previous_high]
+
+    bottoms = []
+    open_low = None
+    underwater = prices < running_high
+    index = 0
+    while index < len(prices):
+        if not underwater[index]:
+            index += 1
+            continue
+        start = index
+        while index < len(prices) and underwater[index]:
+            index += 1
+        low_index = start + int(np.argmin(prices[start:index]))
+        depth = 1 - prices[low_index] / running_high[start]
+        row = {"Date": frame.at[low_index, "Date"], "Price": float(prices[low_index]), "Drawdown": float(depth)}
+        if index < len(prices):
+            if depth >= min_bottom_drawdown:
+                bottoms.append(row)
+        else:
+            open_low = row
+
+    halvings = []
+    for halving in HALVINGS[1:]:
+        if not frame["Date"].iloc[0] <= halving["date"] <= frame["Date"].iloc[-1]:
+            continue
+        position = int(frame["Date"].searchsorted(halving["date"]))
+        halvings.append({"Date": halving["date"], "Price": float(prices[position]), "Epoch": halving["epoch"]})
+
+    return {
+        "ath": ath,
+        "bottoms": pd.DataFrame(bottoms, columns=["Date", "Price", "Drawdown"]),
+        "halvings": pd.DataFrame(halvings, columns=["Date", "Price", "Epoch"]),
+        "open_low": open_low,
+    }
